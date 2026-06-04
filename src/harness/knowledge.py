@@ -92,11 +92,32 @@ def save_cases(cases: list[dict[str, Any]]) -> None:
 
 
 def load_runtime_rules() -> list[dict[str, Any]]:
+    """加载运行时规则，去重并限制数量。
+
+    去重策略：按 normalized_question 去重，保留最后出现的版本（最新）。
+    数量限制：超过 settings.max_runtime_rules 时截断尾部。
+    """
     if settings.enable_online_harness:
         knowledge = get_online_harness_repository().load_published_knowledge()
-        return knowledge.rules
-    data = load_json_file(_RUNTIME_RULES_PATH, [])
-    return data if isinstance(data, list) else []
+        rules = knowledge.rules
+    else:
+        data = load_json_file(_RUNTIME_RULES_PATH, [])
+        rules = data if isinstance(data, list) else []
+
+    # 按 normalized_question 去重，后出现的覆盖先出现的
+    seen: dict[str, dict[str, Any]] = {}
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        key = str(rule.get("normalized_question") or normalize_question(str(rule.get("question", ""))))
+        if not key:
+            continue
+        seen[key] = rule
+
+    deduped = list(seen.values())
+    if len(deduped) > settings.max_runtime_rules:
+        deduped = deduped[-settings.max_runtime_rules :]
+    return deduped
 
 
 def save_runtime_rules(rules: list[dict[str, Any]]) -> None:
@@ -104,12 +125,54 @@ def save_runtime_rules(rules: list[dict[str, Any]]) -> None:
 
 
 def load_evolved_few_shot_text() -> str:
+    """加载进化后的 few-shot 文本，去重并限制条数。
+
+    去重策略：按「用户问题」字段去重，保留最后出现的版本。
+    条数限制：超过 settings.max_evolved_few_shot_items 时截断。
+    """
     if settings.enable_online_harness:
         knowledge = get_online_harness_repository().load_published_knowledge()
-        return knowledge.few_shot_text
-    if not _EVOLVED_FEW_SHOT_PATH.exists():
+        raw = knowledge.few_shot_text
+    elif _EVOLVED_FEW_SHOT_PATH.exists():
+        raw = _EVOLVED_FEW_SHOT_PATH.read_text(encoding="utf-8").strip()
+    else:
         return ""
-    return _EVOLVED_FEW_SHOT_PATH.read_text(encoding="utf-8").strip()
+
+    return _dedupe_and_truncate_few_shot(raw, settings.max_evolved_few_shot_items)
+
+
+def _dedupe_and_truncate_few_shot(text: str, max_items: int) -> str:
+    """对 few-shot 文本按 chunk 去重并限制条数。
+
+    每个 chunk 由 "\n---\n" 分隔，按「用户问题：xxx」行提取去重 key。
+    """
+    if not text or not text.strip():
+        return ""
+
+    chunks = [c.strip() for c in text.split("\n---\n") if c.strip()]
+    if not chunks:
+        return ""
+
+    # 按「用户问题」去重，后出现的覆盖先出现的
+    seen: dict[str, str] = {}
+    for chunk in chunks:
+        key = _extract_few_shot_question(chunk)
+        seen[key or chunk] = chunk
+
+    deduped = list(seen.values())
+    if len(deduped) > max_items:
+        deduped = deduped[:max_items]
+
+    return "\n---\n".join(deduped)
+
+
+def _extract_few_shot_question(chunk: str) -> str:
+    """从 few-shot chunk 中提取「用户问题」行作为去重 key。"""
+    for line in chunk.split("\n"):
+        line = line.strip()
+        if line.startswith("用户问题："):
+            return normalize_question(line[len("用户问题：") :].strip())
+    return ""
 
 
 def save_evolved_few_shot_text(content: str) -> None:

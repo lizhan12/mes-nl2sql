@@ -91,6 +91,18 @@ _SQL_KEYWORDS = {
     "ON",
 }
 
+
+def _truncate_chunks_by_count(text: str, max_items: int) -> str:
+    """按 "\n---\n" 分隔的 chunk 粒度截断，保留前 max_items 条。"""
+    if not text or not text.strip():
+        return text
+    chunks = text.split("\n---\n")
+    if len(chunks) <= max_items:
+        return text
+    logger.info("截断 chunks: %d -> %d 条", len(chunks), max_items)
+    return "\n---\n".join(chunks[:max_items])
+
+
 _GENERIC_TERM_TABLES = [
     ("料号名称", ["t_bd_part"]),
     ("料号", ["t_bd_part"]),
@@ -564,9 +576,16 @@ def node_2_parallel_retrieval(state: GraphState) -> dict:
         seen_few.add(evolved_few_shot_text)
         few_shot_docs_list.append(evolved_few_shot_text)
 
+    schema_docs_raw = "\n---\n".join(schema_docs_list)
+    few_shot_docs_raw = "\n---\n".join(few_shot_docs_list)
+
+    # 按条数截断，防止 prompt 上下文溢出
+    schema_docs_raw = _truncate_chunks_by_count(schema_docs_raw, settings.max_schema_context_items)
+    few_shot_docs_raw = _truncate_chunks_by_count(few_shot_docs_raw, settings.max_few_shot_total_items)
+
     return {
-        "schema_docs": "\n---\n".join(schema_docs_list),
-        "few_shot_docs": "\n---\n".join(few_shot_docs_list),
+        "schema_docs": schema_docs_raw,
+        "few_shot_docs": few_shot_docs_raw,
     }
 
 
@@ -728,6 +747,14 @@ def node_5_sql_generation(state: GraphState) -> dict:
         return p
 
     def _call_llm_and_extract_sql(prompt: str) -> str:
+        # prompt 总长度硬保护
+        if len(prompt) > settings.max_prompt_chars:
+            logger.warning(
+                "节点5: prompt 超长 (%d > %d)，截断后半部分",
+                len(prompt),
+                settings.max_prompt_chars,
+            )
+            prompt = prompt[: settings.max_prompt_chars]
         logger.info(
             "节点5: 调用 LLM (model=%s, base_url=%s, prompt_len=%d)",
             settings.llm_model,

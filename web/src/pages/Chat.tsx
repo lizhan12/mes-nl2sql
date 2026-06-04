@@ -1,4 +1,4 @@
-import { Bot, MessageCircle, Moon, Plus, Send, Sun, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { Bot, GitBranch, MessageCircle, Moon, Plus, Send, Sun, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -285,6 +285,13 @@ export default function Chat() {
           >
             <X className="h-3.5 w-3.5" />
             调试
+          </Link>
+          <Link
+            to="/graph"
+            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-1.5 text-[15px] text-[var(--text-secondary)] transition-colors duration-150 hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+          >
+            <GitBranch className="h-3.5 w-3.5" />
+            关系图
           </Link>
         </div>
       </header>

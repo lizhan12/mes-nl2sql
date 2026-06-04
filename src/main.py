@@ -18,7 +18,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -38,6 +38,7 @@ from src.harness.online_service import (
 )
 from src.harness.repository import get_online_harness_repository
 from src.models.schemas import (
+    GraphEdgeCreate,
     HarnessCandidateReviewRequest,
     HarnessFailureLabelRequest,
     HarnessFeedbackRequest,
@@ -48,6 +49,7 @@ from src.models.schemas import (
     SqlPageRequest,
     SqlPageResponse,
 )
+from src.services.bfs import _get_graph as load_relation_graph
 from src.services.vector_store import build_few_shot_store, build_schema_store
 
 # ---- 日志配置 ----
@@ -632,7 +634,9 @@ async def _log_chat_request_async(
                 "error_text": state_values.get("error", ""),
                 "execution_result": exec_result or {},
                 "retry_count": state_values.get("retry_count", 0),
-                "tables_used": expanded_tables.split(",") if isinstance(expanded_tables, str) and expanded_tables else [],
+                "tables_used": expanded_tables.split(",")
+                if isinstance(expanded_tables, str) and expanded_tables
+                else [],
                 "join_hints": state_values.get("join_hints", ""),
                 "rule_version": knowledge_version,
                 "few_shot_version": knowledge_version,
@@ -649,6 +653,96 @@ async def execute_page(req: SqlPageRequest):
 
     result = execute_paginated_sql(req.sql, req.page, req.page_size)
     return SqlPageResponse(**result)
+
+
+# ── 关系图管理 API ─────────────────────────────────────────────────
+
+
+@app.get("/api/graph")
+async def get_relation_graph():
+    """返回完整的表关系图数据，供前端可视化使用。"""
+    return {"graph": load_relation_graph()}
+
+
+@app.get("/api/graph/version")
+async def get_graph_version():
+    """获取当前图版本号。"""
+    from src.services.graph_repository import get_graph_repository
+
+    repo = get_graph_repository()
+    repo.ensure_tables()
+    return {"version": repo.get_version()}
+
+
+@app.post("/api/graph/sync")
+async def sync_graph_from_json():
+    """从本地 JSON 文件全量同步到 PG 数据库。"""
+    from src.services.graph_repository import get_graph_repository
+
+    repo = get_graph_repository()
+    repo.ensure_tables()
+    count = repo.replace_all(load_relation_graph())
+    return {"message": f"同步完成，共导入 {count} 条边", "count": count, "version": repo.get_version()}
+
+
+@app.get("/api/graph/edges")
+async def list_graph_edges(from_table: str = "", confidence: str = "", limit: int = 500):
+    """列表查询关系边。"""
+    from src.services.graph_repository import get_graph_repository
+
+    repo = get_graph_repository()
+    repo.ensure_tables()
+    return {"edges": repo.list_edges(from_table=from_table, confidence=confidence, limit=limit)}
+
+
+@app.get("/api/graph/edges/{edge_id}")
+async def get_graph_edge(edge_id: int):
+    """获取单条关系边详情。"""
+    from src.services.graph_repository import get_graph_repository
+
+    repo = get_graph_repository()
+    repo.ensure_tables()
+    edge = repo.get_edge(edge_id)
+    if not edge:
+        raise HTTPException(status_code=404, detail=f"边 {edge_id} 不存在")
+    return edge
+
+
+@app.post("/api/graph/edges")
+async def add_graph_edge(edge: GraphEdgeCreate):
+    """添加一条关系边。"""
+    from src.services.graph_repository import get_graph_repository
+
+    repo = get_graph_repository()
+    repo.ensure_tables()
+    edge_id = repo.add_edge(edge.to_graph_edge())
+    return {"id": edge_id, "message": "添加成功", "version": repo.get_version()}
+
+
+@app.put("/api/graph/edges/{edge_id}")
+async def update_graph_edge(edge_id: int, edge: GraphEdgeCreate):
+    """更新一条关系边。"""
+    from src.services.graph_repository import get_graph_repository
+
+    repo = get_graph_repository()
+    repo.ensure_tables()
+    if not repo.get_edge(edge_id):
+        raise HTTPException(status_code=404, detail=f"边 {edge_id} 不存在")
+    repo.update_edge(edge_id, edge.to_graph_edge())
+    return {"id": edge_id, "message": "更新成功", "version": repo.get_version()}
+
+
+@app.delete("/api/graph/edges/{edge_id}")
+async def delete_graph_edge(edge_id: int):
+    """删除一条关系边。"""
+    from src.services.graph_repository import get_graph_repository
+
+    repo = get_graph_repository()
+    repo.ensure_tables()
+    if not repo.get_edge(edge_id):
+        raise HTTPException(status_code=404, detail=f"边 {edge_id} 不存在")
+    repo.delete_edge(edge_id)
+    return {"id": edge_id, "message": "删除成功", "version": repo.get_version()}
 
 
 if __name__ == "__main__":

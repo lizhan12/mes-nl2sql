@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     retrieval_similarity_threshold: float = 0.55  # 向量检索相似度阈值，低于此值丢弃
     default_limit: int = 500
 
+    # ---- Harness Knowledge Limits ----
+    max_runtime_rules: int = 200  # 运行时规则最大加载条数
+    max_evolved_few_shot_items: int = 5  # 进化 few-shot 最多注入条数（每条约 350-450 字符）
+    max_few_shot_total_items: int = 12  # few_shot_docs 总条数上限（基础 + 进化）
+    max_schema_context_items: int = 12  # schema_context 表结构 chunk 条数上限（每条约 420 字符）
+    max_prompt_chars: int = 48000  # SQL 生成 prompt 总字符硬上限（最终兜底）
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     @property

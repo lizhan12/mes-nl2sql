@@ -22,6 +22,33 @@ from src.harness.llm_labeler import auto_label_failure_case
 from src.harness.repository import get_online_harness_repository
 
 
+def _merge_few_shot_deduped(existing_text: str, new_chunks: list[str]) -> str:
+    """合并 few-shot 文本，按「用户问题」去重并限制条数。
+
+    新 chunks 优先：如果新 chunk 与已有 chunk 问题相同，新 chunk 覆盖旧的。
+    条数限制：超过 settings.max_evolved_few_shot_items 时截断。
+    """
+    from src.core.config import settings
+    from src.harness.knowledge import _extract_few_shot_question
+
+    # 解析已有 chunks
+    existing_chunks = [c.strip() for c in existing_text.split("\n---\n") if c.strip()] if existing_text.strip() else []
+
+    # 合并：新 chunks 放后面，后出现的会覆盖先出现的（同 key）
+    all_chunks = existing_chunks + [c.strip() for c in new_chunks if c.strip()]
+
+    seen: dict[str, str] = {}
+    for chunk in all_chunks:
+        key = _extract_few_shot_question(chunk)
+        seen[key or chunk] = chunk
+
+    deduped = list(seen.values())
+    if len(deduped) > settings.max_evolved_few_shot_items:
+        deduped = deduped[: settings.max_evolved_few_shot_items]
+
+    return "\n---\n".join(deduped)
+
+
 def evolve_online_service(limit: int = 200, sync_failures: bool = True) -> dict[str, int | str]:
     repo = get_online_harness_repository()
     repo.ensure_tables()
@@ -34,10 +61,11 @@ def evolve_online_service(limit: int = 200, sync_failures: bool = True) -> dict[
     version = f"online-{Path.cwd().name}-{len(candidates)}-{len(rules)}"
     if rules or few_shot_text:
         published = repo.load_published_knowledge()
+        merged_few_shot = _merge_few_shot_deduped(published.few_shot_text, few_shot_text.split("\n---\n"))
         repo.publish_runtime_knowledge(
             version=version,
             rules=merge_runtime_rules(published.rules, rules),
-            few_shot_text=few_shot_text or published.few_shot_text,
+            few_shot_text=merged_few_shot,
             source="online_harness_job",
         )
         repo.mark_requests_promoted([str(item["request_id"]) for item in candidates if item.get("request_id")])
@@ -157,7 +185,7 @@ def publish_approved_service(version: str | None = None) -> dict[str, int | str]
         published_candidate_ids.append(int(item["id"]))
 
     merged_rules = merge_runtime_rules(published.rules, new_rules)
-    merged_few_shot = "\n---\n".join(chunk for chunk in [published.few_shot_text.strip(), *few_shot_chunks] if chunk)
+    merged_few_shot = _merge_few_shot_deduped(published.few_shot_text, few_shot_chunks)
     final_version = version or f"reviewed-{Path.cwd().name}-{len(published_candidate_ids)}"
 
     if published_candidate_ids:

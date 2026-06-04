@@ -14,3 +14,4 @@ chroma_few_shot/
 test_*
 *_test_*
 public.sql
+files/

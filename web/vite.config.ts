@@ -17,6 +17,8 @@ export default defineConfig({
       "/nl2sql": "http://127.0.0.1:8000",
       "/chat": "http://127.0.0.1:8000",
       "/admin": "http://127.0.0.1:8000",
+      "/api": "http://127.0.0.1:8000",
+      "/relation-graph": "http://127.0.0.1:8000",
     },
   },
   test: {

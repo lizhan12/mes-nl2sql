@@ -1,14 +1,21 @@
 """BFS 图扩展服务。
 
-从 mes_relation_graph.json 加载表间的 JOIN 关系图，提供：
+表间的 JOIN 关系图，提供：
   1. bfs_expand: 从种子表出发做 BFS 辐射扩展（域感知 + 代价模型）
   2. find_path_between: 找两个表之间的最短 JOIN 路径
   3. build_join_hints: 将 JOIN 路径转为 LLM 可读的提示文本
+
+图数据加载策略：
+  1. 优先从 PG 数据库加载（支持动态编辑、版本感知热更新）
+  2. 若 PG 不可用，降级到本地 JSON 文件
 """
 
 import json
+import logging
 from collections import deque
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # ── 域映射 ────────────────────────────────────────────────────────
 DOMAIN_MAP: dict[str, str] = {
@@ -29,14 +36,14 @@ def _get_domain(table: str) -> str:
     return "other"
 
 
-# ── 图加载 ────────────────────────────────────────────────────────
-def _load_graph() -> dict[str, list[dict]]:
-    """从 data 目录加载关系图。
+# ── 图缓存（版本感知）─────────────────────────────────────────────
+_GRAPH: dict[str, list[dict]] = {}
+_CACHED_VERSION: int = 0
+_GRAPH_INITIALIZED: bool = False
 
-    支持两种 JSON 格式：
-      - 新格式：顶层有 "graph" 键，数据在其下
-      - 旧格式（兼容）：顶层直接是 {table: [edge, ...]}
-    """
+
+def _load_graph_from_json() -> dict[str, list[dict]]:
+    """从本地 JSON 文件加载关系图（降级方案）。"""
     graph_path = Path(__file__).parent.parent.parent / "data" / "mes_relation_graph.json"
     with open(graph_path, encoding="utf-8") as f:
         data = json.load(f)
@@ -45,8 +52,37 @@ def _load_graph() -> dict[str, list[dict]]:
     return data
 
 
-# 模块级别加载，避免每次调用都读文件
-_GRAPH: dict[str, list[dict]] = _load_graph()
+def _get_graph() -> dict[str, list[dict]]:
+    """获取当前关系图，自动检测 PG 版本变化并热更新。
+
+    首次调用时尝试从 PG 加载，若失败则降级到 JSON 文件。
+    后续调用会比对 PG 版本号，若版本号变化则自动重新加载。
+    """
+    global _GRAPH, _CACHED_VERSION, _GRAPH_INITIALIZED
+
+    try:
+        from src.services.graph_repository import get_graph_repository
+
+        repo = get_graph_repository()
+        if not _GRAPH_INITIALIZED:
+            repo.ensure_tables()
+            _GRAPH_INITIALIZED = True
+
+        current_version = repo.get_version()
+        if current_version != _CACHED_VERSION or not _GRAPH:
+            _GRAPH = repo.load_full_graph()
+            _CACHED_VERSION = current_version
+            if _GRAPH:
+                logger.info("从 PG 加载关系图，版本: %d, 表: %d", current_version, len(_GRAPH))
+            else:
+                logger.warning("PG 中关系图为空，降级到 JSON 文件")
+                _GRAPH = _load_graph_from_json()
+    except Exception:
+        if not _GRAPH:
+            _GRAPH = _load_graph_from_json()
+            logger.info("PG 不可用，从 JSON 文件加载关系图，表: %d", len(_GRAPH))
+
+    return _GRAPH
 
 
 # ── BFS 扩展 ─────────────────────────────────────────────────────
@@ -103,7 +139,7 @@ def bfs_expand(
         if hop >= max_hops:
             continue
 
-        neighbors = _GRAPH.get(current, [])
+        neighbors = _get_graph().get(current, [])
         for edge in neighbors:
             neighbor = edge["to"]
             if neighbor in visited:
@@ -145,7 +181,7 @@ def _bfs_expand_cost(
         current, cost = queue.popleft()
         current_domain = _get_domain(current)
 
-        for edge in _GRAPH.get(current, []):
+        for edge in _get_graph().get(current, []):
             neighbor = edge["to"]
             if neighbor in visited:
                 continue
@@ -222,7 +258,7 @@ def find_path_between(
     if table_a == table_b:
         return [table_a]
 
-    if table_a not in _GRAPH or table_b not in _GRAPH:
+    if table_a not in _get_graph() or table_b not in _get_graph():
         return None
 
     queue: deque[tuple[str, list[str]]] = deque([(table_a, [table_a])])
@@ -233,7 +269,7 @@ def find_path_between(
         if len(path) > max_depth + 1:
             continue
 
-        for edge in _GRAPH.get(node, []):
+        for edge in _get_graph().get(node, []):
             neighbor = edge["to"]
             if neighbor == table_b:
                 return path + [neighbor]
@@ -258,7 +294,7 @@ def build_path_join_hints(path: list[str]) -> list[dict]:
     for i in range(len(path) - 1):
         src = path[i]
         dst = path[i + 1]
-        for edge in _GRAPH.get(src, []):
+        for edge in _get_graph().get(src, []):
             if edge["to"] == dst:
                 hints.append(
                     {
@@ -272,7 +308,7 @@ def build_path_join_hints(path: list[str]) -> list[dict]:
                 break
         else:
             # 正向没找到，尝试反向（图是双向的，但边可能只定义在 src 端）
-            for edge in _GRAPH.get(dst, []):
+            for edge in _get_graph().get(dst, []):
                 if edge["to"] == src:
                     hints.append(
                         {

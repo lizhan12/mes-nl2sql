@@ -85,3 +85,32 @@ class HarnessFeedbackRequest(BaseModel):
     request_id: str = Field(..., min_length=1, description="NL2SQL 请求的 request_id / thread_id")
     rating: Literal["up", "down"] = Field(..., description="up=点赞, down=点踩")
     reason: str = Field("", description="点踩原因（rating=down 时必填）")
+
+
+class GraphEdgeCreate(BaseModel):
+    """关系图边创建/更新请求。"""
+
+    from_table: str = Field(..., min_length=1, description="源表名")
+    to_table: str = Field(..., min_length=1, description="目标表名")
+    from_field: str = Field(..., min_length=1, description="源字段")
+    to_field: str = Field(..., min_length=1, description="目标字段")
+    join_condition: str = Field(..., min_length=1, description="JOIN 条件")
+    join_type: str = Field("JOIN", description="JOIN 类型")
+    description: str = Field("", description="关系描述")
+    confidence: str = Field("high", description="置信度: high/medium/low")
+    note: str = Field("", description="备注")
+
+    def to_graph_edge(self):
+        from src.services.graph_repository import GraphEdge
+
+        return GraphEdge(
+            from_table=self.from_table,
+            to_table=self.to_table,
+            from_field=self.from_field,
+            to_field=self.to_field,
+            join_condition=self.join_condition,
+            join_type=self.join_type,
+            description=self.description,
+            confidence=self.confidence,
+            note=self.note,
+        )

@@ -104,3 +104,110 @@ export function fetchPage(sql: string, page: number, pageSize = 20): Promise<Pag
     body: JSON.stringify({ sql, page, page_size: pageSize }),
   });
 }
+
+export interface GraphEdge {
+  to: string;
+  from_field: string;
+  to_field: string;
+  join: string;
+  join_type: string;
+  desc: string;
+  confidence: string;
+  note: string;
+}
+
+export interface GraphData {
+  graph: Record<string, GraphEdge[]>;
+}
+
+export function fetchRelationGraph(): Promise<GraphData> {
+  return requestJson<GraphData>("/api/graph");
+}
+
+// ── 关系图 PG 边 CRUD ──────────────────────────────────────────────
+
+export interface GraphEdgeRecord {
+  id: number;
+  from_table: string;
+  to_table: string;
+  from_field: string;
+  to_field: string;
+  join_condition: string;
+  join_type: string;
+  description: string;
+  confidence: string;
+  note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GraphEdgeCreate {
+  from_table: string;
+  to_table: string;
+  from_field: string;
+  to_field: string;
+  join_condition: string;
+  join_type?: string;
+  description?: string;
+  confidence?: string;
+  note?: string;
+}
+
+export interface GraphVersionResponse {
+  version: number;
+}
+
+export interface GraphSyncResponse {
+  message: string;
+  count: number;
+  version: number;
+}
+
+export interface GraphEdgeListResponse {
+  edges: GraphEdgeRecord[];
+}
+
+export interface GraphEdgeMutationResponse {
+  id: number;
+  message: string;
+  version: number;
+}
+
+export function fetchGraphVersion(): Promise<GraphVersionResponse> {
+  return requestJson<GraphVersionResponse>("/api/graph/version");
+}
+
+export function syncGraphFromJson(): Promise<GraphSyncResponse> {
+  return requestJson<GraphSyncResponse>("/api/graph/sync", { method: "POST" });
+}
+
+export function listGraphEdges(fromTable?: string, confidence?: string): Promise<GraphEdgeListResponse> {
+  const params = new URLSearchParams();
+  if (fromTable) params.set("from_table", fromTable);
+  if (confidence) params.set("confidence", confidence);
+  return requestJson<GraphEdgeListResponse>(`/api/graph/edges?${params}`);
+}
+
+export function getGraphEdge(edgeId: number): Promise<GraphEdgeRecord> {
+  return requestJson<GraphEdgeRecord>(`/api/graph/edges/${edgeId}`);
+}
+
+export function addGraphEdge(edge: GraphEdgeCreate): Promise<GraphEdgeMutationResponse> {
+  return requestJson<GraphEdgeMutationResponse>("/api/graph/edges", {
+    method: "POST",
+    body: JSON.stringify(edge),
+  });
+}
+
+export function updateGraphEdge(edgeId: number, edge: GraphEdgeCreate): Promise<GraphEdgeMutationResponse> {
+  return requestJson<GraphEdgeMutationResponse>(`/api/graph/edges/${edgeId}`, {
+    method: "PUT",
+    body: JSON.stringify(edge),
+  });
+}
+
+export function deleteGraphEdge(edgeId: number): Promise<GraphEdgeMutationResponse> {
+  return requestJson<GraphEdgeMutationResponse>(`/api/graph/edges/${edgeId}`, {
+    method: "DELETE",
+  });
+}
