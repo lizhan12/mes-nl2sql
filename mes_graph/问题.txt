@@ -1,0 +1,80 @@
+1、今天的生产产量是多少
+SELECT 
+  SUM(pass_qty) AS 今日良品产量,
+  SUM(defect_qty) AS 今日不良数,
+  SUM(scrap_qty) AS 今日报废数
+FROM t_pd_sn_count
+WHERE year = EXTRACT(YEAR FROM CURRENT_DATE)
+  AND month = EXTRACT(MONTH FROM CURRENT_DATE)
+  AND day = EXTRACT(DAY FROM CURRENT_DATE)
+LIMIT 500;
+---
+2、查询最近一周入库数量最多的前10个物料
+SELECT 
+  p.part_no AS 料号,
+  p.part_name AS 料号名称,
+  SUM(rb.in_qty) AS 入库数量
+FROM t_wms_wo_rb_detail rb
+LEFT JOIN t_bd_part p ON rb.part_id = p.part_no
+WHERE rb.upload_time >= NOW() - INTERVAL '7 days'
+  AND rb.current_status != 3
+GROUP BY p.part_no, p.part_name
+ORDER BY 入库数量 DESC
+LIMIT 10;
+---
+3.今天各产线完成了多少工单
+SELECT 
+  pl.pdline_name AS 产线名称,
+  COUNT(wo.id) AS 完工工单数
+FROM t_pd_wo wo
+LEFT JOIN t_bd_pdline pl ON wo.pdline_code = pl.pdline_code
+WHERE wo.wo_status = '40'
+  AND DATE(wo.create_time) = CURRENT_DATE
+GROUP BY pl.pdline_name
+ORDER BY 完工工单数 DESC
+LIMIT 500;
+---
+4.查询库存数量低于100的物料
+SELECT 
+  p.part_no AS 料号,
+  p.part_name AS 料号名称,
+  SUM(s.in_qty) AS 总库存数量
+FROM t_wms_product_in_bill_detail s
+LEFT JOIN t_bd_part p ON s.part_id = p.part_no
+GROUP BY p.part_no, p.part_name
+HAVING SUM(s.in_qty) < 100
+ORDER BY 总库存数量
+LIMIT 500;
+---
+5.查询工单关联的编码规则组、标签组和包装规则
+SELECT t0.*, t1.*, t2.*, t3.*
+FROM t_pd_wo AS t0
+LEFT JOIN t_bc_encode_rule_group AS t1 ON t0.encode_group_id = t1.id
+LEFT JOIN t_lb_label_group AS t2 ON t0.label_group_id = t2.id
+LEFT JOIN t_packing_rule AS t3 ON t0.pack_rule_id = t3.id
+LIMIT 500;
+---
+6.查询 SN 状态关联的料号信息
+SELECT 
+  ss.sn,
+  ss.work_order,
+  p.part_no AS 料号,
+  p.part_name AS 品名,
+  p.part_spec AS 规格
+FROM t_pd_sn_status ss
+LEFT JOIN t_bd_part p ON ss.part_id = p.id
+LIMIT 500;
+
+---
+7.查询 SN 状态关联的料号信息
+SELECT 
+  ss.sn,
+  ss.work_order,
+  p.part_no AS 料号,
+  p.part_name AS 品名,
+  p.part_spec AS 规格
+FROM t_pd_sn_status ss
+LEFT JOIN t_bd_part p ON ss.part_id = p.id
+LIMIT 500;
+
+分别查询sn等于DAH01的过站记录（需要过站时间）以及使用的物料信息

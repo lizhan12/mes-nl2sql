@@ -1,0 +1,9 @@
+场景：Harness 失败进化样本（主表=t_pd_wo，关联表=t_bc_encode_rule_group、t_lb_label_group、t_packing_rule）
+用户问题：查询工单关联的编码规则组、标签组和包装规则
+SQL：
+SELECT t0.*, t1.*, t2.*, t3.* FROM t_pd_wo AS t0 LEFT JOIN t_bc_encode_rule_group AS t1 ON t0.encode_group_id = t1.id LEFT JOIN t_lb_label_group AS t2 ON t0.label_group_id = t2.id LEFT JOIN t_packing_rule AS t3 ON t0.pack_rule_id = t3.id;
+---
+场景：Harness 失败进化样本（主表=t_pd_wo，关联表=t_pd_plan_detail、t_pd_plan、t_bd_part）
+用户问题：查询指定工单对应的区段计划、生产计划和料号信息
+SQL：
+SELECT t0.*, t1.*, t2.*, t3.* FROM t_pd_wo AS t0 LEFT JOIN t_pd_plan_detail AS t1 ON t0.plan_detail_id = t1.id LEFT JOIN t_pd_plan AS t2 ON t1.plan_id = t2.id LEFT JOIN t_bd_part AS t3 ON t0.part_id = t3.id WHERE t0.work_order = :work_order;

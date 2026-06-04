@@ -1,0 +1,52 @@
+[
+  {
+    "rule_id": "rule::查询工单关联的编码规则组标签组和包装规则",
+    "source": "harness_evolution",
+    "question": "查询工单关联的编码规则组、标签组和包装规则",
+    "normalized_question": "查询工单关联的编码规则组标签组和包装规则",
+    "preferred_main_table": "t_pd_wo",
+    "required_tables": [
+      "t_pd_wo",
+      "t_bc_encode_rule_group",
+      "t_lb_label_group",
+      "t_packing_rule"
+    ],
+    "required_joins": [
+      "t_bc_encode_rule_group.id = t_pd_wo.encode_group_id",
+      "t_lb_label_group.id = t_pd_wo.label_group_id",
+      "t_packing_rule.id = t_pd_wo.pack_rule_id"
+    ],
+    "evolution_reason": {
+      "generated_retry_count": 1,
+      "generated_error": "column wo.wo_no does not exist\nLINE 2:   wo.wo_no AS 工单号,\n          ^",
+      "missing_related_tables": [],
+      "missing_expected_joins": [],
+      "main_table_match": true
+    }
+  },
+  {
+    "rule_id": "rule::查询指定工单对应的区段计划生产计划和料号信息",
+    "source": "harness_evolution",
+    "question": "查询指定工单对应的区段计划、生产计划和料号信息",
+    "normalized_question": "查询指定工单对应的区段计划生产计划和料号信息",
+    "preferred_main_table": "t_pd_wo",
+    "required_tables": [
+      "t_pd_wo",
+      "t_pd_plan_detail",
+      "t_pd_plan",
+      "t_bd_part"
+    ],
+    "required_joins": [
+      "t_pd_plan_detail.id = t_pd_wo.plan_detail_id",
+      "t_pd_plan.id = t_pd_plan_detail.plan_id",
+      "t_bd_part.id = t_pd_wo.part_id"
+    ],
+    "evolution_reason": {
+      "generated_retry_count": 1,
+      "generated_error": "column wo.wo_no does not exist\nLINE 2:   wo.wo_no AS 工单号,\n          ^",
+      "missing_related_tables": [],
+      "missing_expected_joins": [],
+      "main_table_match": true
+    }
+  }
+]
