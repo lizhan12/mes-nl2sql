@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Turn Drift Test — MES NL2SQL</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep: #020617;
+    --bg-card: #0a1021;
+    --bg-glass: rgba(15, 23, 42, 0.7);
+    --border-subtle: rgba(255,255,255,0.08);
+    --border-cyan: rgba(34, 211, 238, 0.25);
+    --cyan: #22d3ee;
+    --cyan-dim: rgba(34, 211, 238, 0.12);
+    --emerald: #34d399;
+    --amber: #fbbf24;
+    --red: #ef4444;
+    --slate-300: #cbd5e1;
+    --slate-400: #94a3b8;
+    --slate-500: #64748b;
+    --slate-600: #475569;
+    --radius-lg: 1.5rem;
+    --radius-md: 0.875rem;
+    --radius-sm: 0.625rem;
+    --font-heading: 'Rajdhani', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: radial-gradient(circle at 50% 0%, rgba(34,211,238,0.10), transparent 44%),
+                linear-gradient(180deg, #020617 0%, #0f172a 55%, #020617 100%);
+    color: var(--slate-300);
+    font-family: system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+
+  /* ---- Header ---- */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 2rem;
+  }
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .header-brand svg { width: 2rem; height: 2

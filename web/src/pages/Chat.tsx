@@ -1,0 +1,798 @@
+import { Bot, MessageCircle, Plus, Send, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+
+import { CodeBlock } from "@/components/CodeBlock";
+import { PaginationBar } from "@/components/PaginationBar";
+import { StatusBadge } from "@/components/StatusBadge";
+import { fetchPage, submitFeedback } from "@/lib/api";
+import { fetchSSE } from "@/lib/stream";
+import type { ChatStreamEvent, JsonValue, Message, PageResponse, SqlResult } from "@/types";
+
+function parseSqlLimit(sql: string): { limit: number } {
+  const match = sql.match(/\bLIMIT\s+(\d+)\s*;?\s*$/i);
+  return { limit: match ? parseInt(match[1], 10) : 0 };
+}
+
+const NODE_LABELS: Record<string, string> = {
+  intent: "意图理解",
+  retrieval: "检索表结构",
+  bfs: "分析关联表",
+  schema: "组装上下文",
+  sql_gen: "生成 SQL",
+  safety: "安全校验",
+  execute: "执行查询",
+};
+
+function makeId(): string {
+  return crypto.randomUUID();
+}
+
+function userMessage(content: string): Message {
+  return {
+    id: makeId(),
+    role: "user",
+    content,
+    type: "text",
+    timestamp: Date.now(),
+  };
+}
+
+function assistantProgress(msg: string): Message {
+  return {
+    id: makeId(),
+    role: "assistant",
+    content: msg,
+    type: "progress",
+    timestamp: Date.now(),
+    nodeStatus: {},
+  };
+}
+
+export default function Chat() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [running, setRunning] = useState(false);
+  const [threadId, setThreadId] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 反馈状态
+  const [ratedMessages, setRatedMessages] = useState<Set<string>>(new Set());
+  const [feedbackModal, setFeedbackModal] = useState<{ msgId: string; requestId: string } | null>(null);
+  const [feedbackReason, setFeedbackReason] = useState("");
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  const handleSend = useCallback(async () => {
+    const query = input.trim();
+    if (!query || running) return;
+
+    setInput("");
+    setRunning(true);
+
+    const userMsg = userMessage(query);
+    const assistantMsg = assistantProgress("正在理解您的问题...");
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+
+    const currentNodeStatus: Record<string, "pending" | "running" | "done" | "error"> = {};
+    const allNodes = ["intent", "retrieval", "bfs", "schema", "sql_gen", "safety", "execute"];
+
+    try {
+      const stepAcc: Array<{ node: string; label: string; textPreview: string; status: "running" | "done" | "error" }> = [];
+      await fetchSSE(
+        "/chat/stream",
+        { query, thread_id: threadId },
+        (event: ChatStreamEvent) => {
+          if (event.thread_id && !threadId) {
+            setThreadId(event.thread_id);
+          }
+
+          const nodeName = event.node;
+          if (nodeName === "done" || nodeName === "error") {
+            allNodes.forEach((n) => {
+              if (currentNodeStatus[n] !== "error") currentNodeStatus[n] = "done";
+            });
+            const status = event.status === "error" ? "error" : "success";
+
+            const multiSql = (event.data?.multi_sql as boolean) || false;
+            const subQueries = (event.data?.sub_queries as Array<{ question: string; description: string }>) || [];
+            const finalSqls = (event.data?.final_sqls as string[]) || [];
+            const execResults = (event.data?.execution_results as SqlResult[]) || [];
+
+            const execData = execResults.length > 0 ? (execResults[0] as unknown as Record<string, JsonValue>) : null;
+            const requestId = (event.request_id as string) || "";
+            const finalSql = finalSqls.length > 0 ? finalSqls[0] : (event.data?.final_sql as string) || (event.data?.generated_sql as string) || "";
+            const content = status === "error"
+              ? `错误: ${(event.data?.error as string) || "未知错误"}`
+              : multiSql
+                ? `查询完成（共 ${finalSqls.length} 条查询）`
+                : `查询完成`;
+
+            const enrichedResults: SqlResult[] = execResults.map((r, i) => ({
+              ...r,
+              sql: finalSqls[i] || "",
+            }));
+
+            setMessages((prev) =>
+              prev.map((msg) => {
+                if (msg.id === assistantMsg.id) {
+                  return {
+                    ...msg,
+                    content,
+                    type: status === "error" ? "error" : "text",
+                    nodeStatus: currentNodeStatus as Record<string, "pending" | "running" | "done" | "error">,
+                    sql: finalSql,
+                    executionResult: execData,
+                    requestId,
+                    multiSql,
+                    finalSqls,
+                    executionResults: enrichedResults,
+                    subQueries,
+                    steps: [...stepAcc],
+                  };
+                }
+                return msg;
+              }),
+            );
+            return;
+          }
+
+          if (currentNodeStatus[nodeName] !== "error") {
+            currentNodeStatus[nodeName] = "done";
+          }
+          const label = NODE_LABELS[nodeName] || nodeName;
+          const textPreview = (event.data?.text_preview as string) || "";
+
+          const existing = stepAcc.find((s) => s.node === nodeName);
+          if (existing) {
+            existing.textPreview = textPreview || existing.textPreview;
+            existing.status = "done";
+          } else {
+            stepAcc.push({ node: nodeName, label, textPreview, status: "running" });
+          }
+          stepAcc.forEach((s) => {
+            if (s.node !== nodeName && s.status === "running") s.status = "done";
+          });
+
+          const pendingNodes = allNodes.filter(
+            (n) => currentNodeStatus[n] !== "done" && currentNodeStatus[n] !== "error",
+          );
+          const progressText =
+            pendingNodes.length > 0
+              ? `${label}（剩余 ${pendingNodes.length - 1} 步）...`
+              : `${label} 完成`;
+
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg.id === assistantMsg.id) {
+                return {
+                  ...msg,
+                  content: textPreview || progressText,
+                  type: "progress" as const,
+                  nodeStatus: { ...currentNodeStatus },
+                };
+              }
+              return msg;
+            }),
+          );
+        },
+        (error: Error) => {
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg.id === assistantMsg.id) {
+                return {
+                  ...msg,
+                  content: `请求失败: ${error.message}`,
+                  type: "error",
+                  nodeStatus: Object.fromEntries(allNodes.map((n) => [n, "error"])),
+                };
+              }
+              return msg;
+            }),
+          );
+        },
+        () => {
+          setRunning(false);
+          inputRef.current?.focus();
+        },
+      );
+    } catch {
+      setRunning(false);
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id === assistantMsg.id) {
+            return { ...msg, content: "请求异常，请重试", type: "error" };
+          }
+          return msg;
+        }),
+      );
+    }
+  }, [input, running, threadId]);
+
+  function handleNewChat() {
+    setMessages([]);
+    setThreadId("");
+    setInput("");
+    setRatedMessages(new Set());
+    inputRef.current?.focus();
+  }
+
+  function handleThumbsUp(msgId: string, requestId: string) {
+    if (ratedMessages.has(msgId)) return;
+    setRatedMessages((prev) => new Set(prev).add(msgId));
+    submitFeedback(requestId, "up").catch(() => {});
+  }
+
+  function handleThumbsDown(msgId: string, requestId: string) {
+    if (ratedMessages.has(msgId)) return;
+    setFeedbackModal({ msgId, requestId });
+  }
+
+  async function handleSubmitFeedback() {
+    if (!feedbackModal) return;
+    const { msgId, requestId } = feedbackModal;
+    setRatedMessages((prev) => new Set(prev).add(msgId));
+    await submitFeedback(requestId, "down", feedbackReason);
+    setFeedbackModal(null);
+    setFeedbackReason("");
+  }
+
+  return (
+    <main className="flex h-screen flex-col bg-[#0a0a0a] text-text-primary">
+      {/* ── Header ── */}
+      <header className="flex shrink-0 items-center justify-between border-b border-white/[0.06] bg-[#111] px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-3">
+          <Bot className="h-5 w-5 text-accent-500" />
+          <h1 className="text-[15px] font-semibold tracking-tight text-white">
+            MES <span className="font-normal text-text-tertiary">对话助手</span>
+          </h1>
+          {threadId ? <StatusBadge tone="warning">{threadId.slice(0, 8)}</StatusBadge> : null}
+          {running ? <StatusBadge tone="loading">处理中</StatusBadge> : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleNewChat}
+            disabled={running}
+            className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 text-[12px] text-text-secondary transition-colors duration-150 hover:border-white/15 hover:text-white disabled:opacity-40"
+          >
+            <Plus className="h-3 w-3" />
+            新对话
+          </button>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 text-[12px] text-text-secondary transition-colors duration-150 hover:border-white/15 hover:text-white"
+          >
+            <X className="h-3 w-3" />
+            返回调试
+          </Link>
+        </div>
+      </header>
+
+      {/* ── Body ── */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Messages Area */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
+          {messages.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-white/[0.06] bg-[#111]">
+                <MessageCircle className="h-6 w-6 text-text-tertiary/40" />
+              </div>
+              <p className="text-[15px] text-text-tertiary">用自然语言查询 MES 数据</p>
+              <p className="text-[13px] text-text-tertiary/50">支持多轮记忆，可连续追问</p>
+            </div>
+          ) : (
+            <div className="mx-auto max-w-3xl space-y-5">
+              {messages.map((msg) => (
+                <ChatBubble
+                  key={msg.id}
+                  message={msg}
+                  rated={ratedMessages.has(msg.id)}
+                  onThumbsUp={(requestId) => handleThumbsUp(msg.id, requestId)}
+                  onThumbsDown={(requestId) => handleThumbsDown(msg.id, requestId)}
+                />
+              ))}
+              {running && (
+                <div className="flex justify-center py-1">
+                  <div className="flex items-center gap-2 text-[12px] text-text-tertiary">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+                    处理中...
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Side Panel ── */}
+        <div className="hidden w-72 shrink-0 overflow-y-auto border-l border-white/[0.06] bg-[#111] px-4 py-4 xl:block">
+          <h2 className="mb-4 text-[11px] font-medium tracking-[0.04em] text-text-tertiary uppercase">
+            上下文信息
+          </h2>
+          {threadId ? (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-lg border border-white/[0.06] bg-[#0d0d0d] p-3">
+                <div className="text-[11px] text-text-tertiary/60">会话 ID</div>
+                <div className="mt-1 font-mono text-[12px] text-accent-500">{threadId.slice(0, 16)}...</div>
+              </div>
+              <div className="rounded-lg border border-white/[0.06] bg-[#0d0d0d] p-3">
+                <div className="text-[11px] text-text-tertiary/60">消息</div>
+                <div className="mt-1 text-[14px] font-semibold tabular-nums text-white">{messages.length}</div>
+              </div>
+              {(() => {
+                const lastAssistantMsg = [...messages].reverse().find((m) => m.role === "assistant");
+                if (!lastAssistantMsg?.nodeStatus) return null;
+                return (
+                  <div className="rounded-lg border border-white/[0.06] bg-[#0d0d0d] p-3">
+                    <div className="mb-2 text-[11px] text-text-tertiary/60">节点进度</div>
+                    <div className="space-y-1.5">
+                      {Object.entries(lastAssistantMsg.nodeStatus).map(([node, status]) => (
+                        <div key={node} className="flex items-center gap-2 text-[12px]">
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                              status === "done"
+                                ? "bg-emerald-500"
+                                : status === "running"
+                                  ? "bg-accent"
+                                  : status === "error"
+                                    ? "bg-red-500"
+                                    : "bg-white/20"
+                            }`}
+                          />
+                          <span className="text-text-secondary">{NODE_LABELS[node] || node}</span>
+                          <span className="ml-auto font-mono text-[10px] text-text-tertiary/50">{status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+              {(() => {
+                const lastAssistantMsg = [...messages]
+                  .reverse()
+                  .find((m) => m.role === "assistant" && (m.sql || (m.finalSqls && m.finalSqls.length > 0)));
+                if (!lastAssistantMsg) return null;
+                const sqls =
+                  lastAssistantMsg.multiSql && lastAssistantMsg.finalSqls
+                    ? lastAssistantMsg.finalSqls
+                    : lastAssistantMsg.sql
+                      ? [lastAssistantMsg.sql]
+                      : [];
+                return (
+                  <div>
+                    <div className="mb-2 text-[11px] text-text-tertiary/60">
+                      SQL{sqls.length > 1 ? ` (${sqls.length})` : ""}
+                    </div>
+                    <div className="space-y-2">
+                      {sqls.map((s, i) => (
+                        <CodeBlock
+                          key={i}
+                          title={sqls.length > 1 ? `SQL ${i + 1}` : "SQL"}
+                          value={s}
+                          language="sql"
+                          maxHeightClassName="max-h-40"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            <p className="text-[12px] text-text-tertiary/50">发送第一条消息后显示</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Input ── */}
+      <div className="shrink-0 border-t border-white/[0.06] bg-[#111] px-4 py-4 sm:px-8">
+        <div className="mx-auto flex max-w-3xl items-center gap-2">
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void handleSend();
+              }
+            }}
+            disabled={running}
+            placeholder="输入查询问题，例如：查询所有工单及其对应的料号信息"
+            className="flex-1 rounded-lg border border-white/[0.08] bg-[#0d0d0d] px-4 py-2.5 text-[14px] text-text-primary outline-none transition-colors placeholder:text-text-tertiary/50 focus:border-accent-border focus:ring-1 focus:ring-accent/20 disabled:opacity-50"
+          />
+          <button
+            type="button"
+            onClick={() => void handleSend()}
+            disabled={running || !input.trim()}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-4 py-2.5 text-[14px] font-medium text-white transition-colors duration-150 hover:bg-accent-600 active:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Send className="h-3.5 w-3.5" />
+            发送
+          </button>
+        </div>
+        <p className="mx-auto mt-3 max-w-3xl text-[11px] text-text-tertiary/50">
+          支持多轮记忆，可连续追问。例如："上一条 SQL 查出的工单有哪些产线？"
+        </p>
+      </div>
+
+      {/* ── Feedback Modal ── */}
+      {feedbackModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-full max-w-md rounded-xl border border-white/[0.08] bg-[#111] p-6">
+            <h3 className="text-[16px] font-medium text-white">告诉我们哪里有问题</h3>
+            <p className="mt-1 text-[12px] text-text-tertiary">你的反馈将帮助我们改进 SQL 生成质量</p>
+            <textarea
+              value={feedbackReason}
+              onChange={(e) => setFeedbackReason(e.target.value)}
+              rows={4}
+              className="mt-4 w-full rounded-lg border border-white/[0.08] bg-[#0d0d0d] px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent-border placeholder:text-text-tertiary/40"
+              placeholder="例如：表关联错误、字段名不对、条件遗漏..."
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setFeedbackModal(null);
+                  setFeedbackReason("");
+                }}
+                className="rounded-md border border-white/[0.08] bg-white/[0.02] px-4 py-2 text-[13px] text-text-secondary transition-colors hover:border-white/15"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSubmitFeedback()}
+                disabled={!feedbackReason.trim()}
+                className="rounded-md bg-accent px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-accent-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                提交
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </main>
+  );
+}
+
+/* ── Multi SQL Tabs ── */
+
+function MultiSqlTabs({ message }: { message: Message }) {
+  const [activeTab, setActiveTab] = useState(0);
+  const results = message.executionResults!;
+  const [pageStates, setPageStates] = useState<Record<number, { page: number; data: PageResponse | null; loading: boolean }>>({});
+
+  const currentResult = results[activeTab];
+  const pState = pageStates[activeTab] || { page: 1, data: null, loading: false };
+
+  const sqlLimit = currentResult?.sql ? parseSqlLimit(currentResult.sql).limit : 0;
+  const pageSize = sqlLimit > 0 ? sqlLimit : 20;
+  const totalRows = pState.data
+    ? pState.data.total_rows
+    : ((typeof currentResult?.rows === "number" ? currentResult.rows : 0) as number);
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+
+  const fetchData = async (targetPage: number) => {
+    const sql = currentResult?.sql || "";
+    if (!sql) return;
+
+    setPageStates((prev) => ({
+      ...prev,
+      [activeTab]: { ...(prev[activeTab] || { page: 1, data: null, loading: false }), loading: true },
+    }));
+
+    try {
+      const data = await fetchPage(sql, targetPage, pageSize);
+      setPageStates((prev) => ({
+        ...prev,
+        [activeTab]: { page: targetPage, data, loading: false },
+      }));
+    } catch {
+      setPageStates((prev) => ({
+        ...prev,
+        [activeTab]: { ...(prev[activeTab] || { page: 1, data: null, loading: false }), loading: false },
+      }));
+    }
+  };
+
+  useEffect(() => {
+    if (currentResult?.success && currentResult?.sql && !pageStates[activeTab]?.data) {
+      fetchData(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, currentResult?.sql]);
+
+  const handlePageChange = (targetPage: number) => {
+    if (targetPage < 1 || targetPage > totalPages) return;
+    fetchData(targetPage);
+  };
+
+  const tableData = pState.data?.rows;
+  const tableColumns = pState.data?.columns;
+
+  return (
+    <div className="space-y-3 pt-1">
+      <div className="flex gap-1 overflow-x-auto rounded-lg border border-white/[0.06] bg-[#0d0d0d] p-1">
+        {results.map((result, idx) => (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => setActiveTab(idx)}
+            className={`shrink-0 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors duration-150 ${
+              activeTab === idx ? "bg-accent/15 text-accent-500" : "text-text-tertiary hover:text-text-secondary"
+            }`}
+          >
+            {result.description || `SQL ${idx + 1}`}
+            <span
+              className={`ml-1.5 inline-block h-1.5 w-1.5 rounded-full ${result.success ? "bg-emerald-500" : "bg-red-500"}`}
+            />
+          </button>
+        ))}
+      </div>
+
+      {currentResult && (
+        <div className="space-y-3">
+          {currentResult.question && <div className="text-[12px] text-text-tertiary">{currentResult.question}</div>}
+          {!currentResult.success && currentResult.error && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-[12px] text-red-400">
+              {currentResult.error}
+            </div>
+          )}
+          {currentResult.success && (
+            <div className="rounded-lg border border-emerald-500/10 bg-emerald-500/5 px-3 py-2 text-[12px] text-emerald-400">
+              查询成功
+              {typeof currentResult.rows === "number" && `，${currentResult.rows} 行`}
+              {currentResult.repaired && <span className="ml-2 text-amber-400">（已修复）</span>}
+            </div>
+          )}
+          {currentResult.sql && (
+            <CodeBlock title="SQL" value={currentResult.sql} language="sql" maxHeightClassName="max-h-52" />
+          )}
+          {currentResult.success && (
+            <div className="space-y-2">
+              {pState.loading && !tableData && (
+                <div className="py-4 text-center text-[12px] text-text-tertiary">加载中...</div>
+              )}
+              {tableData && tableData.length > 0 && tableColumns && (
+                <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
+                  <table className="w-full text-[12px]">
+                    <thead>
+                      <tr className="border-b border-white/[0.05] bg-white/[0.02]">
+                        {tableColumns.map((col: string) => (
+                          <th key={col} className="whitespace-nowrap px-3 py-2 text-left font-medium text-text-secondary">
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/[0.03]">
+                      {tableData.map((row, ri) => (
+                        <tr key={ri} className="hover:bg-white/[0.02]">
+                          {tableColumns!.map((col: string) => (
+                            <td key={col} className="whitespace-nowrap px-3 py-1.5 text-text-tertiary">
+                              {String(row[col] ?? "")}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <PaginationBar
+                page={pState.page}
+                totalPages={totalPages}
+                totalRows={totalRows}
+                loading={pState.loading}
+                onPageChange={handlePageChange}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Chat Bubble ── */
+
+function ChatBubble({
+  message,
+  rated,
+  onThumbsUp,
+  onThumbsDown,
+}: {
+  message: Message;
+  rated: boolean;
+  onThumbsUp: (requestId: string) => void;
+  onThumbsDown: (requestId: string) => void;
+}) {
+  const isUser = message.role === "user";
+  const isError = message.type === "error";
+
+  const hasSqlResult =
+    !isUser &&
+    (message.sql || (message.multiSql && message.executionResults && message.executionResults.length > 0));
+  const showContent = isUser || isError || !hasSqlResult;
+
+  const hasSingleSql = !isUser && message.sql && !message.multiSql;
+  const hasMultiSql =
+    !isUser && message.multiSql && message.executionResults && message.executionResults.length > 0;
+
+  const [pageData, setPageData] = useState<PageResponse | null>(null);
+  const [pageLoading, setPageLoading] = useState(false);
+
+  const sqlLimit = message.sql ? parseSqlLimit(message.sql).limit : 0;
+  const pageSize = sqlLimit > 0 ? sqlLimit : 20;
+  const er = message.executionResult as Record<string, JsonValue> | null | undefined;
+  const totalRows = pageData ? pageData.total_rows : (typeof er?.rows === "number" ? (er.rows as number) : 0);
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+
+  const fetchData = async (targetPage: number) => {
+    const sql = message.sql || "";
+    if (!sql) return;
+    setPageLoading(true);
+    try {
+      const data = await fetchPage(sql, targetPage, pageSize);
+      setPageData(data);
+    } catch {
+      // keep current state
+    } finally {
+      setPageLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (hasSingleSql && message.sql) {
+      fetchData(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message.sql, hasSingleSql]);
+
+  const handlePageChange = (targetPage: number) => {
+    if (targetPage < 1 || targetPage > totalPages) return;
+    fetchData(targetPage);
+  };
+
+  const tableData = pageData?.rows;
+  const tableColumns = pageData?.columns;
+
+  return (
+    <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
+      <div
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[13px] ${
+          isUser
+            ? "bg-accent text-white"
+            : isError
+              ? "bg-red-500/20 text-red-400"
+              : "bg-accent/10 text-accent-500"
+        }`}
+      >
+        {isUser ? <UserMsgIcon /> : isError ? <Bot className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+      </div>
+      <div className={`max-w-[80%] space-y-2.5 ${isUser ? "items-end" : ""}`}>
+        {showContent && (
+          <div
+            className={`rounded-lg px-3.5 py-2.5 text-[14px] leading-relaxed ${
+              isUser
+                ? "bg-accent text-white"
+                : isError
+                  ? "border border-red-500/20 bg-red-500/5 text-red-300"
+                  : "border border-white/[0.06] bg-[#111] text-text-secondary"
+            }`}
+          >
+            {message.content}
+          </div>
+        )}
+
+        {hasSingleSql && (
+          <div className="pt-1">
+            <CodeBlock title="SQL" value={message.sql} language="sql" maxHeightClassName="max-h-52" />
+          </div>
+        )}
+
+        {hasSingleSql &&
+          message.executionResult &&
+          !(message.executionResult as Record<string, JsonValue>).error && (
+            <div className="rounded-lg border border-emerald-500/10 bg-emerald-500/5 px-3 py-1.5 text-[12px] text-emerald-400">
+              查询成功
+              {typeof (message.executionResult as Record<string, JsonValue>).rows === "number" &&
+                `，${(message.executionResult as Record<string, JsonValue>).rows} 行`}
+            </div>
+          )}
+
+        {hasSingleSql && (
+          <div className="space-y-2">
+            {pageLoading && !tableData && (
+              <div className="py-3 text-center text-[12px] text-text-tertiary">加载中...</div>
+            )}
+            {tableData && tableData.length > 0 && tableColumns && (
+              <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="border-b border-white/[0.05] bg-white/[0.02]">
+                      {tableColumns.map((col: string) => (
+                        <th key={col} className="whitespace-nowrap px-3 py-2 text-left font-medium text-text-secondary">
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.03]">
+                    {tableData.map((row, ri) => (
+                      <tr key={ri} className="hover:bg-white/[0.02]">
+                        {tableColumns!.map((col: string) => (
+                          <td key={col} className="whitespace-nowrap px-3 py-1.5 text-text-tertiary">
+                            {String(row[col] ?? "")}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <PaginationBar
+              page={pageData?.page || 1}
+              totalPages={totalPages}
+              totalRows={totalRows}
+              loading={pageLoading}
+              onPageChange={handlePageChange}
+            />
+          </div>
+        )}
+
+        {hasMultiSql && <MultiSqlTabs message={message} />}
+
+        {/* 反馈按钮 */}
+        {!isUser && (hasSingleSql || hasMultiSql) && message.requestId ? (
+          <div className="flex items-center gap-1 pt-1">
+            <button
+              type="button"
+              onClick={() => onThumbsUp(message.requestId!)}
+              disabled={rated}
+              title="回答正确"
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] transition-colors ${
+                rated
+                  ? "cursor-default text-text-tertiary/30"
+                  : "text-text-tertiary hover:text-emerald-400 hover:bg-emerald-500/10"
+              }`}
+            >
+              <ThumbsUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onThumbsDown(message.requestId!)}
+              disabled={rated}
+              title="回答有误"
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] transition-colors ${
+                rated
+                  ? "cursor-default text-text-tertiary/30"
+                  : "text-text-tertiary hover:text-red-400 hover:bg-red-500/10"
+              }`}
+            >
+              <ThumbsDown className="h-3.5 w-3.5" />
+            </button>
+            {rated ? (
+              <span className="text-[11px] text-text-tertiary/40">已反馈</span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function UserMsgIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <circle cx="7" cy="5" r="3" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M2 12c0-2.2 2.2-4 5-4s5 1.8 5 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
