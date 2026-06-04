@@ -39,12 +39,30 @@
   font-family: var(--font-sans);
   line-height: 1.6;
   font-weight: 400;
+  font-size: 16px;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--text-primary);
   background: var(--bg-base);
+}
+
+/* ── Light Theme ── */
+html.light {
+  --bg-base: #f8f9fa;
+  --bg-raised: #ffffff;
+  --bg-overlay: #f0f1f3;
+  --border-default: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --accent: #0070f3;
+  --accent-soft: rgba(0, 112, 243, 0.08);
+  --accent-border: rgba(0, 112, 243, 0.3);
+  --text-primary: #111111;
+  --text-secondary: #52525b;
+  --text-tertiary: #71717a;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 * {
@@ -85,6 +103,14 @@ textarea {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
 }
 
 /* ── Focus ring ── */

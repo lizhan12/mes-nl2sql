@@ -29,7 +29,8 @@ def validate_sql(sql: str, default_limit: int = 500) -> dict:
 
     cleaned = re.sub(r"```sql|```", "", sql).strip().rstrip(";")
 
-    if "LIMIT" not in cleaned.upper():
-        cleaned = f"{cleaned}\nLIMIT {default_limit}"
+    # 始终使用配置的默认 LIMIT，替换或追加
+    cleaned = re.sub(r"\bLIMIT\s+\d+", "", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = f"{cleaned}\nLIMIT {default_limit}"
 
     return {"safe": True, "final_sql": f"{cleaned};", "error": ""}

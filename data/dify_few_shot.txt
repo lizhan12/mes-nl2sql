@@ -11,8 +11,7 @@ FROM t_pd_wo wo
 LEFT JOIN t_bd_pdline pl ON wo.pdline_code = pl.pdline_code
 WHERE DATE(wo.create_time) = CURRENT_DATE
 GROUP BY pl.pdline_name
-ORDER BY 完工数 DESC
-LIMIT 500;
+ORDER BY 完工数 DESC;
 ---
 场景：SN追溯查询
 用户问题：查询SN号为 SN202400001 的过站履历
@@ -26,8 +25,7 @@ SELECT
 FROM t_pd_sn_status ss
 LEFT JOIN t_pd_sn_travel st ON ss.sn = st.sn
 WHERE ss.sn = 'SN202400001'
-ORDER BY st.create_time ASC
-LIMIT 500;
+ORDER BY st.create_time ASC;
 ---
 场景：不良统计分析
 用户问题：本周各不良代码的数量统计
@@ -40,8 +38,7 @@ FROM t_pd_sn_defect sd
 LEFT JOIN t_bd_defect d ON sd.defect_id = d.id
 WHERE sd.create_time >= DATE_TRUNC('week', CURRENT_DATE)
 GROUP BY d.defect_name, d.defect_code
-ORDER BY 不良数量 DESC
-LIMIT 500;
+ORDER BY 不良数量 DESC;
 ---
 场景：库存查询
 用户问题：查询料号 P001 在各仓库的库存数量
@@ -56,8 +53,7 @@ FROM t_wms_stock s
 LEFT JOIN t_bd_part p ON s.part_no = p.part_no
 LEFT JOIN t_wms_warehouse wh ON s.warehouse_id = wh.id
 WHERE p.part_no = 'P001' OR p.part_name ILIKE '%P001%'
-ORDER BY wh.warehouse_name
-LIMIT 500;
+ORDER BY wh.warehouse_name;
 ---
 场景：工单领料与BOM对比
 用户问题：工单 WO20240001 的实际领料与BOM计划用料对比
@@ -77,8 +73,7 @@ LEFT JOIN t_bd_part bp ON bd.item_part_id = bp.id
 LEFT JOIN t_wms_wo_material_bill mb ON wo.wo_no = mb.wo_no
 LEFT JOIN t_wms_wo_material_bill_detail md ON mb.id = md.doc_id AND md.part_id = bd.item_part_id
 WHERE wo.wo_no = 'WO20240001'
-GROUP BY b.item_part_id, bp.part_no, bp.part_name, b.item_qty, wo.plan_qty
-LIMIT 500;
+GROUP BY b.item_part_id, bp.part_no, bp.part_name, b.item_qty, wo.plan_qty;
 ---
 场景：设备维修统计
 用户问题：上月各设备的报修次数和平均维修时长
@@ -93,5 +88,4 @@ LEFT JOIN t_ems_equipment e ON r.equipment_code = e.equipment_code
 WHERE r.create_time >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
   AND r.create_time < DATE_TRUNC('month', CURRENT_DATE)
 GROUP BY e.equipment_code, e.equipment_name
-ORDER BY 报修次数 DESC
-LIMIT 500;
+ORDER BY 报修次数 DESC;

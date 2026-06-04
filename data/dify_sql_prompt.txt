@@ -58,7 +58,7 @@
 - 只输出可执行的 SQL，不加任何解释文字
 - 数据库类型为 PostgreSQL，注意语法差异（用 ILIKE 不用 LIKE 做大小写不敏感查询）
 - 时间条件使用 DATE(create_time) = CURRENT_DATE 或 create_time >= NOW() - INTERVAL 'N days'
-- 必须加 LIMIT 500 防止大数据量返回（除非用户明确要求所有数据）
+- 不要手动加 LIMIT，系统会自动补上合适的数据量限制
 - 表别名使用表名去掉 t_ 前缀的缩写（如 t_pd_wo → wo）
 - 如果问题涉及中文名称查询，同时匹配 code 和 name 字段
 - JOIN类型：高置信度关联用 INNER JOIN，⚠️标记的用 LEFT JOIN

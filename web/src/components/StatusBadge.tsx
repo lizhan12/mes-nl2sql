@@ -12,7 +12,7 @@ const badgeVariant: Record<StatusBadgeProps["tone"], string> = {
   error: "bg-red-500/10 text-red-400 border-red-500/20",
   warning: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   loading: "bg-accent/10 text-accent-400 border-accent/20",
-  neutral: "bg-white/5 text-text-secondary border-white/10",
+  neutral: "bg-[var(--border-default)] text-[var(--text-secondary)] border-[var(--border-default)]",
 };
 
 const BadgeIcon = ({ tone }: { tone: StatusBadgeProps["tone"] }) => {

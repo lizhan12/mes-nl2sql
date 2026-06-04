@@ -31,17 +31,17 @@ export function CodeBlock({ title, value, language = "text", maxHeightClassName 
   }
 
   return (
-    <div className="rounded-lg border border-white/[0.07] bg-[#0d0d0d] overflow-hidden">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2.5">
-        <span className="text-[11px] font-medium tracking-[0.04em] text-text-tertiary uppercase">{title}</span>
+    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] overflow-hidden">
+      <div className="flex items-center justify-between border-b border-[var(--border-default)] px-4 py-2.5">
+        <span className="text-[12px] font-medium tracking-[0.04em] text-[var(--text-secondary)] uppercase">{title}</span>
         <button
           type="button"
           onClick={handleCopy}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] px-2.5 py-1 text-[11px] transition-colors duration-150",
+            "inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-2.5 py-1 text-[12px] transition-colors duration-150",
             copied
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-              : "bg-white/[0.03] text-text-tertiary hover:border-white/15 hover:text-text-secondary",
+              : "bg-[var(--bg-overlay)] text-[var(--text-tertiary)] hover:border-[var(--border-strong)] hover:text-[var(--text-secondary)]",
           )}
         >
           {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
@@ -50,7 +50,7 @@ export function CodeBlock({ title, value, language = "text", maxHeightClassName 
       </div>
       <pre
         className={cn(
-          "overflow-auto whitespace-pre-wrap break-all px-4 py-3.5 font-mono text-[13px] leading-relaxed text-text-secondary",
+          "overflow-auto whitespace-pre-wrap break-all px-4 py-3.5 font-mono text-[14px] leading-relaxed text-[var(--text-secondary)]",
           maxHeightClassName,
         )}
       >
