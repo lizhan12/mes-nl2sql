@@ -30,7 +30,8 @@ def _build_app_pool() -> ConnectionPool:
         min_size=1,
         max_size=5,
         timeout=_TIMEOUT,
-        max_idle=120,  # 空闲连接 120s 后回收
+        max_idle=600,       # 空闲 10 分钟后回收，避免频繁重连
+        reconnect_timeout=10,  # 重连超时 10 秒
         open=True,
     )
 
@@ -44,7 +45,8 @@ def _build_execution_pool() -> ConnectionPool:
         min_size=1,
         max_size=3,
         timeout=_TIMEOUT,
-        max_idle=120,  # 空闲连接 120s 后回收
+        max_idle=600,       # 空闲 10 分钟后回收
+        reconnect_timeout=10,  # 重连超时 10 秒
         open=True,
     )
 
