@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
+    # ---- Trace ----
+    trace_enabled: bool = True
+    trace_max_prompt_preview_chars: int = 500
+    trace_max_span_retention_days: int = 30
+
     # ---- BFS ----
     bfs_max_hops: int = 2
     bfs_max_tables: int = 10

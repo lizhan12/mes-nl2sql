@@ -208,7 +208,7 @@
   is_enabled (varchar(40))
   is_deleted (varchar(40))
 关联关系：
-  JOIN t_pd_sn_defect ON t_bd_defect.id = t_pd_sn_defect.defect_id  -- SN不良←不良代码(反向)
+  JOIN t_pd_sn_defect_detail ON t_bd_defect.defect_code = t_pd_sn_defect_detail.defect_code  -- 不良明细←不良代码(反向，通过detail表)
 适用场景：不良分析
 
 ---
@@ -223,6 +223,8 @@
   is_enabled (varchar(1))
   create_user_id (varchar(40))
   update_user_id (varchar(40))
+关联关系：
+  LEFT JOIN t_pd_sn_defect_detail ON t_bd_defect_duty.duty_code = t_pd_sn_defect_detail.duty_code  -- 不良明细←责任方(反向)
 适用场景：不良分析
 
 ---
@@ -249,6 +251,8 @@
   is_enabled (varchar(40)) -- 是否可用
   create_userid (varchar(40)) -- 创建人
   update_userid (varchar(40)) -- 更新人
+关联关系：
+  LEFT JOIN t_pd_sn_defect_detail ON t_bd_defect_reason.reason_code = t_pd_sn_defect_detail.reason_code  -- 不良明细←不良原因(反向)
 适用场景：不良分析
 
 ---
@@ -263,6 +267,8 @@
   is_enabled (varchar(1))
   create_user_id (varchar(40))
   update_user_id (varchar(40))
+关联关系：
+  LEFT JOIN t_pd_sn_defect_detail ON t_bd_defect_repair.repair_code = t_pd_sn_defect_detail.repair_code  -- 不良明细←维修方式(反向)
 适用场景：不良分析, 设备维修
 
 ---
@@ -1487,7 +1493,7 @@
   update_user_id (varchar(40))
 关联关系：
   JOIN t_pd_sn_status ON t_pd_sn_defect.sn = t_pd_sn_status.sn  -- SN不良←SN状态
-  JOIN t_bd_defect ON t_pd_sn_defect.defect_id = t_bd_defect.id  -- SN不良←不良代码
+  JOIN t_pd_sn_defect_detail ON t_pd_sn_defect_detail.defect_id = t_pd_sn_defect.id  -- 不良明细(通过detail表取defect_code/duty_code/reason_code/repair_code)
 适用场景：SN追溯, 不良分析
 
 ---
@@ -1503,6 +1509,12 @@
   duty_code (varchar(40))
   reason_code (varchar(40))
   repair_code (varchar(40))
+关联关系：
+  JOIN t_pd_sn_defect ON t_pd_sn_defect_detail.defect_id = t_pd_sn_defect.id  -- 不良明细←SN不良
+  JOIN t_bd_defect ON t_pd_sn_defect_detail.defect_code = t_bd_defect.defect_code  -- 不良明细←不良代码
+  LEFT JOIN t_bd_defect_duty ON t_pd_sn_defect_detail.duty_code = t_bd_defect_duty.duty_code  -- 不良明细←责任方
+  LEFT JOIN t_bd_defect_reason ON t_pd_sn_defect_detail.reason_code = t_bd_defect_reason.reason_code  -- 不良明细←不良原因
+  LEFT JOIN t_bd_defect_repair ON t_pd_sn_defect_detail.repair_code = t_bd_defect_repair.repair_code  -- 不良明细←维修方式
 适用场景：SN追溯, 不良分析
 
 ---

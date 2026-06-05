@@ -244,3 +244,34 @@ export function loadChatThread(userId: string, threadId: string): Promise<ChatTh
     `/chat/history/${threadId}?user_id=${encodeURIComponent(userId)}`,
   );
 }
+
+// ── Trace API ──────────────────────────────────────────────────────
+
+import type { TraceSpan, TraceStats } from "@/types";
+
+interface TraceResponse {
+  trace_id: string;
+  spans: TraceSpan[];
+  count: number;
+}
+
+interface ThreadTraceResponse {
+  thread_id: string;
+  spans: TraceSpan[];
+  count: number;
+}
+
+export function fetchTrace(traceId: string): Promise<TraceResponse> {
+  return requestJson<TraceResponse>(`/api/trace/${traceId}`);
+}
+
+export function fetchThreadTraces(threadId: string): Promise<ThreadTraceResponse> {
+  return requestJson<ThreadTraceResponse>(`/api/trace/thread/${threadId}`);
+}
+
+export function fetchTraceStats(node?: string, days?: number): Promise<TraceStats> {
+  const params = new URLSearchParams();
+  if (node) params.set("node", node);
+  if (days) params.set("days", String(days));
+  return requestJson<TraceStats>(`/api/trace/stats?${params}`);
+}

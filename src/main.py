@@ -55,6 +55,8 @@ from src.models.schemas import (
 from src.services.bfs import _get_graph as load_relation_graph
 from src.services.chat_repository import get_chat_repository
 from src.services.vector_store import build_few_shot_store, build_schema_store
+from src.trace.repository import get_trace_repository
+from src.trace.tracer import clear_trace_context, flush_trace, set_trace_context
 
 # ---- 日志配置 ----
 logging.basicConfig(
@@ -92,6 +94,11 @@ async def lifespan(app: FastAPI):
     logger.info("正在初始化聊天历史数据表...")
     get_chat_repository().ensure_tables()
     logger.info("聊天历史数据表初始化完成")
+
+    if settings.trace_enabled:
+        logger.info("正在初始化 Trace 追踪数据表...")
+        get_trace_repository().ensure_tables()
+        logger.info("Trace 追踪数据表初始化完成")
 
     yield
     from src.services.db_pool import close_all_pools
@@ -165,7 +172,13 @@ async def nl2sql(request: NL2SQLRequest):
     thread_id = request.thread_id or str(uuid.uuid4())
     initial_state = {"query": request.query}
     config = {"configurable": {"thread_id": thread_id}}
-    result = await _app.ainvoke(initial_state, config)
+
+    set_trace_context(request_id, thread_id, streaming=False)
+    try:
+        result = await _app.ainvoke(initial_state, config)
+    finally:
+        flush_trace()
+        clear_trace_context()
 
     # 解析 execution_results
     multi_sql = result.get("multi_sql", False)
@@ -380,6 +393,8 @@ async def chat_stream(request: NL2SQLRequest):
         chat_request_id = str(uuid.uuid4())  # 本次请求的唯一标识，用于前端反馈
         config = {"configurable": {"thread_id": thread_id}}
 
+        set_trace_context(chat_request_id, thread_id, streaming=True)
+
         # 加载会话历史，注入到初始 state
         session_history = _chat_sessions.get(thread_id, [])
         initial_state: dict = {"query": request.query}
@@ -445,6 +460,7 @@ async def chat_stream(request: NL2SQLRequest):
                 "status": "complete",
                 "thread_id": thread_id,
                 "request_id": chat_request_id,
+                "trace_id": chat_request_id,
                 "data": done_data,
             }
             yield f"data: {json.dumps(done_event, ensure_ascii=False)}\n\n"
@@ -453,8 +469,11 @@ async def chat_stream(request: NL2SQLRequest):
             if settings.enable_online_harness and settings.harness_request_log_enabled:
                 await _log_chat_request_async(request, chat_request_id, state_values)
 
+            clear_trace_context()
+
         except Exception as exc:
             logger.error("chat/stream 异常: %s", exc)
+            clear_trace_context()
             error_event = {
                 "node": "error",
                 "status": "error",
@@ -781,6 +800,51 @@ async def delete_graph_edge(edge_id: int):
         raise HTTPException(status_code=404, detail=f"边 {edge_id} 不存在")
     repo.delete_edge(edge_id)
     return {"id": edge_id, "message": "删除成功", "version": repo.get_version()}
+
+
+# ── Trace 查询 API ─────────────────────────────────────────────────
+
+
+@app.get("/api/trace/{trace_id}")
+async def get_trace(trace_id: str):
+    """获取单次请求的所有 trace spans。"""
+    try:
+        spans = get_trace_repository().query_by_trace_id(trace_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"查询 trace 失败: {exc}") from exc
+    if not spans:
+        raise HTTPException(status_code=404, detail=f"trace {trace_id} 不存在")
+    return {"trace_id": trace_id, "spans": spans, "count": len(spans)}
+
+
+@app.get("/api/trace/thread/{thread_id}")
+async def get_thread_traces(thread_id: str):
+    """获取整个会话的所有 trace spans。"""
+    try:
+        spans = get_trace_repository().query_by_thread_id(thread_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"查询 trace 失败: {exc}") from exc
+    return {"thread_id": thread_id, "spans": spans, "count": len(spans)}
+
+
+@app.get("/api/trace/recent")
+async def get_recent_traces(limit: int = 50):
+    """获取最近的 trace 摘要列表。"""
+    try:
+        summaries = get_trace_repository().query_recent_traces(limit)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"查询 trace 失败: {exc}") from exc
+    return {"traces": [s.__dict__ for s in summaries], "count": len(summaries)}
+
+
+@app.get("/api/trace/stats")
+async def get_trace_stats(node: str = "", days: int = 7):
+    """获取 trace 统计信息：各节点 P50/P95/P99 耗时、成功率、token 消耗。"""
+    try:
+        stats = get_trace_repository().get_trace_stats(node_name=node, days=days)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"查询 trace 统计失败: {exc}") from exc
+    return stats
 
 
 if __name__ == "__main__":

@@ -452,14 +452,14 @@
         "note": ""
       },
       {
-        "to": "t_bd_defect",
-        "from_field": "defect_id",
-        "to_field": "id",
-        "join": "t_pd_sn_defect.defect_id = t_bd_defect.id",
+        "to": "t_pd_sn_defect_detail",
+        "from_field": "id",
+        "to_field": "defect_id",
+        "join": "t_pd_sn_defect.id = t_pd_sn_defect_detail.defect_id",
         "join_type": "JOIN",
-        "desc": "SN不良←不良代码",
+        "desc": "不良明细←SN不良(反向)",
         "confidence": "high",
-        "note": ""
+        "note": "通过中间表t_pd_sn_defect_detail获取不良代码、责任、原因、维修"
       }
     ],
     "t_pd_sn_material": [
@@ -488,12 +488,100 @@
     ],
     "t_bd_defect": [
       {
-        "to": "t_pd_sn_defect",
-        "from_field": "id",
-        "to_field": "defect_id",
-        "join": "t_bd_defect.id = t_pd_sn_defect.defect_id",
+        "to": "t_pd_sn_defect_detail",
+        "from_field": "defect_code",
+        "to_field": "defect_code",
+        "join": "t_bd_defect.defect_code = t_pd_sn_defect_detail.defect_code",
         "join_type": "JOIN",
-        "desc": "SN不良←不良代码(反向)",
+        "desc": "不良明细←不良代码(反向)",
+        "confidence": "high",
+        "note": ""
+      }
+    ],
+    "t_pd_sn_defect_detail": [
+      {
+        "to": "t_pd_sn_defect",
+        "from_field": "defect_id",
+        "to_field": "id",
+        "join": "t_pd_sn_defect_detail.defect_id = t_pd_sn_defect.id",
+        "join_type": "JOIN",
+        "desc": "不良明细←SN不良",
+        "confidence": "high",
+        "note": ""
+      },
+      {
+        "to": "t_bd_defect",
+        "from_field": "defect_code",
+        "to_field": "defect_code",
+        "join": "t_pd_sn_defect_detail.defect_code = t_bd_defect.defect_code",
+        "join_type": "JOIN",
+        "desc": "不良明细←不良代码",
+        "confidence": "high",
+        "note": ""
+      },
+      {
+        "to": "t_bd_defect_duty",
+        "from_field": "duty_code",
+        "to_field": "duty_code",
+        "join": "t_pd_sn_defect_detail.duty_code = t_bd_defect_duty.duty_code",
+        "join_type": "LEFT JOIN",
+        "desc": "不良明细←责任方",
+        "confidence": "high",
+        "note": ""
+      },
+      {
+        "to": "t_bd_defect_reason",
+        "from_field": "reason_code",
+        "to_field": "reason_code",
+        "join": "t_pd_sn_defect_detail.reason_code = t_bd_defect_reason.reason_code",
+        "join_type": "LEFT JOIN",
+        "desc": "不良明细←不良原因",
+        "confidence": "high",
+        "note": ""
+      },
+      {
+        "to": "t_bd_defect_repair",
+        "from_field": "repair_code",
+        "to_field": "repair_code",
+        "join": "t_pd_sn_defect_detail.repair_code = t_bd_defect_repair.repair_code",
+        "join_type": "LEFT JOIN",
+        "desc": "不良明细←维修方式",
+        "confidence": "high",
+        "note": ""
+      }
+    ],
+    "t_bd_defect_duty": [
+      {
+        "to": "t_pd_sn_defect_detail",
+        "from_field": "duty_code",
+        "to_field": "duty_code",
+        "join": "t_bd_defect_duty.duty_code = t_pd_sn_defect_detail.duty_code",
+        "join_type": "LEFT JOIN",
+        "desc": "不良明细←责任方(反向)",
+        "confidence": "high",
+        "note": ""
+      }
+    ],
+    "t_bd_defect_reason": [
+      {
+        "to": "t_pd_sn_defect_detail",
+        "from_field": "reason_code",
+        "to_field": "reason_code",
+        "join": "t_bd_defect_reason.reason_code = t_pd_sn_defect_detail.reason_code",
+        "join_type": "LEFT JOIN",
+        "desc": "不良明细←不良原因(反向)",
+        "confidence": "high",
+        "note": ""
+      }
+    ],
+    "t_bd_defect_repair": [
+      {
+        "to": "t_pd_sn_defect_detail",
+        "from_field": "repair_code",
+        "to_field": "repair_code",
+        "join": "t_bd_defect_repair.repair_code = t_pd_sn_defect_detail.repair_code",
+        "join_type": "LEFT JOIN",
+        "desc": "不良明细←维修方式(反向)",
         "confidence": "high",
         "note": ""
       }

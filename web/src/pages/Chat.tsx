@@ -1,10 +1,11 @@
-import { Bot, ChevronLeft, ChevronRight, Clock, GitBranch, MessageCircle, Moon, Plus, Send, Sun, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, Clock, GitBranch, MessageCircle, Moon, Plus, Send, Sun, ThumbsDown, ThumbsUp, X, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { CodeBlock } from "@/components/CodeBlock";
 import { PaginationBar } from "@/components/PaginationBar";
 import { StatusBadge } from "@/components/StatusBadge";
+import { TracePanel } from "@/components/TracePanel";
 import { fetchPage, fetchChatHistory, loadChatThread, submitFeedback } from "@/lib/api";
 import type { ChatHistoryItem as ChatHistoryItemType } from "@/lib/api";
 import { fetchSSE } from "@/lib/stream";
@@ -79,6 +80,9 @@ export default function Chat() {
   const [ratedMessages, setRatedMessages] = useState<Set<string>>(new Set());
   const [feedbackModal, setFeedbackModal] = useState<{ msgId: string; requestId: string } | null>(null);
   const [feedbackReason, setFeedbackReason] = useState("");
+
+  // Trace 面板
+  const [tracePanelTraceId, setTracePanelTraceId] = useState<string | null>(null);
 
   // 历史会话
   const [historySessions, setHistorySessions] = useState<ChatHistoryItemType[]>([]);
@@ -177,6 +181,7 @@ export default function Chat() {
 
             const execData = execResults.length > 0 ? (execResults[0] as unknown as Record<string, JsonValue>) : null;
             const requestId = (event.request_id as string) || "";
+            const traceId = (event.trace_id as string) || requestId;
             const finalSql = finalSqls.length > 0 ? finalSqls[0] : (event.data?.final_sql as string) || (event.data?.generated_sql as string) || "";
             const content = status === "error"
               ? `错误: ${(event.data?.error as string) || "未知错误"}`
@@ -200,6 +205,7 @@ export default function Chat() {
                     sql: finalSql,
                     executionResult: execData,
                     requestId,
+                    traceId,
                     multiSql,
                     finalSqls,
                     executionResults: enrichedResults,
@@ -431,6 +437,7 @@ export default function Chat() {
                   rated={ratedMessages.has(msg.id)}
                   onThumbsUp={(requestId) => handleThumbsUp(msg.id, requestId)}
                   onThumbsDown={(requestId) => handleThumbsDown(msg.id, requestId)}
+                  onTraceView={(traceId) => setTracePanelTraceId(traceId)}
                 />
               ))}
               {running && (
@@ -592,6 +599,10 @@ export default function Chat() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {tracePanelTraceId ? (
+        <TracePanel traceId={tracePanelTraceId} onClose={() => setTracePanelTraceId(null)} />
       ) : null}
     </main>
   );
@@ -769,11 +780,13 @@ function ChatBubble({
   rated,
   onThumbsUp,
   onThumbsDown,
+  onTraceView,
 }: {
   message: Message;
   rated: boolean;
   onThumbsUp: (requestId: string) => void;
   onThumbsDown: (requestId: string) => void;
+  onTraceView: (traceId: string) => void;
 }) {
   const isUser = message.role === "user";
   const isError = message.type === "error";
@@ -967,6 +980,15 @@ function ChatBubble({
             {rated ? (
               <span className="ml-1 font-mono text-[11px] text-[var(--text-tertiary)] opacity-40">已反馈</span>
             ) : null}
+            <button
+              type="button"
+              onClick={() => onTraceView(message.traceId || message.requestId || "")}
+              title="查看执行链路"
+              className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[var(--text-tertiary)] hover:text-[var(--brand)] hover:bg-[var(--brand)]/5 transition-all duration-150"
+            >
+              <Zap className="h-3 w-3" />
+              <span className="font-mono text-[11px]">链路</span>
+            </button>
           </div>
         ) : null}
       </div>

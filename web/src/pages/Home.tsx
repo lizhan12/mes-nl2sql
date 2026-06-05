@@ -110,7 +110,7 @@ export default function Home() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
-              to="/chat"
+              to="/"
               className="font-mono text-[11px] uppercase tracking-[0.06em] text-[var(--text-tertiary)] transition-colors hover:text-[var(--accent)]"
             >
               ← 对话
@@ -167,7 +167,7 @@ export default function Home() {
               </p>
               <div className="mt-5 flex flex-wrap items-center gap-2">
                 <Link
-                  to="/chat"
+                  to="/"
                   className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-150 hover:border-[var(--border-accent)] hover:text-[var(--accent)]"
                 >
                   <MessageCircle className="h-3.5 w-3.5" />

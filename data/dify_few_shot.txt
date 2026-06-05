@@ -35,7 +35,8 @@ SELECT
   d.defect_code AS 不良代码,
   COUNT(sd.id) AS 不良数量
 FROM t_pd_sn_defect sd
-LEFT JOIN t_bd_defect d ON sd.defect_id = d.id
+JOIN t_pd_sn_defect_detail dd ON dd.defect_id = sd.id
+LEFT JOIN t_bd_defect d ON dd.defect_code = d.defect_code
 WHERE sd.create_time >= DATE_TRUNC('week', CURRENT_DATE)
 GROUP BY d.defect_name, d.defect_code
 ORDER BY 不良数量 DESC;

@@ -139,6 +139,7 @@ export interface Message {
   sql?: string;
   executionResult?: Record<string, JsonValue> | null;
   requestId?: string;
+  traceId?: string;
   // 多 SQL 相关
   multiSql?: boolean;
   finalSqls?: string[];
@@ -152,6 +153,7 @@ export interface ChatStreamEvent {
   status: "progress" | "complete" | "error";
   thread_id: string;
   request_id?: string;
+  trace_id?: string;
   data: Record<string, JsonValue>;
 }
 
@@ -170,4 +172,45 @@ export interface PageResponse {
   columns: string[];
   rows: Array<Record<string, JsonValue>>;
   error: string;
+}
+
+// ── Trace 类型 ─────────────────────────────────────────────────────
+
+export interface TraceSpan {
+  span_id: string;
+  trace_id: string;
+  thread_id: string;
+  parent_span_id: string | null;
+  node_name: string;
+  span_type: "node" | "llm_call" | "embedding" | "db_query";
+  status: "running" | "success" | "error";
+  start_time: string;
+  end_time: string | null;
+  duration_ms: number;
+  input_json: Record<string, JsonValue>;
+  output_json: Record<string, JsonValue>;
+  error_text: string;
+  llm_model: string;
+  llm_prompt_tokens: number;
+  llm_completion_tokens: number;
+  llm_total_tokens: number;
+  prompt_preview: string;
+  response_preview: string;
+  retry_seq: number;
+  metadata_json?: Record<string, JsonValue>;
+  created_at: string;
+}
+
+export interface TraceStats {
+  nodes: Record<string, {
+    count: number;
+    avg_ms: number;
+    p50_ms: number;
+    p95_ms: number;
+    p99_ms: number;
+    error_count: number;
+    avg_tokens: number;
+    total_tokens: number;
+  }>;
+  days: number;
 }

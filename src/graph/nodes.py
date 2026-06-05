@@ -27,8 +27,8 @@ from src.services.bfs import (
     find_path_between,
 )
 from src.services.db_pool import execution_connection
-from src.services.llm import get_intent_llm, get_llm
 from src.services.vector_store import hybrid_search_schema, search_few_shot
+from src.trace.tracer import trace_llm_call, trace_node
 from src.utils.sql_validator import validate_sql
 
 logger = logging.getLogger(__name__)
@@ -524,9 +524,9 @@ def _extract_tables_from_history(messages: list) -> list[str]:
     return all_tables
 
 
+@trace_node("intent")
 def node_1_intent_understanding(state: GraphState) -> dict:
     """节点1：意图理解 - 解析用户问题，输出结构化 JSON。"""
-    llm = get_intent_llm()
     query = state["query"]
 
     # 注入对话历史上下文（含用户问题及上轮 SQL 使用的表名）
@@ -536,7 +536,7 @@ def node_1_intent_understanding(state: GraphState) -> dict:
         query = f"对话历史：\n{history_text}\n\n当前问题：{query}"
 
     prompt = _INTENT_PROMPT.format(user_question=query)
-    response = llm.invoke(prompt)
+    response = trace_llm_call(prompt, node_name="intent", model=settings.intent_model)
     content = response.content if hasattr(response, "content") else str(response)
 
     # 清理可能的 markdown 包裹
@@ -576,6 +576,7 @@ def node_1_intent_understanding(state: GraphState) -> dict:
     }
 
 
+@trace_node("retrieval")
 def node_2_parallel_retrieval(state: GraphState) -> dict:
     """节点2：并行检索 - 同时检索表结构库和 SQL 示例库。"""
     query = state["query"]
@@ -650,6 +651,7 @@ def node_2_parallel_retrieval(state: GraphState) -> dict:
     }
 
 
+@trace_node("bfs")
 def node_3_bfs_expand(state: GraphState) -> dict:
     """节点3：BFS 图扩展 + 跨表路径查找。
 
@@ -748,6 +750,7 @@ def node_3_bfs_expand(state: GraphState) -> dict:
     }
 
 
+@trace_node("schema")
 def node_4_schema_assembly(state: GraphState) -> dict:
     """节点4：Schema 组装 - 从检索结果中提取对应表的 DDL 描述。"""
     expanded = state.get("expanded_tables", "")
@@ -772,12 +775,12 @@ def node_4_schema_assembly(state: GraphState) -> dict:
     return {"schema_context": "\n\n".join(selected)}
 
 
+@trace_node("sql_gen")
 def node_5_sql_generation(state: GraphState) -> dict:
     """节点5：SQL 生成 - 组装 prompt 调用 LLM 生成 SQL。
 
     多意图时，逐条为每个子问题生成独立 SQL。
     """
-    llm = get_llm()
     intent = _parse_intent_json(state.get("intent_json", "{}"))
     multi_sql = state.get("multi_sql", False)
     sub_queries = state.get("sub_queries", [])
@@ -822,7 +825,7 @@ def node_5_sql_generation(state: GraphState) -> dict:
             settings.openai_base_url,
             len(prompt),
         )
-        response = llm.invoke(prompt)
+        response = trace_llm_call(prompt, node_name="sql_gen", model=settings.llm_model)
         content = response.content if hasattr(response, "content") else str(response)
         return content.strip().removeprefix("```sql").removeprefix("```").removesuffix("```").strip()
 
@@ -854,6 +857,7 @@ def node_5_sql_generation(state: GraphState) -> dict:
         return {"generated_sqls": [sql]}
 
 
+@trace_node("safety")
 def node_6_safety_check(state: GraphState) -> dict:
     """节点6：安全校验 - 过滤危险操作，自动补 LIMIT。逐条校验所有 SQL。"""
     generated_sqls = state.get("generated_sqls", [])
@@ -1235,10 +1239,9 @@ def _repair_sql(
     user_query: str,
     join_hints: str,
     query_guidance: str,
+    retry_seq: int = 0,
 ) -> str:
     """调用 LLM 修复出错的 SQL。"""
-    llm = get_llm()
-
     # 如果是列名错误，补充真实列名信息
     col_hint = _build_col_not_found_hint(sql, error_msg)
 
@@ -1253,13 +1256,14 @@ def _repair_sql(
     if col_hint:
         prompt += f"\n\n## 真实列名\n{col_hint}"
 
-    response = llm.invoke(prompt)
+    response = trace_llm_call(prompt, node_name="execute", model=settings.llm_model, retry_seq=retry_seq)
     content = response.content if hasattr(response, "content") else str(response)
     # 清理 markdown 包裹
     repaired = content.strip().removeprefix("```sql").removeprefix("```").removesuffix("```").strip()
     return repaired
 
 
+@trace_node("execute")
 def node_7_execute_and_repair(state: GraphState) -> dict:
     """节点7：通过 EXPLAIN 校验 SQL 正确性，失败则通过 LLM 修复并重试（最多 3 次）。
 
@@ -1321,6 +1325,7 @@ def node_7_execute_and_repair(state: GraphState) -> dict:
                     sub_question,
                     state.get("join_hints", ""),
                     state.get("query_guidance", ""),
+                    retry_seq=retry + 1,
                 )
                 repaired_result = _explain_sql(repaired_sql)
                 if repaired_result["success"]:
@@ -1384,6 +1389,7 @@ def node_7_execute_and_repair(state: GraphState) -> dict:
             state.get("query", ""),
             state.get("join_hints", ""),
             state.get("query_guidance", ""),
+            retry_seq=retry_count,
         )
 
         return {
