@@ -14,3 +14,5 @@ test_*
 *_test_*
 public.sql
 files/
+temp_*
+.trae/documents/
