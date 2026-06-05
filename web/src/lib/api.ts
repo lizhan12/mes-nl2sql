@@ -92,7 +92,13 @@ export function publishApproved(version: string): Promise<HarnessActionResponse>
   });
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function submitFeedback(requestId: string, rating: "up" | "down", reason = ""): Promise<FeedbackResponse> {
+  if (!UUID_RE.test(requestId)) {
+    // 无效 UUID，静默跳过，避免 500
+    return Promise.resolve({ request_id: requestId, rating: rating === "up" ? 1 : -1, failure_case_created: false });
+  }
   return requestJson<FeedbackResponse>("/admin/harness/feedback", {
     method: "POST",
     body: JSON.stringify({ request_id: requestId, rating, reason }),

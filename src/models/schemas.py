@@ -83,7 +83,12 @@ class SqlPageResponse(BaseModel):
 class HarnessFeedbackRequest(BaseModel):
     """用户点赞/点踩反馈请求。"""
 
-    request_id: str = Field(..., min_length=1, description="NL2SQL 请求的 request_id / thread_id")
+    request_id: str = Field(
+        ...,
+        min_length=1,
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        description="NL2SQL 请求的 UUID",
+    )
     rating: Literal["up", "down"] = Field(..., description="up=点赞, down=点踩")
     reason: str = Field("", description="点踩原因（rating=down 时必填）")
 

@@ -2,6 +2,7 @@
 模块：条码管理
 业务含义：条码信息
 关键字段：
+  id (varchar(40)) -- 主键ID
   barcode (varchar(200)) -- 条码
   barcode_content (varchar(2000)) -- 二维码内容
   barcode_type (varchar(40)) -- 条码类型
@@ -9,6 +10,9 @@
   encode_rule_id (varchar(40)) -- 编码规则id
   remark (varchar(200)) -- 备注
   create_user_id (varchar(40))
+关联关系：
+  JOIN t_lb_label ON t_bc_barcode.label_id = t_lb_label.id -- 条码←标签
+  JOIN t_bc_encode_rule ON t_bc_barcode.encode_rule_id = t_bc_encode_rule.id -- 条码←编码规则
 
 ---
 表名：t_bc_encode_define
@@ -27,6 +31,7 @@
 模块：条码管理
 业务含义：（无注释）
 关键字段：
+  id (varchar(40)) -- 主键ID
   type_code (varchar(40)) -- 类型ID
   rule_name (varchar(40)) -- 规则名称
   rule_desc (varchar(200)) -- 规则描述
@@ -38,6 +43,8 @@
   generate_lenth (numeric(16,) -- 新增栏位，用于卡控条码长度，因编码中可能存在位数不确定的值
   bind_key (varchar(40)) -- 绑定键（用于特定功能绑定）
   default_flag (varchar(1)) -- 是否默认
+关联关系：
+  JOIN t_bc_encode_rule_group_detail ON t_bc_encode_rule.id = t_bc_encode_rule_group_detail.encode_rule_id -- 编码规则←编码规则组明细(反向)
 
 ---
 表名：t_bc_encode_rule_detail
@@ -56,11 +63,14 @@
 模块：条码管理
 业务含义：（无注释）
 关键字段：
+  id (varchar(40)) -- 主键ID
   group_name (varchar(40)) -- 规则集合名称
   group_desc (varchar(40)) -- 规则集合描述
   is_enabled (varchar(1))
   create_user_id (varchar(40))
   update_user_id (varchar(40))
+关联关系：
+  JOIN t_bc_encode_rule_group_detail ON t_bc_encode_rule_group.id = t_bc_encode_rule_group_detail.group_id -- 编码规则组←编码规则组明细(反向)
 
 ---
 表名：t_bc_encode_rule_group_detail
@@ -73,6 +83,9 @@
   encode_rule_id (varchar(40)) -- 编码规则ID
   seq (int4) -- 排序
   create_user_id (varchar(40))
+关联关系：
+  JOIN t_bc_encode_rule ON t_bc_encode_rule_group_detail.encode_rule_id = t_bc_encode_rule.id -- 编码规则组明细←编码规则
+  JOIN t_bc_encode_rule_group ON t_bc_encode_rule_group_detail.group_id = t_bc_encode_rule_group.id -- 编码规则组明细←编码规则组
 
 ---
 表名：t_bc_encode_status

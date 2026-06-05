@@ -1,5 +1,61 @@
 {
   "graph": {
+    "t_bc_encode_rule_group_detail": [
+      {
+        "to": "t_bc_encode_rule",
+        "from_field": "encode_rule_id",
+        "to_field": "id",
+        "join": "t_bc_encode_rule_group_detail.encode_rule_id = t_bc_encode_rule.id",
+        "join_type": "JOIN",
+        "desc": "编码规则组明细←编码规则",
+        "confidence": "high",
+        "note": ""
+      },
+      {
+        "to": "t_bc_encode_rule_group",
+        "from_field": "group_id",
+        "to_field": "id",
+        "join": "t_bc_encode_rule_group_detail.group_id = t_bc_encode_rule_group.id",
+        "join_type": "JOIN",
+        "desc": "编码规则组明细←编码规则组",
+        "confidence": "high",
+        "note": ""
+      }
+    ],
+    "t_bc_encode_rule": [
+      {
+        "to": "t_bc_encode_rule_group_detail",
+        "from_field": "id",
+        "to_field": "encode_rule_id",
+        "join": "t_bc_encode_rule.id = t_bc_encode_rule_group_detail.encode_rule_id",
+        "join_type": "JOIN",
+        "desc": "编码规则组明细←编码规则(反向)",
+        "confidence": "high",
+        "note": ""
+      },
+      {
+        "to": "t_bc_barcode",
+        "from_field": "id",
+        "to_field": "encode_rule_id",
+        "join": "t_bc_encode_rule.id = t_bc_barcode.encode_rule_id",
+        "join_type": "JOIN",
+        "desc": "条码←编码规则(反向)",
+        "confidence": "high",
+        "note": ""
+      }
+    ],
+    "t_bc_encode_rule_group": [
+      {
+        "to": "t_bc_encode_rule_group_detail",
+        "from_field": "id",
+        "to_field": "group_id",
+        "join": "t_bc_encode_rule_group.id = t_bc_encode_rule_group_detail.group_id",
+        "join_type": "JOIN",
+        "desc": "编码规则组明细←编码规则组(反向)",
+        "confidence": "high",
+        "note": ""
+      }
+    ],
     "t_pd_wo": [
       {
         "to": "t_pd_plan_detail",

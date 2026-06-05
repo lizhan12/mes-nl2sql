@@ -608,12 +608,15 @@ async def submit_harness_feedback(request: HarnessFeedbackRequest):
     if not settings.enable_online_harness:
         return {"error": "线上 Harness 未启用"}
     rating = 1 if request.rating == "up" else -1
-    result = await asyncio.to_thread(
-        get_online_harness_repository().submit_user_feedback,
-        request.request_id,
-        rating,
-        request.reason,
-    )
+    try:
+        result = await asyncio.to_thread(
+            get_online_harness_repository().submit_user_feedback,
+            request.request_id,
+            rating,
+            request.reason,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"提交反馈失败: {exc}") from exc
     return result
 
 
@@ -734,11 +737,20 @@ async def get_graph_version():
 @app.post("/api/graph/sync")
 async def sync_graph_from_json():
     """从本地 JSON 文件全量同步到 PG 数据库。"""
+    import json as _json
+    from pathlib import Path as _Path
+
     from src.services.graph_repository import get_graph_repository
+
+    # 直接从 JSON 文件加载，避免 _get_graph() 从 PG 读取导致的循环依赖
+    graph_path = _Path(__file__).parent.parent / "data" / "mes_relation_graph.json"
+    with open(graph_path, encoding="utf-8") as f:
+        data = _json.load(f)
+    graph = data["graph"] if isinstance(data, dict) and "graph" in data else data
 
     repo = get_graph_repository()
     repo.ensure_tables()
-    count = repo.replace_all(load_relation_graph())
+    count = repo.replace_all(graph)
     return {"message": f"同步完成，共导入 {count} 条边", "count": count, "version": repo.get_version()}
 
 
@@ -803,28 +815,8 @@ async def delete_graph_edge(edge_id: int):
 
 
 # ── Trace 查询 API ─────────────────────────────────────────────────
-
-
-@app.get("/api/trace/{trace_id}")
-async def get_trace(trace_id: str):
-    """获取单次请求的所有 trace spans。"""
-    try:
-        spans = get_trace_repository().query_by_trace_id(trace_id)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"查询 trace 失败: {exc}") from exc
-    if not spans:
-        raise HTTPException(status_code=404, detail=f"trace {trace_id} 不存在")
-    return {"trace_id": trace_id, "spans": spans, "count": len(spans)}
-
-
-@app.get("/api/trace/thread/{thread_id}")
-async def get_thread_traces(thread_id: str):
-    """获取整个会话的所有 trace spans。"""
-    try:
-        spans = get_trace_repository().query_by_thread_id(thread_id)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"查询 trace 失败: {exc}") from exc
-    return {"thread_id": thread_id, "spans": spans, "count": len(spans)}
+# 注意：recent/stats 等具体路由必须在 /api/trace/{trace_id} 之前定义，
+# 否则 FastAPI 会把 "recent"/"stats" 当作 trace_id 路由。
 
 
 @app.get("/api/trace/recent")
@@ -845,6 +837,28 @@ async def get_trace_stats(node: str = "", days: int = 7):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"查询 trace 统计失败: {exc}") from exc
     return stats
+
+
+@app.get("/api/trace/thread/{thread_id}")
+async def get_thread_traces(thread_id: str):
+    """获取整个会话的所有 trace spans。"""
+    try:
+        spans = get_trace_repository().query_by_thread_id(thread_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"查询 trace 失败: {exc}") from exc
+    return {"thread_id": thread_id, "spans": spans, "count": len(spans)}
+
+
+@app.get("/api/trace/{trace_id}")
+async def get_trace(trace_id: str):
+    """获取单次请求的所有 trace spans。"""
+    try:
+        spans = get_trace_repository().query_by_trace_id(trace_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"查询 trace 失败: {exc}") from exc
+    if not spans:
+        raise HTTPException(status_code=404, detail=f"trace {trace_id} 不存在")
+    return {"trace_id": trace_id, "spans": spans, "count": len(spans)}
 
 
 if __name__ == "__main__":
