@@ -8,10 +8,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import psycopg
-from psycopg.rows import dict_row
-
-from src.core.config import settings
+from src.services.db_pool import app_connection
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +30,7 @@ class GraphEdge:
 
 
 class GraphRepository:
-    """关系图 PG 仓储。"""
-
-    def __init__(self, db_url: str = "") -> None:
-        self.db_url = (db_url or settings.app_database_url).replace("+asyncpg", "")
-
-    def connect(self) -> psycopg.Connection:
-        return psycopg.connect(self.db_url, row_factory=dict_row)
+    """关系图 PG 仓储（使用 AppPool 连接池）。"""
 
     # ── DDL ────────────────────────────────────────────────────────
 
@@ -76,7 +67,7 @@ class GraphRepository:
         VALUES (1, 1)
         ON CONFLICT (id) DO NOTHING;
         """
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(ddl)
             conn.commit()
         logger.info("graph_edges / graph_version 表初始化完成")
@@ -85,14 +76,14 @@ class GraphRepository:
 
     def get_version(self) -> int:
         """获取当前图版本号。"""
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute("SELECT version FROM graph_version WHERE id = 1")
             row = cur.fetchone()
             return row["version"] if row else 1
 
     def bump_version(self) -> int:
         """递增版本号（每次写操作后调用），返回新版本号。"""
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "UPDATE graph_version SET version = version + 1, updated_at = NOW() WHERE id = 1 RETURNING version"
             )
@@ -110,7 +101,7 @@ class GraphRepository:
         Returns:
             {table_name: [{"to": ..., "from_field": ..., ...}, ...]}
         """
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute("SELECT * FROM graph_edges ORDER BY from_table, id")
             rows = cur.fetchall()
 
@@ -127,7 +118,7 @@ class GraphRepository:
 
     def replace_all(self, graph: dict[str, list[dict]]) -> int:
         """清空现有边并全量导入新数据，返回导入的边数量。"""
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM graph_edges")
             count = 0
             for from_table, edges in graph.items():
@@ -161,7 +152,7 @@ class GraphRepository:
 
     def add_edge(self, edge: GraphEdge) -> int:
         """添加一条关系边，返回新边的 ID。"""
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO graph_edges
@@ -190,7 +181,7 @@ class GraphRepository:
 
     def update_edge(self, edge_id: int, edge: GraphEdge) -> bool:
         """更新一条关系边。"""
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 UPDATE graph_edges SET
@@ -218,7 +209,7 @@ class GraphRepository:
 
     def delete_edge(self, edge_id: int) -> bool:
         """删除一条关系边。"""
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM graph_edges WHERE id = %s", (edge_id,))
             conn.commit()
         self.bump_version()
@@ -226,7 +217,7 @@ class GraphRepository:
 
     def get_edge(self, edge_id: int) -> dict | None:
         """获取单条边详情。"""
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute("SELECT * FROM graph_edges WHERE id = %s", (edge_id,))
             row = cur.fetchone()
             return dict(row) if row else None
@@ -246,7 +237,7 @@ class GraphRepository:
         sql = f"SELECT * FROM graph_edges {where} ORDER BY id LIMIT %s"
         params.append(limit)
 
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(sql, params)
             return [dict(row) for row in cur.fetchall()]
 

@@ -16,8 +16,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-import psycopg
-
 from src.core.config import settings
 from src.graph.state import GraphState
 from src.harness.knowledge import load_evolved_few_shot_text, load_runtime_rules, normalize_question
@@ -28,6 +26,7 @@ from src.services.bfs import (
     build_path_join_hints,
     find_path_between,
 )
+from src.services.db_pool import execution_connection
 from src.services.llm import get_intent_llm, get_llm
 from src.services.vector_store import hybrid_search_schema, search_few_shot
 from src.utils.sql_validator import validate_sql
@@ -67,8 +66,13 @@ MES业务域：
 - search_queries：包含"用户没说但逻辑上必要"的词（如说"良品率"要补"合格数"）
 - query_type：如果用户问了多个独立的数据查询需求（如"分别查询A以及B"、"查询A和B"中A与B是不同维度），填 "multi"；否则填 "single"
 - sub_queries：仅当 query_type 为 "multi" 时填写，每项包含 question（独立完整的问题描述）和 description（简短标签，如"过站记录"）。拆分子问题时，每个子问题必须是独立可执行的完整查询，不要有代词引用
-- 【重要】如果当前问题是简略指代（如"改成DAH02"、"换成昨天的"、"查一下ABC"、"第二个呢"），必须结合对话历史中的上一轮问题来理解：将当前问题扩展为完整查询，继承历史中的表、筛选条件、查询类型（single/multi），只替换被指定的部分
-- reference_history：如果当前问题是对上一轮查询的修改、细化、补充（如改条件、增减字段、切换视角但查同一批数据），填 true；如果是全新的独立查询话题，填 false
+- 【重要-多轮对话】如果当前问题属于以下任一类简略指代，必须结合对话历史（含上轮SQL的表和列信息）来扩展为完整查询，并将 reference_history 设为 true：
+  * 值替换：如"改成DAH02"、"换成昨天的"、"查一下ABC"、"第二个呢"
+  * 列修改：如"不要显示XX"、"去掉XX列"、"隐藏XX"、"只要YY和ZZ"、"加上AA字段"、"显示BB"
+  * 条件调整：如"再加个时间范围"、"只看不合格的"、"按产线分组"
+  * 排序/数量：如"按时间倒序"、"只要前10条"
+  以上情况下，继承对话历史中的表、关联、筛选条件，仅修改被指定的部分
+- reference_history：如果当前问题是对上一轮查询的修改、细化、补充（改条件/增减字段/切换视角但查同一批数据），填 true；如果是全新独立查询话题，填 false
 
 用户问题：{user_question}"""
 
@@ -401,29 +405,30 @@ def _format_conversation_history(messages: list, max_turns: int = 3) -> str:
 def _format_intent_history(messages: list, max_turns: int = 3) -> str:
     """格式化对话历史为文本（用于意图理解）。
 
-    包含用户问题以及上轮 SQL 使用的表名，
-    帮助意图 LLM 正确扩展简略指代（如"改查DAH02"、"去掉过站时间"）。
+    包含用户问题、上轮 SQL 使用的表名和列名，
+    帮助意图 LLM 正确扩展简略指代（如"改查DAH02"、"去掉过站时间"、
+    "不要显示节点"、"只要part_no和part_name"）。
     """
     if not messages:
         return ""
     human_msgs: list[str] = []
-    ai_tables_list: list[set[str]] = []
+    ai_info_list: list[str] = []  # 每轮 AI 的"(表/列)"信息字符串
     for msg in messages:
         role = getattr(msg, "type", "human") if hasattr(msg, "type") else "human"
         content = msg.content if hasattr(msg, "content") else str(msg)
         if role == "human":
             human_msgs.append(content)
         elif role == "ai":
-            ai_tables_list.append(_extract_tables_from_sql(content))
+            ai_info_list.append(_extract_sql_tables_and_columns(content))
     if not human_msgs:
         return ""
     recent_human = human_msgs[-max_turns:]
-    recent_ai_tables = ai_tables_list[-max_turns:] if ai_tables_list else []
+    recent_ai_info = ai_info_list[-max_turns:] if ai_info_list else []
     lines: list[str] = []
     for i, q in enumerate(recent_human):
         lines.append(f"{i + 1}. {q}")
-        if i < len(recent_ai_tables) and recent_ai_tables[i]:
-            lines.append(f"   (上轮SQL使用表: {', '.join(sorted(recent_ai_tables[i]))})")
+        if i < len(recent_ai_info) and recent_ai_info[i]:
+            lines.append(f"   (上轮SQL: {recent_ai_info[i]})")
     return "\n".join(lines)
 
 
@@ -452,6 +457,55 @@ def _extract_tables_from_sql(text: str) -> set[str]:
         if table.upper() not in _SQL_KEYWORDS:
             tables.add(table)
     return tables
+
+
+def _extract_sql_tables_and_columns(text: str) -> str:
+    """从 AI 回复中提取上轮 SQL 的表名和 SELECT 列名信息。
+
+    返回简洁的描述字符串，如：
+    "表: t_pd_sn_travel, t_bd_part | 列: sn, in_pdline_time, terminal_name, node_id, work_order, part_no, part_name"
+    帮助意图 LLM 理解上一轮查询了哪些字段，从而正确解释/修改简略指代。
+    """
+    # 提取 SQL 片段
+    sql = ""
+    match = re.search(r"```sql\n(.*?)```", text, re.DOTALL)
+    if match:
+        sql = match.group(1).strip()
+    else:
+        match = re.search(r"(?:SQL:\s*)?(SELECT\s+.+?)(?:;|$)", text, re.IGNORECASE | re.DOTALL)
+        if match:
+            sql = match.group(1).strip()
+    if not sql:
+        return ""
+
+    # 提取 SELECT 列名（在 FROM 之前的部分）
+    select_part = re.sub(r"\s+", " ", sql).strip()
+    from_match = re.search(r"\bFROM\b", select_part, re.IGNORECASE)
+    if from_match:
+        select_part = select_part[: from_match.start()]
+    # 移除开头的 SELECT 关键字
+    select_part = re.sub(r"^SELECT\s+", "", select_part, flags=re.IGNORECASE).strip()
+
+    # 提取列名：分割后去掉别名（AS xxx），保留原始列名或别名
+    columns: list[str] = []
+    for part in re.split(r",\s*", select_part):
+        part = part.strip()
+        if not part:
+            continue
+        # 处理 "table.col AS alias" 或 "col AS alias" 或 "col"
+        # 优先取 AS 后的别名，否则取最后一段（去表前缀）
+        alias_match = re.search(r"\s+AS\s+(\S+)$", part, re.IGNORECASE)
+        if alias_match:
+            columns.append(alias_match.group(1).strip('"'))
+        else:
+            # 取最后一个 . 后的部分
+            col = part.split(".")[-1].strip().strip('"')
+            columns.append(col)
+
+    tables = _extract_tables_from_sql(text)
+    cols_str = ", ".join(columns[:15]) if columns else "?"
+    tables_str = ", ".join(sorted(tables)) if tables else "?"
+    return f"表: {tables_str} | 列: {cols_str}"
 
 
 def _extract_tables_from_history(messages: list) -> list[str]:
@@ -532,6 +586,13 @@ def node_2_parallel_retrieval(state: GraphState) -> dict:
     sqs = intent.get("search_queries", [])
     if sqs:
         search_queries.extend(sqs)
+
+    # 多轮对话跟进：将历史表名也加入搜索词，帮助 few-shot 检索到相关示例
+    if intent.get("reference_history") is True:
+        history_tables = _extract_tables_from_history(state.get("messages", []))
+        for t in history_tables:
+            if t not in search_queries:
+                search_queries.append(t)
 
     # 合并多个搜索词的结果
     schema_docs_list: list[str] = []
@@ -856,11 +917,6 @@ _SQL_REPAIR_PROMPT = """你是 PostgreSQL SQL 修复专家。以下 SQL 执行�
 - 字段名必须严格来自表结构，禁止臆造不存在的列名"""
 
 
-def _get_db_url() -> str:
-    """将 asyncpg 格式的数据库 URL 转为 psycopg 兼容格式。"""
-    return settings.execution_database_url.replace("+asyncpg", "")
-
-
 def _execute_sql(sql: str) -> dict:
     """执行 SQL 并返回结果。
 
@@ -868,7 +924,7 @@ def _execute_sql(sql: str) -> dict:
         {"success": bool, "rows": int, "columns": [...], "preview": [...], "error": str}
     """
     try:
-        with psycopg.connect(_get_db_url()) as conn, conn.cursor() as cur:
+        with execution_connection() as conn, conn.cursor() as cur:
             cur.execute(sql)
             if cur.description:
                 columns = [d.name for d in cur.description]
@@ -908,7 +964,7 @@ def _explain_sql(sql: str) -> dict:
         {"success": bool, "explain_plan": dict, "error": str}
     """
     try:
-        with psycopg.connect(_get_db_url()) as conn, conn.cursor() as cur:
+        with execution_connection() as conn, conn.cursor() as cur:
             cur.execute(f"EXPLAIN (FORMAT JSON) {sql}")
             plan = cur.fetchone()[0]
             return {
@@ -950,7 +1006,7 @@ def execute_paginated_sql(sql: str, page: int = 1, page_size: int = 20) -> dict:
         count_sql = f"SELECT COUNT(*) FROM ({sql}) AS _cnt"
         page_sql = f"SELECT * FROM ({sql}) AS _page LIMIT {page_size} OFFSET {offset}"
 
-        with psycopg.connect(_get_db_url()) as conn, conn.cursor() as cur:
+        with execution_connection() as conn, conn.cursor() as cur:
             # 1) 统计总行数
             cur.execute(count_sql)
             total_rows = cur.fetchone()[0]
@@ -993,7 +1049,7 @@ def execute_paginated_sql(sql: str, page: int = 1, page_size: int = 20) -> dict:
 def _get_table_columns(table_name: str) -> list[str] | None:
     """从数据库查询表的实际列名列表。"""
     try:
-        with psycopg.connect(_get_db_url()) as conn, conn.cursor() as cur:
+        with execution_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "SELECT column_name FROM information_schema.columns WHERE table_name = %s ORDER BY ordinal_position",
                 (table_name,),
@@ -1001,6 +1057,48 @@ def _get_table_columns(table_name: str) -> list[str] | None:
             return [row[0] for row in cur.fetchall()]
     except Exception:
         return None
+
+
+def _extract_alias_table_map(sql: str) -> dict[str, str]:
+    """从 SQL 中提取别名→表名的映射。
+
+    匹配模式如：
+      - FROM t_pd_wo wo          → {"wo": "t_pd_wo"}
+      - JOIN t_bd_part AS p       → {"p": "t_bd_part"}
+
+    只有别名的表才加入映射，不带别名的表会自动跳过。
+    """
+    alias_map: dict[str, str] = {}
+    # 匹配: FROM/JOIN table_name [AS] alias
+    for match in re.finditer(
+        r"\b(?:FROM|JOIN)\s+([a-zA-Z_][\w\.]*)\s+(?:AS\s+)?([a-zA-Z_][\w]*)",
+        sql,
+        re.IGNORECASE,
+    ):
+        table_name = match.group(1).lower()
+        alias = match.group(2).lower()
+        # 跳过 SQL 关键字被误匹配为别名的情况
+        if alias in (
+            "on",
+            "where",
+            "left",
+            "right",
+            "inner",
+            "outer",
+            "cross",
+            "natural",
+            "full",
+            "limit",
+            "order",
+            "group",
+            "union",
+            "except",
+            "intersect",
+        ):
+            continue
+        if "." not in table_name:
+            alias_map[alias] = table_name
+    return alias_map
 
 
 def _extract_table_names(sql: str) -> list[str]:
@@ -1015,24 +1113,118 @@ def _extract_table_names(sql: str) -> list[str]:
     return tables
 
 
+def _extract_pg_hint_suggestions(error_msg: str) -> list[str]:
+    """从 PostgreSQL 错误信息的 HINT 中提取建议列名。
+
+    例如 HINT: 'Perhaps you meant to reference the column "wo.panel_qty" or the column "wo.split_qty".'
+    返回: ["panel_qty", "split_qty"]
+    """
+    hints: list[str] = []
+    for match in re.finditer(r'Perhaps you meant to reference the column "[\w\.]+\.([\w]+)"', error_msg, re.IGNORECASE):
+        hints.append(match.group(1))
+    return hints
+
+
+def _fuzzy_best_columns(missing_col: str, columns: list[str], top_n: int = 5) -> list[str]:
+    """使用编辑距离（Levenshtein）从真实列名中找出与缺失列名最相似的前 N 个。"""
+    if not columns:
+        return []
+    scored = []
+    ml = missing_col.lower()
+    for c in columns:
+        cl = c.lower()
+        # 计算 Levenshtein 距离
+        if len(ml) < len(cl):
+            d = _levenshtein(ml, cl)
+            # 含有关键词整体匹配子串的情况给予奖励
+            bonus = 2 if ml in cl else 0
+        else:
+            d = _levenshtein(ml, cl)
+            bonus = 2 if cl in ml else 0
+        scored.append((c, d - bonus))
+    scored.sort(key=lambda x: x[1])
+    return [c for c, _ in scored[:top_n]]
+
+
+def _levenshtein(s1: str, s2: str) -> int:
+    """计算两个字符串之间的编辑距离。"""
+    if len(s1) < len(s2):
+        s1, s2 = s2, s1
+    if len(s2) == 0:
+        return len(s1)
+    prev = list(range(len(s2) + 1))
+    for i, c1 in enumerate(s1, 1):
+        curr = [i]
+        for j, c2 in enumerate(s2, 1):
+            curr.append(
+                min(
+                    prev[j] + 1,  # 删除
+                    curr[j - 1] + 1,  # 插入
+                    prev[j - 1] + (0 if c1 == c2 else 1),  # 替换
+                )
+            )
+        prev = curr
+    return prev[-1]
+
+
 def _build_col_not_found_hint(sql: str, error_msg: str) -> str:
-    """当错误是'column does not exist'时，查询真实列名并生成修复提示。"""
+    """当错误是'column does not exist'时，用多种手段生成精准修复提示。
+
+    手段（按优先级）：
+    1. 提取 PostgreSQL HINT 中已建议的列名
+    2. 解析别名定位到具体表，查询该表全部列名
+    3. 编辑距离模糊匹配，找出最相似的 Top-5 列名
+    """
     col_match = re.search(r"column ([a-zA-Z_][\w\.]*) does not exist", error_msg, re.IGNORECASE)
     if not col_match:
         return ""
-    missing_col = col_match.group(1)
-    # 提取可能涉及的表名
-    table_names = _extract_table_names(sql)
-    if not table_names:
-        return ""
 
-    hint_parts: list[str] = [f"错误：列 '{missing_col}' 不存在。以下是可以使用的真实列名："]
-    for tname in table_names[:3]:
-        cols = _get_table_columns(tname)
-        if cols:
-            hint_parts.append(f"- {tname} 的列: {', '.join(cols[:20])}")
-            if len(cols) > 20:
-                hint_parts[-1] += f" ... 共 {len(cols)} 列"
+    full_col = col_match.group(1)  # 如 "wo.plan_qty" 或 "plan_qty"
+    missing_col = full_col.split(".")[-1]  # 只取列名部分（去掉别名前缀）
+    alias = full_col.split(".")[0] if "." in full_col else ""
+
+    hint_parts: list[str] = [f"⚠️ 错误：列 '{full_col}' 不存在，请替换为真实存在的列名。"]
+
+    # ---- 手段1：提取 PostgreSQL HINT 建议 ----
+    pg_suggestions = _extract_pg_hint_suggestions(error_msg)
+    if pg_suggestions:
+        hint_parts.append(f"📌 PostgreSQL 建议使用的列名: {', '.join(pg_suggestions)}")
+
+    # ---- 手段2：通过别名定位到具体表 ----
+    alias_map = _extract_alias_table_map(sql)
+    target_table = None
+    if alias and alias in alias_map:
+        target_table = alias_map[alias]
+    else:
+        # 没有别名或别名未匹配到：从 SQL 所有表中尝试定位
+        table_names = _extract_table_names(sql)
+        if table_names:
+            target_table = table_names[0]  # 模糊回退
+
+    if target_table:
+        all_cols = _get_table_columns(target_table)
+        if all_cols:
+            hint_parts.append(f"📋 表 {target_table} 的完整列名（共 {len(all_cols)} 列）:")
+            hint_parts.append(", ".join(all_cols))
+
+            # ---- 手段3：编辑距离模糊匹配 ----
+            fuzzy_cols = _fuzzy_best_columns(missing_col, all_cols)
+            if fuzzy_cols:
+                hint_parts.append(f"🎯 与 '{missing_col}' 最相似的列名: {', '.join(fuzzy_cols)}")
+        else:
+            hint_parts.append(f"（无法获取表 {target_table} 的列信息）")
+    else:
+        # 无法定位到具体表：列出 SQL 中所有表的列名
+        table_names = _extract_table_names(sql)
+        if table_names:
+            hint_parts.append("📋 以下是可以使用的真实列名：")
+            for tname in table_names[:3]:
+                cols = _get_table_columns(tname)
+                if cols:
+                    hint_parts.append(f"- {tname} 的列: {', '.join(cols[:30])}")
+                    if len(cols) > 30:
+                        hint_parts[-1] += f" ... 共 {len(cols)} 列"
+
     return "\n".join(hint_parts)
 
 

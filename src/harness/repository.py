@@ -8,10 +8,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-import psycopg
-from psycopg.rows import dict_row
-
 from src.core.config import settings
+from src.services.db_pool import app_connection
 
 _runtime_cache: dict[str, tuple[float, Any]] = {}
 
@@ -24,14 +22,10 @@ class PublishedKnowledge:
 
 
 class OnlineHarnessRepository:
-    """线上 Harness 仓储。"""
+    """线上 Harness 仓储（使用 AppPool 连接池）。"""
 
-    def __init__(self, db_url: str, cache_ttl_seconds: int = 60) -> None:
-        self.db_url = db_url.replace("+asyncpg", "")
+    def __init__(self, cache_ttl_seconds: int = 60) -> None:
         self.cache_ttl_seconds = cache_ttl_seconds
-
-    def connect(self) -> psycopg.Connection:
-        return psycopg.connect(self.db_url, row_factory=dict_row)
 
     def ensure_tables(self) -> None:
         ddl = """
@@ -127,7 +121,7 @@ class OnlineHarnessRepository:
         CREATE INDEX IF NOT EXISTS idx_nl2sql_failure_label_case
             ON nl2sql_failure_label (failure_case_id);
         """
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(ddl)
             conn.commit()
 
@@ -165,7 +159,7 @@ class OnlineHarnessRepository:
             "rule_version": str(payload.get("rule_version", "")),
             "few_shot_version": str(payload.get("few_shot_version", "")),
         }
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(sql, params)
             conn.commit()
         return request_id
@@ -179,7 +173,7 @@ class OnlineHarnessRepository:
         ORDER BY created_at ASC
         """
         inserted = 0
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(query)
             rows = cur.fetchall()
             for row in rows:
@@ -222,7 +216,7 @@ class OnlineHarnessRepository:
         ORDER BY created_at ASC
         LIMIT %(limit)s
         """
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(query, {"limit": limit})
             rows = cur.fetchall()
         return [dict(row) for row in rows]
@@ -235,7 +229,7 @@ class OnlineHarnessRepository:
         ORDER BY created_at ASC
         LIMIT %(limit)s
         """
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(query, {"limit": limit})
             rows = cur.fetchall()
         return [dict(row) for row in rows]
@@ -260,7 +254,7 @@ class OnlineHarnessRepository:
             LIMIT %(limit)s
             """
             params = {"limit": limit}
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(query, params)
             rows = cur.fetchall()
         return [dict(row) for row in rows]
@@ -274,7 +268,7 @@ class OnlineHarnessRepository:
         ORDER BY fc.created_at ASC
         LIMIT %(limit)s
         """
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(query, {"limit": limit})
             rows = cur.fetchall()
         return [dict(row) for row in rows]
@@ -282,7 +276,7 @@ class OnlineHarnessRepository:
     def upsert_failure_label(
         self, failure_case_id: int, correct_sql: str, note: str = "", label_type: str = "correct_sql"
     ) -> int:
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO nl2sql_failure_label (failure_case_id, label_type, correct_sql, note)
@@ -320,7 +314,7 @@ class OnlineHarnessRepository:
           AND query_text = ANY(%(queries)s)
         ORDER BY created_at DESC
         """
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(query, {"queries": queries})
             rows = cur.fetchall()
         return [dict(row) for row in rows]
@@ -328,7 +322,7 @@ class OnlineHarnessRepository:
     def mark_requests_promoted(self, request_ids: list[str]) -> None:
         if not request_ids:
             return
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "UPDATE nl2sql_request_log SET promoted_to_knowledge = TRUE WHERE request_id = ANY(%(request_ids)s)",
                 {"request_ids": request_ids},
@@ -341,7 +335,7 @@ class OnlineHarnessRepository:
         Returns:
             {"request_id": str, "rating": int, "failure_case_created": bool}
         """
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             # 更新请求日志的反馈信息
             cur.execute(
                 """
@@ -358,7 +352,7 @@ class OnlineHarnessRepository:
         failure_case_created = False
         if rating < 0 and row:
             # 点踩：直接创建失败案例
-            with self.connect() as conn, conn.cursor() as cur:
+            with app_connection() as conn, conn.cursor() as cur:
                 cur.execute(
                     """
                     INSERT INTO nl2sql_failure_case (
@@ -432,7 +426,7 @@ class OnlineHarnessRepository:
             "evidence_json": json.dumps(payload.get("evidence_json", {}), ensure_ascii=False, default=str),
             "review_note": str(payload.get("review_note", "")),
         }
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(sql, params)
             row = cur.fetchone()
             conn.commit()
@@ -456,14 +450,14 @@ class OnlineHarnessRepository:
             LIMIT %(limit)s
             """
             params = {"limit": limit}
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(query, params)
             rows = cur.fetchall()
         return [dict(row) for row in rows]
 
     def review_rule_candidate(self, candidate_id: int, action: str, note: str = "") -> None:
         status = {"approve": "approved", "reject": "rejected"}[action]
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 UPDATE nl2sql_rule_candidate
@@ -481,7 +475,7 @@ class OnlineHarnessRepository:
         WHERE status = 'approved'
         ORDER BY created_at ASC
         """
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(query)
             rows = cur.fetchall()
         return [dict(row) for row in rows]
@@ -489,7 +483,7 @@ class OnlineHarnessRepository:
     def mark_candidates_published(self, candidate_ids: list[int], version: str) -> None:
         if not candidate_ids:
             return
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 UPDATE nl2sql_rule_candidate
@@ -503,7 +497,7 @@ class OnlineHarnessRepository:
     def update_failure_case_statuses(self, failure_case_ids: list[int], status: str) -> None:
         if not failure_case_ids:
             return
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "UPDATE nl2sql_failure_case SET status = %(status)s WHERE id = ANY(%(ids)s)",
                 {"status": status, "ids": failure_case_ids},
@@ -517,7 +511,7 @@ class OnlineHarnessRepository:
         few_shot_text: str,
         source: str = "online_harness",
     ) -> None:
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO nl2sql_runtime_knowledge (knowledge_type, version, status, source, content_json, content_text)
@@ -550,7 +544,7 @@ class OnlineHarnessRepository:
         if cached and now - cached[0] < self.cache_ttl_seconds:
             return cached[1]
 
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT knowledge_type, version, content_json, content_text
@@ -592,7 +586,6 @@ def get_online_harness_repository() -> OnlineHarnessRepository:
     global _repository
     if _repository is None:
         _repository = OnlineHarnessRepository(
-            db_url=settings.app_database_url,
             cache_ttl_seconds=settings.harness_runtime_cache_ttl_seconds,
         )
     return _repository

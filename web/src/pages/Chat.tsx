@@ -59,7 +59,7 @@ function ThemeToggle() {
       type="button"
       onClick={toggleTheme}
       title={isDark ? "切换到亮色模式" : "切换到暗色模式"}
-      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-overlay)] px-2.5 py-1.5 text-[15px] text-[var(--text-secondary)] transition-colors duration-150 hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+      className="group inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-2.5 py-1.5 text-[13px] font-mono text-[var(--text-secondary)] transition-all duration-150 hover:border-[var(--accent)] hover:text-[var(--accent)] hover:shadow-[var(--shadow-glow)]"
     >
       {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
     </button>
@@ -107,13 +107,22 @@ export default function Chat() {
       const thread = await loadChatThread(userId, targetThreadId);
       if (thread && thread.messages) {
         setMessages(
-          thread.messages.map((m) => ({
-            id: makeId(),
-            role: (m.role as "user" | "assistant") || "user",
-            content: m.content || "",
-            type: "text" as const,
-            timestamp: Date.now(),
-          })),
+          thread.messages.map((m) => {
+            const typeFromBackend: string = m.type || "";
+            const role: "user" | "assistant" =
+              typeFromBackend === "HumanMessage" || typeFromBackend === "human"
+                ? "user"
+                : typeFromBackend === "AIMessage" || typeFromBackend === "ai"
+                  ? "assistant"
+                  : "user";
+            return {
+              id: makeId(),
+              role,
+              content: m.content || "",
+              type: "text" as const,
+              timestamp: Date.now(),
+            };
+          }),
         );
         setThreadId(targetThreadId);
       }
@@ -308,19 +317,19 @@ export default function Chat() {
   return (
     <main className="flex h-screen flex-col bg-[var(--bg-base)] text-[var(--text-primary)]">
       {/* ── Header ── */}
-      <header className="flex shrink-0 items-center justify-between border-b border-[var(--border-default)] bg-[var(--bg-raised)] px-4 py-3 sm:px-6">
+      <header className="flex shrink-0 items-center justify-between border-b border-[var(--border-default)] bg-[var(--bg-raised)] px-4 py-3 shadow-[0_2px_0_0_var(--accent)] sm:px-6">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setShowHistory((v) => !v)}
             title={showHistory ? "隐藏历史" : "显示历史"}
-            className="inline-flex items-center rounded-md border border-[var(--border-default)] bg-[var(--bg-overlay)] p-1.5 text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)]"
+            className="inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-1.5 text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
           >
             {showHistory ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </button>
-          <Bot className="h-5 w-5 text-accent-500" />
-          <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text-primary)]">
-            MES <span className="font-normal text-text-tertiary">对话助手</span>
+          <Bot className="h-5 w-5 text-[var(--accent)]" />
+          <h1 className="font-display text-[18px] font-semibold tracking-wide text-[var(--text-primary)]">
+            NL2SQL <span className="font-normal text-[var(--text-secondary)]">智能查询</span>
           </h1>
           <StatusBadge tone="neutral">{userId.slice(0, 8)}</StatusBadge>
           {threadId ? <StatusBadge tone="warning">{threadId.slice(0, 8)}</StatusBadge> : null}
@@ -332,21 +341,21 @@ export default function Chat() {
             type="button"
             onClick={handleNewChat}
             disabled={running}
-            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-1.5 text-[15px] text-[var(--text-secondary)] transition-colors duration-150 hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            className="group inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-1.5 font-mono text-[13px] text-[var(--text-secondary)] transition-all duration-150 hover:border-[var(--accent)] hover:text-[var(--accent)] hover:shadow-[var(--shadow-glow)] disabled:opacity-40"
           >
             <Plus className="h-3.5 w-3.5" />
             新对话
           </button>
           <Link
             to="/home"
-            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-1.5 text-[15px] text-[var(--text-secondary)] transition-colors duration-150 hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-1.5 font-mono text-[13px] text-[var(--text-secondary)] transition-all duration-150 hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
           >
             <X className="h-3.5 w-3.5" />
             调试
           </Link>
           <Link
             to="/graph"
-            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-1.5 text-[15px] text-[var(--text-secondary)] transition-colors duration-150 hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-1.5 font-mono text-[13px] text-[var(--text-secondary)] transition-all duration-150 hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
           >
             <GitBranch className="h-3.5 w-3.5" />
             关系图
@@ -359,31 +368,31 @@ export default function Chat() {
         {/* ── History Sidebar ── */}
         {showHistory ? (
           <div className="w-64 shrink-0 overflow-y-auto border-r border-[var(--border-default)] bg-[var(--bg-raised)]">
-            <div className="px-3 py-3">
-              <h2 className="flex items-center gap-1.5 text-[12px] font-medium tracking-[0.04em] text-[var(--text-secondary)] uppercase">
+            <div className="border-b border-[var(--border-default)] px-3 py-3">
+              <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
                 <Clock className="h-3 w-3" />
                 对话历史
               </h2>
             </div>
             {historyLoading && historySessions.length === 0 ? (
-              <div className="px-3 py-6 text-center text-[13px] text-text-tertiary/50">加载中...</div>
+              <div className="px-3 py-6 text-center font-mono text-[12px] text-[var(--text-tertiary)] opacity-50">加载中...</div>
             ) : historySessions.length === 0 ? (
-              <div className="px-3 py-6 text-center text-[13px] text-text-tertiary/50">暂无对话记录</div>
+              <div className="px-3 py-6 text-center font-mono text-[12px] text-[var(--text-tertiary)] opacity-50">暂无对话记录</div>
             ) : (
-              <div className="space-y-0.5 px-2 pb-3">
+              <div className="space-y-px px-2 py-2">
                 {historySessions.map((s) => (
                   <button
                     key={s.thread_id}
                     type="button"
                     onClick={() => loadSession(s.thread_id)}
-                    className={`w-full rounded-md px-3 py-2 text-left transition-colors ${
+                    className={`group relative w-full rounded-[var(--radius-sm)] px-3 py-2 text-left transition-all duration-150 ${
                       s.thread_id === threadId
-                        ? "bg-accent/10 text-accent-500"
-                        : "text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)]"
+                        ? "border-l-2 border-l-[var(--accent)] bg-[var(--accent-surface)] text-[var(--accent)]"
+                        : "border-l-2 border-l-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]"
                     }`}
                   >
-                    <div className="truncate text-[13px]">{s.first_query || "空对话"}</div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-text-tertiary/50">
+                    <div className="truncate font-mono text-[12px] leading-tight">{s.first_query || "空对话"}</div>
+                    <div className="mt-0.5 flex items-center gap-2 font-mono text-[10px] text-[var(--text-tertiary)] opacity-50">
                       <span>{s.message_count} 条消息</span>
                       <span>
                         {s.updated_at
@@ -407,11 +416,11 @@ export default function Chat() {
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-raised)]">
-                <MessageCircle className="h-6 w-6 text-text-tertiary/40" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--bg-raised)]">
+                <MessageCircle className="h-6 w-6 text-[var(--text-tertiary)] opacity-40" />
               </div>
-              <p className="text-[17px] text-text-tertiary">用自然语言查询 MES 数据</p>
-              <p className="text-[14px] text-text-tertiary/50">支持多轮记忆，可连续追问</p>
+              <p className="font-display text-[17px] text-[var(--text-secondary)]">用自然语言查询 MES 数据</p>
+              <p className="font-mono text-[13px] text-[var(--text-tertiary)] opacity-50">支持多轮记忆，可连续追问</p>
             </div>
           ) : (
             <div className="mx-auto max-w-3xl space-y-5">
@@ -426,9 +435,9 @@ export default function Chat() {
               ))}
               {running && (
                 <div className="flex justify-center py-1">
-                  <div className="flex items-center gap-2 text-[14px] text-text-tertiary">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-                    处理中...
+                  <div className="flex items-center gap-2 font-mono text-[13px] text-[var(--text-tertiary)]">
+                    <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent)] shadow-[0_0_6px_var(--accent-glow)]" />
+                    <span className="animate-pulse">处理中...</span>
                   </div>
                 </div>
               )}
@@ -438,41 +447,41 @@ export default function Chat() {
 
         {/* ── Side Panel ── */}
         <div className="hidden w-72 shrink-0 overflow-y-auto border-l border-[var(--border-default)] bg-[var(--bg-raised)] px-4 py-4 xl:block">
-          <h2 className="mb-4 text-[13px] font-medium tracking-[0.04em] text-[var(--text-secondary)] uppercase">
+          <h2 className="mb-4 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
             上下文信息
           </h2>
           {threadId ? (
             <div className="space-y-3 text-sm">
-              <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] p-3">
-                <div className="text-[13px] text-text-tertiary/60">会话 ID</div>
-                <div className="mt-1 font-mono text-[13px] text-accent-500">{threadId.slice(0, 16)}...</div>
+              <div className="rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-3">
+                <div className="font-mono text-[11px] text-[var(--text-tertiary)] opacity-60">会话 ID</div>
+                <div className="mt-1 font-mono text-[13px] text-[var(--accent)]">{threadId.slice(0, 16)}...</div>
               </div>
-              <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] p-3">
-                <div className="text-[13px] text-text-tertiary/60">消息</div>
-                <div className="mt-1 text-[17px] font-semibold tabular-nums text-[var(--text-primary)]">{messages.length}</div>
+              <div className="rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-3">
+                <div className="font-mono text-[11px] text-[var(--text-tertiary)] opacity-60">消息</div>
+                <div className="mt-1 font-mono text-[17px] font-semibold tabular-nums text-[var(--text-primary)]">{messages.length}</div>
               </div>
               {(() => {
                 const lastAssistantMsg = [...messages].reverse().find((m) => m.role === "assistant");
                 if (!lastAssistantMsg?.nodeStatus) return null;
                 return (
-                  <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] p-3">
-                    <div className="mb-2 text-[13px] text-text-tertiary/60">节点进度</div>
+                  <div className="rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-3">
+                    <div className="mb-2 font-mono text-[11px] text-[var(--text-tertiary)] opacity-60">节点进度</div>
                     <div className="space-y-1.5">
                       {Object.entries(lastAssistantMsg.nodeStatus).map(([node, status]) => (
-                        <div key={node} className="flex items-center gap-2 text-[13px]">
+                        <div key={node} className="flex items-center gap-2 font-mono text-[12px]">
                           <span
                             className={`h-1.5 w-1.5 rounded-full shrink-0 ${
                               status === "done"
-                                ? "bg-emerald-500"
+                                ? "bg-[var(--success)]"
                                 : status === "running"
-                                  ? "bg-accent"
+                                  ? "bg-[var(--accent)]"
                                   : status === "error"
-                                    ? "bg-red-500"
-                                    : "bg-white/20"
+                                    ? "bg-[var(--error)]"
+                                    : "bg-[var(--text-primary)] opacity-20"
                             }`}
                           />
-                          <span className="text-text-secondary">{NODE_LABELS[node] || node}</span>
-                          <span className="ml-auto font-mono text-[12px] text-text-tertiary/50">{status}</span>
+                          <span className="text-[var(--text-secondary)]">{NODE_LABELS[node] || node}</span>
+                          <span className="ml-auto text-[var(--text-tertiary)] opacity-50">{status}</span>
                         </div>
                       ))}
                     </div>
@@ -492,7 +501,7 @@ export default function Chat() {
                       : [];
                 return (
                   <div>
-                    <div className="mb-2 text-[13px] text-text-tertiary/60">
+                    <div className="mb-2 font-mono text-[11px] text-[var(--text-tertiary)] opacity-60">
                       SQL{sqls.length > 1 ? ` (${sqls.length})` : ""}
                     </div>
                     <div className="space-y-2">
@@ -511,7 +520,7 @@ export default function Chat() {
               })()}
             </div>
           ) : (
-            <p className="text-[12px] text-text-tertiary/50">发送第一条消息后显示</p>
+            <p className="font-mono text-[12px] text-[var(--text-tertiary)] opacity-50">发送第一条消息后显示</p>
           )}
         </div>
       </div>
@@ -531,19 +540,19 @@ export default function Chat() {
             }}
             disabled={running}
             placeholder="输入查询问题，例如：查询所有工单及其对应的料号信息"
-            className="flex-1 rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 py-2.5 text-[16px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-tertiary)] focus:border-accent-border focus:ring-1 focus:ring-accent/20 disabled:opacity-50"
+            className="flex-1 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 py-2.5 font-mono text-[15px] text-[var(--text-primary)] outline-none transition-all duration-150 placeholder:font-mono placeholder:text-[var(--text-tertiary)] placeholder:opacity-50 focus:border-[var(--accent)] focus:shadow-[0_0_0_1px_var(--accent)] disabled:opacity-50"
           />
           <button
             type="button"
             onClick={() => void handleSend()}
             disabled={running || !input.trim()}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-4 py-2.5 text-[15px] font-medium text-white transition-colors duration-150 hover:bg-accent-600 active:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2.5 font-mono text-[14px] font-medium text-white transition-all duration-150 hover:brightness-110 hover:shadow-[var(--shadow-glow)] active:brightness-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-none"
           >
             <Send className="h-4 w-4" />
             发送
           </button>
         </div>
-        <p className="mx-auto mt-3 max-w-3xl text-[13px] text-text-tertiary/50">
+        <p className="mx-auto mt-3 max-w-3xl font-mono text-[12px] text-[var(--text-tertiary)] opacity-50">
           支持多轮记忆，可连续追问。例如："上一条 SQL 查出的工单有哪些产线？"
         </p>
       </div>
@@ -551,14 +560,14 @@ export default function Chat() {
       {/* ── Feedback Modal ── */}
       {feedbackModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-md rounded-xl border border-[var(--border-default)] bg-[var(--bg-raised)] p-6">
-            <h3 className="text-[17px] font-medium text-[var(--text-primary)]">告诉我们哪里有问题</h3>
-            <p className="mt-1 text-[13px] text-text-tertiary">你的反馈将帮助我们改进 SQL 生成质量</p>
+          <div className="w-full max-w-md rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--bg-raised)] p-6">
+            <h3 className="font-mono text-[17px] font-medium text-[var(--text-primary)]">告诉我们哪里有问题</h3>
+            <p className="mt-1 font-mono text-[13px] text-[var(--text-tertiary)]">你的反馈将帮助我们改进 SQL 生成质量</p>
             <textarea
               value={feedbackReason}
               onChange={(e) => setFeedbackReason(e.target.value)}
               rows={4}
-              className="mt-4 w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-[15px] text-[var(--text-primary)] outline-none focus:border-accent-border placeholder:text-[var(--text-tertiary)]"
+              className="mt-4 w-full rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 font-mono text-[14px] text-[var(--text-primary)] outline-none transition-all duration-150 placeholder:font-mono placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_1px_var(--accent)]"
               placeholder="例如：表关联错误、字段名不对、条件遗漏..."
             />
             <div className="mt-4 flex justify-end gap-2">
@@ -568,7 +577,7 @@ export default function Chat() {
                   setFeedbackModal(null);
                   setFeedbackReason("");
                 }}
-                className="rounded-md border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 py-2 text-[15px] text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)]"
+                className="rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 py-2 font-mono text-[14px] text-[var(--text-secondary)] transition-all duration-150 hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
               >
                 取消
               </button>
@@ -576,7 +585,7 @@ export default function Chat() {
                 type="button"
                 onClick={() => void handleSubmitFeedback()}
                 disabled={!feedbackReason.trim()}
-                className="rounded-md bg-accent px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-accent-600 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 font-mono text-[13px] font-medium text-white transition-all duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 提交
               </button>
@@ -645,53 +654,80 @@ function MultiSqlTabs({ message }: { message: Message }) {
 
   return (
     <div className="space-y-3 pt-1">
-      <div className="flex gap-1 overflow-x-auto rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] p-1">
+      {/* Tab Bar — monospace labels, accent underline for active */}
+      <div className="flex gap-0 overflow-x-auto border-b border-[var(--border-default)]">
         {results.map((result, idx) => (
           <button
             key={idx}
             type="button"
             onClick={() => setActiveTab(idx)}
-            className={`shrink-0 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors duration-150 ${
-              activeTab === idx ? "bg-accent/15 text-accent-500" : "text-text-tertiary hover:text-text-secondary"
+            className={`relative shrink-0 px-3.5 py-2 font-mono text-[12px] font-medium tracking-wide transition-all duration-150 ${
+              activeTab === idx
+                ? "text-[var(--accent)]"
+                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
             }`}
           >
             {result.description || `SQL ${idx + 1}`}
             <span
-              className={`ml-1.5 inline-block h-1.5 w-1.5 rounded-full ${result.success ? "bg-emerald-500" : "bg-red-500"}`}
+              className={`ml-1.5 inline-block h-1.5 w-1.5 rounded-full ${
+                result.success ? "bg-[var(--success)]" : "bg-[var(--error)]"
+              }`}
             />
+            {activeTab === idx && (
+              <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[var(--accent)]" />
+            )}
           </button>
         ))}
       </div>
 
       {currentResult && (
         <div className="space-y-3">
-          {currentResult.question && <div className="text-[13px] text-text-tertiary">{currentResult.question}</div>}
-          {!currentResult.success && currentResult.error && (
-            <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-[13px] text-red-400">
-              {currentResult.error}
-            </div>
+          {currentResult.question && (
+            <div className="font-mono text-[13px] text-[var(--text-secondary)]">{currentResult.question}</div>
           )}
-          {currentResult.success && (
-            <div className="rounded-lg border border-emerald-500/10 bg-emerald-500/5 px-3 py-2 text-[13px] text-emerald-400">
-              SQL 执行成功
-              {currentResult.repaired && <span className="ml-2 text-amber-400">（已修复）</span>}
-            </div>
-          )}
+
+          {/* Terminal-style SQL card */}
           {currentResult.sql && (
             <CodeBlock title="SQL" value={currentResult.sql} language="sql" maxHeightClassName="max-h-52" />
           )}
+
+          {/* Error display — prominent red */}
+          {!currentResult.success && currentResult.error && (
+            <div className="rounded-[var(--radius-md)] border border-[var(--error)] bg-[var(--error)] px-3 py-2.5" style={{ backgroundColor: "color-mix(in srgb, var(--error) 8%, transparent)" }}>
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--error)]" />
+                <span className="font-mono text-[13px] font-medium text-[var(--error)]">{currentResult.error}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Success status line */}
+          {currentResult.success && (
+            <div className="flex items-center gap-2">
+              <StatusBadge tone="success">执行成功</StatusBadge>
+              <span className="font-mono text-[12px] text-[var(--success)]">
+                SQL 执行成功
+                {currentResult.repaired && (
+                  <span style={{ color: "var(--warning)" }} className="ml-2">
+                    （已修复）
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+
           {currentResult.success && (
             <div className="space-y-2">
               {pState.loading && !tableData && (
-                <div className="py-4 text-center text-[13px] text-text-tertiary">加载中...</div>
+                <div className="py-4 text-center font-mono text-[13px] text-[var(--text-tertiary)]">加载中...</div>
               )}
               {tableData && tableData.length > 0 && tableColumns && (
-                <div className="overflow-x-auto rounded-lg border border-[var(--border-default)]">
+                <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[var(--border-default)]">
                   <table className="w-full text-[14px]">
                     <thead>
                       <tr className="border-b border-[var(--border-default)] bg-[var(--bg-overlay)]">
                         {tableColumns.map((col: string) => (
-                          <th key={col} className="whitespace-nowrap px-3 py-2 text-left font-medium text-text-secondary">
+                          <th key={col} className="whitespace-nowrap px-3 py-2 text-left font-mono text-[12px] font-medium text-[var(--text-secondary)]">
                             {col}
                           </th>
                         ))}
@@ -701,7 +737,7 @@ function MultiSqlTabs({ message }: { message: Message }) {
                       {tableData.map((row, ri) => (
                         <tr key={ri} className="hover:bg-[var(--bg-overlay)]">
                           {tableColumns!.map((col: string) => (
-                            <td key={col} className="whitespace-nowrap px-3 py-1.5 text-text-tertiary text-[13px]">
+                            <td key={col} className="whitespace-nowrap px-3 py-1.5 font-mono text-[12px] text-[var(--text-secondary)]">
                               {String(row[col] ?? "")}
                             </td>
                           ))}
@@ -775,11 +811,11 @@ function ChatBubble({
   };
 
   useEffect(() => {
-    if (hasSingleSql && message.sql) {
+    if (hasSingleSql && message.sql && !er?.error) {
       fetchData(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [message.sql, hasSingleSql]);
+  }, [message.sql, hasSingleSql, er?.error]);
 
   const handlePageChange = (targetPage: number) => {
     if (targetPage < 1 || targetPage > totalPages) return;
@@ -791,58 +827,82 @@ function ChatBubble({
 
   return (
     <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
+      {/* Avatar */}
       <div
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[13px] ${
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[13px] ${
           isUser
-            ? "bg-accent text-white"
+            ? "bg-[var(--accent)] text-white"
             : isError
-              ? "bg-red-500/20 text-red-400"
-              : "bg-accent/10 text-accent-500"
+              ? "bg-[var(--error)] text-white"
+              : "bg-[var(--accent-surface)] text-[var(--accent)]"
         }`}
       >
         {isUser ? <UserMsgIcon /> : isError ? <Bot className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
       </div>
+
       <div className={`max-w-[80%] space-y-2.5 ${isUser ? "items-end" : ""}`}>
+        {/* Text content bubble */}
         {showContent && (
           <div
-            className={`rounded-lg px-4 py-3 text-[15px] leading-relaxed ${
+            className={`rounded-[var(--radius-md)] px-4 py-3 text-[15px] leading-relaxed ${
               isUser
-                ? "bg-accent text-white"
+                ? "bg-[var(--accent)] text-white"
                 : isError
-                  ? "border border-red-500/20 bg-red-500/5 text-red-300"
-                  : "border border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--text-secondary)]"
+                  ? "border border-[var(--error)] text-[var(--error)] font-mono text-[14px]"
+                  : "border border-[var(--border-default)] bg-[var(--bg-overlay)] font-mono text-[14px] text-[var(--text-secondary)]"
             }`}
+            style={
+              isError
+                ? { backgroundColor: "color-mix(in srgb, var(--error) 8%, transparent)" }
+                : undefined
+            }
           >
             {message.content}
           </div>
         )}
 
+        {/* Single SQL — Terminal-style card */}
         {hasSingleSql && (
-          <div className="pt-1">
-            <CodeBlock title="SQL" value={message.sql} language="sql" maxHeightClassName="max-h-52" />
-          </div>
+          <CodeBlock title="SQL" value={message.sql} language="sql" maxHeightClassName="max-h-52" />
         )}
 
+        {/* Single SQL success status */}
         {hasSingleSql &&
           message.executionResult &&
           !(message.executionResult as Record<string, JsonValue>).error && (
-            <div className="rounded-lg border border-emerald-500/10 bg-emerald-500/5 px-3 py-1.5 text-[13px] text-emerald-400">
-              SQL 执行成功
+            <div className="flex items-center gap-2">
+              <StatusBadge tone="success">执行成功</StatusBadge>
+              <span className="font-mono text-[12px] text-[var(--success)]">SQL 执行成功</span>
             </div>
           )}
 
+        {/* Single SQL error display */}
+        {hasSingleSql &&
+          message.executionResult &&
+          (message.executionResult as Record<string, JsonValue>).error && (
+            <div className="rounded-[var(--radius-md)] border border-[var(--error)] bg-[var(--error)] px-3 py-2.5" style={{ backgroundColor: "color-mix(in srgb, var(--error) 8%, transparent)" }}>
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--error)]" />
+                <span className="font-mono text-[13px] font-medium text-[var(--error)]">
+                  {(message.executionResult as Record<string, JsonValue>).error as string}
+                </span>
+              </div>
+            </div>
+          )}
+
+        {/* Single SQL data table */}
         {hasSingleSql && (
           <div className="space-y-2">
             {pageLoading && !tableData && (
-              <div className="py-3 text-center text-[13px] text-text-tertiary">加载中...</div>
+              <div className="py-3 text-center font-mono text-[13px] text-[var(--text-tertiary)]">加载中...</div>
             )}
             {tableData && tableData.length > 0 && tableColumns && (
-              <div className="overflow-x-auto rounded-lg border border-[var(--border-default)]">
+              <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[var(--border-default)]">
                 <table className="w-full text-[14px]">
                   <thead>
                     <tr className="border-b border-[var(--border-default)] bg-[var(--bg-overlay)]">
                       {tableColumns.map((col: string) => (
-                        <th key={col} className="whitespace-nowrap px-3 py-2 text-left font-medium text-text-secondary">
+                        <th key={col} className="whitespace-nowrap px-3 py-2 text-left font-mono text-[12px] font-medium text-[var(--text-secondary)]">
                           {col}
                         </th>
                       ))}
@@ -852,7 +912,7 @@ function ChatBubble({
                     {tableData.map((row, ri) => (
                       <tr key={ri} className="hover:bg-[var(--bg-overlay)]">
                         {tableColumns!.map((col: string) => (
-                          <td key={col} className="whitespace-nowrap px-3 py-1.5 text-text-tertiary text-[13px]">
+                          <td key={col} className="whitespace-nowrap px-3 py-1.5 font-mono text-[12px] text-[var(--text-secondary)]">
                             {String(row[col] ?? "")}
                           </td>
                         ))}
@@ -872,39 +932,40 @@ function ChatBubble({
           </div>
         )}
 
+        {/* Multi SQL Tabs */}
         {hasMultiSql && <MultiSqlTabs message={message} />}
 
-        {/* 反馈按钮 */}
+        {/* 反馈按钮 — small, subtle, hover reveals accent */}
         {!isUser && (hasSingleSql || hasMultiSql) ? (
-          <div className="flex items-center gap-1 pt-1">
+          <div className="flex items-center gap-0.5 pt-0.5">
             <button
               type="button"
               onClick={() => onThumbsUp(message.requestId || "")}
               disabled={rated}
               title="回答正确"
-              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[13px] transition-colors ${
+              className={`inline-flex items-center rounded-[var(--radius-sm)] p-1 transition-all duration-150 ${
                 rated
-                  ? "cursor-default text-text-tertiary/30"
-                  : "text-text-tertiary hover:text-emerald-400 hover:bg-emerald-500/10"
+                  ? "cursor-default text-[var(--text-tertiary)] opacity-30"
+                  : "text-[var(--text-tertiary)] hover:text-[var(--success)]"
               }`}
             >
-              <ThumbsUp className="h-4 w-4" />
+              <ThumbsUp className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
               onClick={() => onThumbsDown(message.requestId || "")}
               disabled={rated}
               title="回答有误"
-              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[13px] transition-colors ${
+              className={`inline-flex items-center rounded-[var(--radius-sm)] p-1 transition-all duration-150 ${
                 rated
-                  ? "cursor-default text-text-tertiary/30"
-                  : "text-text-tertiary hover:text-red-400 hover:bg-red-500/10"
+                  ? "cursor-default text-[var(--text-tertiary)] opacity-30"
+                  : "text-[var(--text-tertiary)] hover:text-[var(--error)]"
               }`}
             >
-              <ThumbsDown className="h-4 w-4" />
+              <ThumbsDown className="h-3.5 w-3.5" />
             </button>
             {rated ? (
-              <span className="text-[12px] text-text-tertiary/40">已反馈</span>
+              <span className="ml-1 font-mono text-[11px] text-[var(--text-tertiary)] opacity-40">已反馈</span>
             ) : null}
           </div>
         ) : null}

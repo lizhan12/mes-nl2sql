@@ -8,11 +8,15 @@ interface StatusBadgeProps {
 }
 
 const badgeVariant: Record<StatusBadgeProps["tone"], string> = {
-  success: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  error: "bg-red-500/10 text-red-400 border-red-500/20",
-  warning: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  loading: "bg-accent/10 text-accent-400 border-accent/20",
-  neutral: "bg-[var(--border-default)] text-[var(--text-secondary)] border-[var(--border-default)]",
+  success:
+    "bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/20",
+  error: "bg-[var(--error)]/10 text-[var(--error)] border-[var(--error)]/20",
+  warning:
+    "bg-[var(--warning)]/10 text-[var(--warning)] border-[var(--warning)]/20",
+  loading:
+    "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--border-accent)]",
+  neutral:
+    "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-default)]",
 };
 
 const BadgeIcon = ({ tone }: { tone: StatusBadgeProps["tone"] }) => {
@@ -35,7 +39,7 @@ export function StatusBadge({ tone, children }: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-[6px] border px-2.5 py-0.5 font-mono text-[11px] font-medium tracking-wide",
+        "inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.04em]",
         badgeVariant[tone],
       )}
     >

@@ -11,7 +11,7 @@ import requests
 
 from src.core.config import settings
 
-BASE_URL = "http://127.0.0.1:8001"
+BASE_URL = "http://127.0.0.1:8000"
 CSV_PATH = Path("mes联表测试问题清单_含完整SQL.csv")
 REPORT_PATH = Path("temp_batch_e2e_report.json")
 MAX_WORKERS = 1

@@ -28,7 +28,6 @@ def _merge_few_shot_deduped(existing_text: str, new_chunks: list[str]) -> str:
     新 chunks 优先：如果新 chunk 与已有 chunk 问题相同，新 chunk 覆盖旧的。
     条数限制：超过 settings.max_evolved_few_shot_items 时截断。
     """
-    from src.core.config import settings
     from src.harness.knowledge import _extract_few_shot_question
 
     # 解析已有 chunks
@@ -255,7 +254,6 @@ def auto_label_failures_online_service(
     synced_failures = repo.sync_failure_cases() if sync_failures else 0
 
     failure_cases = repo.fetch_open_failure_cases(limit=limit)
-    execution_db_url = db_url or settings.execution_database_url
 
     stats: dict[str, Any] = {
         "synced_failures": synced_failures,
@@ -288,7 +286,7 @@ def auto_label_failures_online_service(
             question=query_text,
             failed_sql=failed_sql,
             error_msg=error_text,
-            db_url=execution_db_url,
+            db_url=None,
             generate_model=generate_model,
             eval_model=eval_model,
         )

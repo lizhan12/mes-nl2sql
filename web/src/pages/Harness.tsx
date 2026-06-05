@@ -279,30 +279,33 @@ export default function Harness() {
 
   // ── Render ──
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-text-primary">
-      <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)]">
+      <div className="mx-auto max-w-7xl space-y-9 px-4 py-8 sm:px-6 lg:px-8">
         {/* ── Header ── */}
-        <section className="rounded-xl border border-white/[0.06] bg-[#111] p-6 sm:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
+        <section className="corner-accent rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-6 sm:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div className="flex-1">
               <StatusBadge tone="success">Online</StatusBadge>
-              <h1 className="mt-4 text-[28px] font-bold tracking-tight text-white sm:text-[32px]">
-                Harness <span className="text-text-tertiary font-normal">控制台</span>
+              <h1 className="mt-4 font-display text-[32px] font-semibold leading-none tracking-[0.02em] text-[var(--text-primary)] sm:text-[38px]">
+                Harness{" "}
+                <span className="font-sans text-[var(--text-tertiary)] font-normal tracking-normal">
+                  知识进化
+                </span>
               </h1>
-              <p className="mt-3 max-w-lg text-[14px] leading-relaxed text-text-tertiary">
+              <p className="mt-3 max-w-lg font-mono text-[12px] leading-relaxed text-[var(--text-tertiary)]">
                 管理 NL2SQL 运行时知识闭环：查看失败案例、审核候选规则、自动标注、进化发布。
               </p>
               <div className="mt-5 flex flex-wrap items-center gap-2">
                 <Link
                   to="/"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[13px] text-text-secondary transition-colors duration-150 hover:border-accent-border hover:text-white"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-accent)] hover:text-[var(--text-primary)] hover:shadow-[var(--shadow-glow)]"
                 >
                   <MessageCircle className="h-3.5 w-3.5" />
                   对话助手
                 </Link>
                 <Link
                   to="/home"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[13px] text-text-secondary transition-colors duration-150 hover:border-accent-border hover:text-white"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-accent)] hover:text-[var(--text-primary)] hover:shadow-[var(--shadow-glow)]"
                 >
                   <Beaker className="h-3.5 w-3.5" />
                   调试控制台
@@ -346,27 +349,31 @@ export default function Harness() {
         >
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Analyze Failures */}
-            <div className="rounded-lg border border-white/[0.06] bg-[#0d0d0d] p-4">
-              <div className="flex items-center gap-2 text-[13px] font-medium text-white">
-                <Search className="h-4 w-4 text-blue-400" />
+            <div className="corner-accent rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4 transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)]">
+              <div className="flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-primary)]">
+                <Search className="h-4 w-4 text-[var(--accent)]" />
                 分析失败案例
               </div>
-              <p className="mt-1 text-[12px] text-text-tertiary">从线上失败案例和已标注案例生成候选规则</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                从线上失败案例和已标注案例生成候选规则
+              </p>
               <div className="mt-3 flex items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <label className="text-[11px] text-text-tertiary">Limit:</label>
+                  <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    Limit:
+                  </label>
                   <input
                     type="number"
                     value={analyzeLimit}
                     onChange={(e) => setAnalyzeLimit(Number(e.target.value) || 200)}
-                    className="w-20 rounded-md border border-white/[0.08] bg-[#111] px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent-border"
+                    className="w-20 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={handleAnalyze}
                   disabled={busy === "analyze"}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-150 hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[var(--shadow-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                 >
                   <Bot className="h-3.5 w-3.5" />
                   {busy === "analyze" ? "分析中..." : "分析"}
@@ -375,36 +382,53 @@ export default function Harness() {
             </div>
 
             {/* Auto-Label */}
-            <div className="rounded-lg border border-white/[0.06] bg-[#0d0d0d] p-4">
-              <div className="flex items-center gap-2 text-[13px] font-medium text-white">
-                <Brain className="h-4 w-4 text-emerald-400" />
+            <div className="corner-accent rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4 transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)]">
+              <div className="flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-primary)]">
+                <Brain className="h-4 w-4 text-[var(--success)]" />
                 LLM 自动标注
               </div>
-              <p className="mt-1 text-[12px] text-text-tertiary">LLM 对失败案例生成修正 SQL + 多维度置信度评估</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                LLM 对失败案例生成修正 SQL + 多维度置信度评估
+              </p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <label className="text-[11px] text-text-tertiary">Limit:</label>
+                  <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    Limit:
+                  </label>
                   <input
                     type="number"
                     value={autoLabelLimit}
                     onChange={(e) => setAutoLabelLimit(Number(e.target.value) || 50)}
-                    className="w-16 rounded-md border border-white/[0.08] bg-[#111] px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent-border"
+                    className="w-16 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="text-[11px] text-text-tertiary">生成模型:</label>
+                  <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    生成模型:
+                  </label>
                   <input
                     value={autoLabelGenModel}
                     onChange={(e) => setAutoLabelGenModel(e.target.value)}
                     placeholder="默认"
-                    className="w-28 rounded-md border border-white/[0.08] bg-[#111] px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent-border placeholder:text-text-tertiary/40"
+                    className="w-28 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    评估模型:
+                  </label>
+                  <input
+                    value={autoLabelEvalModel}
+                    onChange={(e) => setAutoLabelEvalModel(e.target.value)}
+                    placeholder="默认"
+                    className="w-28 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={handleAutoLabel}
                   disabled={busy === "auto-label"}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-150 hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--success)] px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[0_0_20px_var(--success-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
                   {busy === "auto-label" ? "标注中..." : "自动标注"}
@@ -413,27 +437,31 @@ export default function Harness() {
             </div>
 
             {/* Evolve Online */}
-            <div className="rounded-lg border border-white/[0.06] bg-[#0d0d0d] p-4">
-              <div className="flex items-center gap-2 text-[13px] font-medium text-white">
-                <ArrowUpRight className="h-4 w-4 text-amber-400" />
+            <div className="corner-accent rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4 transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)]">
+              <div className="flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-primary)]">
+                <ArrowUpRight className="h-4 w-4 text-[var(--warning)]" />
                 线上进化
               </div>
-              <p className="mt-1 text-[12px] text-text-tertiary">从线上高成本成功请求中提炼规则并直接发布</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                从线上高成本成功请求中提炼规则并直接发布
+              </p>
               <div className="mt-3 flex items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <label className="text-[11px] text-text-tertiary">Limit:</label>
+                  <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    Limit:
+                  </label>
                   <input
                     type="number"
                     value={evolveOnlineLimit}
                     onChange={(e) => setEvolveOnlineLimit(Number(e.target.value) || 200)}
-                    className="w-20 rounded-md border border-white/[0.08] bg-[#111] px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent-border"
+                    className="w-20 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={handleEvolveOnline}
                   disabled={busy === "evolve"}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-150 hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--warning)] px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[0_0_20px_var(--warning-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                 >
                   <Database className="h-3.5 w-3.5" />
                   {busy === "evolve" ? "进化中..." : "执行进化"}
@@ -442,23 +470,25 @@ export default function Harness() {
             </div>
 
             {/* Publish */}
-            <div className="rounded-lg border border-white/[0.06] bg-[#0d0d0d] p-4">
-              <div className="flex items-center gap-2 text-[13px] font-medium text-white">
-                <ArrowUpRight className="h-4 w-4 text-orange-400" />
+            <div className="corner-accent rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4 transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)]">
+              <div className="flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-primary)]">
+                <ArrowUpRight className="h-4 w-4 text-[var(--warning)]" />
                 发布版本
               </div>
-              <p className="mt-1 text-[12px] text-text-tertiary">将已审核通过的候选规则发布为运行时知识</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                将已审核通过的候选规则发布为运行时知识
+              </p>
               <div className="mt-3 flex items-center gap-3">
                 <input
                   value={publishVersion}
                   onChange={(e) => setPublishVersion(e.target.value)}
-                  className="flex-1 rounded-md border border-white/[0.08] bg-[#111] px-3 py-1.5 text-[13px] text-text-primary outline-none focus:border-accent-border"
+                  className="flex-1 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-3 py-1.5 font-mono text-[13px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
                 />
                 <button
                   type="button"
                   onClick={handlePublish}
                   disabled={busy === "publish"}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-orange-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-150 hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[var(--shadow-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                 >
                   <ArrowUpRight className="h-3.5 w-3.5" />
                   {busy === "publish" ? "发布中..." : "发布"}
@@ -487,7 +517,7 @@ export default function Harness() {
               <select
                 value={failureStatus}
                 onChange={(e) => setFailureStatus(e.target.value)}
-                className="rounded-md border border-white/[0.08] bg-[#0d0d0d] px-2 py-1 text-[12px] text-text-primary outline-none"
+                className="rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-2 py-1 font-mono text-[11px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] focus:border-[var(--border-accent)]"
               >
                 {STATUS_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -498,7 +528,7 @@ export default function Harness() {
               <button
                 type="button"
                 onClick={refreshFailures}
-                className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:border-white/15 hover:text-white"
+                className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
               >
                 <RefreshCw className="h-3 w-3" />
                 刷新
@@ -509,41 +539,62 @@ export default function Harness() {
           {failures.length === 0 ? (
             <Empty />
           ) : (
-            <div className="space-y-2 max-h-[600px] overflow-auto">
+            <div className="max-h-[600px] space-y-1 overflow-auto">
               {failures.map((fc) => (
                 <div
                   key={fc.id}
-                  className="rounded-lg border border-white/[0.06] bg-[#0d0d0d]"
+                  className="rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-accent)]"
                 >
                   <div
-                    className="flex cursor-pointer items-center gap-3 p-3 hover:bg-white/[0.02]"
+                    className="flex cursor-pointer items-center gap-3 p-3 transition-colors duration-[var(--duration-fast)] hover:bg-[var(--accent-surface)]"
                     onClick={() => setExpandedFailure(expandedFailure === fc.id ? null : fc.id)}
                   >
-                    <span className="font-mono text-[11px] text-text-tertiary/60">#{fc.id}</span>
+                    <span className="font-mono text-[11px] text-[var(--text-tertiary)]/60 tabular-nums">
+                      #{fc.id}
+                    </span>
                     <StatusBadge tone={statusTone(fc.status)}>{statusLabel(fc.status)}</StatusBadge>
                     <StatusBadge tone="neutral">{fc.failure_type}</StatusBadge>
-                    <span className="flex-1 truncate text-[12px] text-text-secondary">{fc.query_text}</span>
-                    <span className="text-[11px] text-text-tertiary/50">重试 {fc.retry_count}</span>
+                    <span className="flex-1 truncate text-[12px] text-[var(--text-secondary)]">
+                      {fc.query_text}
+                    </span>
+                    <span className="font-mono text-[10px] text-[var(--text-tertiary)]/50 tabular-nums">
+                      重试 {fc.retry_count}
+                    </span>
                     {expandedFailure === fc.id ? (
-                      <ChevronUp className="h-4 w-4 text-text-tertiary/50" />
+                      <ChevronUp className="h-4 w-4 text-[var(--text-tertiary)]/40 transition-colors duration-[var(--duration-fast)]" />
                     ) : (
-                      <ChevronDown className="h-4 w-4 text-text-tertiary/50" />
+                      <ChevronDown className="h-4 w-4 text-[var(--text-tertiary)]/40 transition-colors duration-[var(--duration-fast)]" />
                     )}
                   </div>
                   {expandedFailure === fc.id ? (
-                    <div className="border-t border-white/[0.04] p-4 space-y-3">
-                      <CodeBlock title="生成的 SQL" value={fc.final_sql || fc.generated_sql || "(无)"} language="sql" maxHeightClassName="max-h-48" />
+                    <div className="border-t border-[var(--border-default)] p-4 space-y-3">
+                      <CodeBlock
+                        title="生成的 SQL"
+                        value={fc.final_sql || fc.generated_sql || "(无)"}
+                        language="sql"
+                        maxHeightClassName="max-h-48"
+                      />
                       {fc.error_text ? (
-                        <CodeBlock title="错误信息" value={fc.error_text} language="text" maxHeightClassName="max-h-32" />
+                        <CodeBlock
+                          title="错误信息"
+                          value={fc.error_text}
+                          language="text"
+                          maxHeightClassName="max-h-32"
+                        />
                       ) : null}
                       {fc.correct_sql ? (
-                        <CodeBlock title="正确 SQL (已标注)" value={fc.correct_sql} language="sql" maxHeightClassName="max-h-48" />
+                        <CodeBlock
+                          title="正确 SQL (已标注)"
+                          value={fc.correct_sql}
+                          language="sql"
+                          maxHeightClassName="max-h-48"
+                        />
                       ) : null}
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => openLabelModal(fc)}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:border-accent-border hover:text-white"
+                          className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-accent)] hover:text-[var(--accent)] hover:bg-[var(--accent-surface)]"
                         >
                           {fc.correct_sql ? "修改标注" : "补充 SQL"}
                         </button>
@@ -565,7 +616,7 @@ export default function Harness() {
               <select
                 value={candidateStatus}
                 onChange={(e) => setCandidateStatus(e.target.value)}
-                className="rounded-md border border-white/[0.08] bg-[#0d0d0d] px-2 py-1 text-[12px] text-text-primary outline-none"
+                className="rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-2 py-1 font-mono text-[11px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] focus:border-[var(--border-accent)]"
               >
                 {CANDIDATE_STATUS_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -576,7 +627,7 @@ export default function Harness() {
               <button
                 type="button"
                 onClick={refreshCandidates}
-                className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:border-white/15 hover:text-white"
+                className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
               >
                 <RefreshCw className="h-3 w-3" />
                 刷新
@@ -587,33 +638,50 @@ export default function Harness() {
           {candidates.length === 0 ? (
             <Empty />
           ) : (
-            <div className="space-y-2 max-h-[600px] overflow-auto">
+            <div className="max-h-[600px] space-y-1 overflow-auto">
               {candidates.map((c) => (
                 <div
                   key={c.id}
-                  className="rounded-lg border border-white/[0.06] bg-[#0d0d0d]"
+                  className="rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-accent)]"
                 >
                   <div
-                    className="flex cursor-pointer items-center gap-3 p-3 hover:bg-white/[0.02]"
+                    className="flex cursor-pointer items-center gap-3 p-3 transition-colors duration-[var(--duration-fast)] hover:bg-[var(--accent-surface)]"
                     onClick={() => setExpandedCandidate(expandedCandidate === c.id ? null : c.id)}
                   >
-                    <span className="font-mono text-[11px] text-text-tertiary/60">#{c.id}</span>
+                    <span className="font-mono text-[11px] text-[var(--text-tertiary)]/60 tabular-nums">
+                      #{c.id}
+                    </span>
                     <StatusBadge tone={statusTone(c.status)}>{statusLabel(c.status)}</StatusBadge>
                     <StatusBadge tone="neutral">{c.candidate_type}</StatusBadge>
-                    <span className="flex-1 truncate text-[12px] text-text-secondary">{c.question_example}</span>
+                    <span className="flex-1 truncate text-[12px] text-[var(--text-secondary)]">
+                      {c.question_example}
+                    </span>
                     {c.confidence > 0 ? (
-                      <span className="font-mono text-[11px] text-text-tertiary/60">
-                        {(c.confidence * 100).toFixed(0)}%
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {/* Confidence gradient bar */}
+                        <div className="h-1.5 w-14 overflow-hidden rounded-full bg-[var(--border-default)]">
+                          <div
+                            className="h-full rounded-full transition-all duration-[var(--duration-slow)]"
+                            style={{
+                              width: `${Math.round(c.confidence * 100)}%`,
+                              background:
+                                "linear-gradient(90deg, var(--accent) 0%, var(--accent-soft) 100%)",
+                            }}
+                          />
+                        </div>
+                        <span className="font-mono text-[10px] tabular-nums text-[var(--text-tertiary)]/70">
+                          {(c.confidence * 100).toFixed(0)}%
+                        </span>
+                      </div>
                     ) : null}
                     {expandedCandidate === c.id ? (
-                      <ChevronUp className="h-4 w-4 text-text-tertiary/50" />
+                      <ChevronUp className="h-4 w-4 text-[var(--text-tertiary)]/40 transition-colors duration-[var(--duration-fast)]" />
                     ) : (
-                      <ChevronDown className="h-4 w-4 text-text-tertiary/50" />
+                      <ChevronDown className="h-4 w-4 text-[var(--text-tertiary)]/40 transition-colors duration-[var(--duration-fast)]" />
                     )}
                   </div>
                   {expandedCandidate === c.id ? (
-                    <div className="border-t border-white/[0.04] p-4 space-y-3">
+                    <div className="border-t border-[var(--border-default)] p-4 space-y-3">
                       <CodeBlock
                         title="候选规则 (JSON)"
                         value={c.proposed_rule_json || {}}
@@ -629,17 +697,22 @@ export default function Harness() {
                         />
                       ) : null}
                       {c.evidence_json && Object.keys(c.evidence_json).length > 0 ? (
-                        <CodeBlock title="证据" value={c.evidence_json} language="json" maxHeightClassName="max-h-32" />
+                        <CodeBlock
+                          title="证据"
+                          value={c.evidence_json}
+                          language="json"
+                          maxHeightClassName="max-h-32"
+                        />
                       ) : null}
                       {c.review_note ? (
-                        <div className="text-[12px] text-text-tertiary">
-                          <span className="text-text-tertiary/60">审核备注：</span>
+                        <div className="text-[12px] text-[var(--text-tertiary)]">
+                          <span className="text-[var(--text-tertiary)]/60">审核备注：</span>
                           {c.review_note}
                         </div>
                       ) : null}
                       {c.published_version ? (
-                        <div className="text-[12px] text-text-tertiary">
-                          <span className="text-text-tertiary/60">已发布版本：</span>
+                        <div className="text-[12px] text-[var(--text-tertiary)]">
+                          <span className="text-[var(--text-tertiary)]/60">已发布版本：</span>
                           {c.published_version}
                         </div>
                       ) : null}
@@ -648,7 +721,7 @@ export default function Harness() {
                           <button
                             type="button"
                             onClick={() => openReviewModal(c)}
-                            className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] text-text-secondary transition-colors hover:border-accent-border hover:text-white"
+                            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-accent)] hover:text-[var(--accent)] hover:bg-[var(--accent-surface)]"
                           >
                             审核
                           </button>
@@ -664,32 +737,43 @@ export default function Harness() {
 
         {/* ── Label Modal ── */}
         {labelModalOpen && labelingCase ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="w-full max-w-2xl rounded-xl border border-white/[0.08] bg-[#111] p-6">
-              <h3 className="text-[16px] font-medium text-white">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--bg-raised)] p-6 shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <h3 className="font-mono text-[14px] font-medium uppercase tracking-[0.04em] text-[var(--text-primary)]">
                 标注失败案例 #{labelingCase.id}
               </h3>
-              <p className="mt-1 text-[12px] text-text-tertiary">{labelingCase.query_text}</p>
+              <p className="mt-2 font-mono text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                {labelingCase.query_text}
+              </p>
               <div className="mt-3">
-                <CodeBlock title="原生成 SQL" value={labelingCase.final_sql || labelingCase.generated_sql} language="sql" maxHeightClassName="max-h-32" />
+                <CodeBlock
+                  title="原生成 SQL"
+                  value={labelingCase.final_sql || labelingCase.generated_sql}
+                  language="sql"
+                  maxHeightClassName="max-h-32"
+                />
               </div>
               <div className="mt-4 space-y-3">
                 <div>
-                  <label className="text-[11px] font-medium text-text-tertiary">正确 SQL</label>
+                  <label className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    正确 SQL
+                  </label>
                   <textarea
                     value={labelSql}
                     onChange={(e) => setLabelSql(e.target.value)}
                     rows={6}
-                    className="mt-1 w-full rounded-lg border border-white/[0.08] bg-[#0d0d0d] px-3 py-2 font-mono text-[12px] text-text-primary outline-none focus:border-accent-border"
+                    className="mt-1 w-full rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 font-mono text-[12px] leading-relaxed text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
                     placeholder="输入正确的 SQL 语句..."
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-medium text-text-tertiary">备注</label>
+                  <label className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    备注
+                  </label>
                   <input
                     value={labelNote}
                     onChange={(e) => setLabelNote(e.target.value)}
-                    className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0d0d0d] px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent-border"
+                    className="mt-1 w-full rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 font-mono text-[13px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
                     placeholder="可选备注"
                   />
                 </div>
@@ -701,7 +785,7 @@ export default function Harness() {
                     setLabelModalOpen(false);
                     setLabelingCase(null);
                   }}
-                  className="rounded-md border border-white/[0.08] bg-white/[0.02] px-4 py-2 text-[13px] text-text-secondary transition-colors hover:border-white/15"
+                  className="rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-4 py-2 font-mono text-[12px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
                 >
                   取消
                 </button>
@@ -709,7 +793,7 @@ export default function Harness() {
                   type="button"
                   onClick={handleLabel}
                   disabled={!labelSql.trim() || busy === "label"}
-                  className="rounded-md bg-accent px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-accent-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 font-mono text-[12px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[var(--shadow-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                 >
                   {busy === "label" ? "保存中..." : "保存标注"}
                 </button>
@@ -720,12 +804,14 @@ export default function Harness() {
 
         {/* ── Review Modal ── */}
         {reviewModalOpen && reviewingCandidate ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="w-full max-w-2xl rounded-xl border border-white/[0.08] bg-[#111] p-6">
-              <h3 className="text-[16px] font-medium text-white">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--bg-raised)] p-6 shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+              <h3 className="font-mono text-[14px] font-medium uppercase tracking-[0.04em] text-[var(--text-primary)]">
                 审核候选规则 #{reviewingCandidate.id}
               </h3>
-              <p className="mt-1 text-[12px] text-text-tertiary">{reviewingCandidate.question_example}</p>
+              <p className="mt-2 font-mono text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                {reviewingCandidate.question_example}
+              </p>
               <div className="mt-3 space-y-3">
                 <CodeBlock
                   title="候选规则"
@@ -743,11 +829,13 @@ export default function Harness() {
                 ) : null}
               </div>
               <div className="mt-4">
-                <label className="text-[11px] font-medium text-text-tertiary">审核备注</label>
+                <label className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                  审核备注
+                </label>
                 <input
                   value={reviewNote}
                   onChange={(e) => setReviewNote(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0d0d0d] px-3 py-2 text-[13px] text-text-primary outline-none focus:border-accent-border"
+                  className="mt-1 w-full rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 font-mono text-[13px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
                   placeholder="可选备注"
                 />
               </div>
@@ -758,7 +846,7 @@ export default function Harness() {
                     setReviewModalOpen(false);
                     setReviewingCandidate(null);
                   }}
-                  className="rounded-md border border-white/[0.08] bg-white/[0.02] px-4 py-2 text-[13px] text-text-secondary transition-colors hover:border-white/15"
+                  className="rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-4 py-2 font-mono text-[12px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
                 >
                   取消
                 </button>
@@ -766,7 +854,7 @@ export default function Harness() {
                   type="button"
                   onClick={() => handleReview("reject")}
                   disabled={busy === "review"}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-4 py-2 text-[13px] font-medium text-red-400 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--error)]/30 bg-[var(--error)]/10 px-4 py-2 font-mono text-[12px] font-medium uppercase tracking-[0.04em] text-[var(--error)] transition-all duration-[var(--duration-fast)] hover:bg-[var(--error)]/20 hover:shadow-[0_0_20px_var(--error-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                 >
                   <ThumbsDown className="h-3.5 w-3.5" />
                   驳回
@@ -775,7 +863,7 @@ export default function Harness() {
                   type="button"
                   onClick={() => handleReview("approve")}
                   disabled={busy === "review"}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--success)] px-4 py-2 font-mono text-[12px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[0_0_20px_var(--success-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                 >
                   <ThumbsUp className="h-3.5 w-3.5" />
                   批准

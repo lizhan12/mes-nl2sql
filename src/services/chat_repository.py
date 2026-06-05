@@ -8,22 +8,13 @@ from __future__ import annotations
 import json
 import logging
 
-import psycopg
-from psycopg.rows import dict_row
-
-from src.core.config import settings
+from src.services.db_pool import app_connection
 
 logger = logging.getLogger(__name__)
 
 
 class ChatRepository:
-    """聊天历史 PG 仓储。"""
-
-    def __init__(self, db_url: str = "") -> None:
-        self.db_url = (db_url or settings.app_database_url).replace("+asyncpg", "")
-
-    def connect(self) -> psycopg.Connection:
-        return psycopg.connect(self.db_url, row_factory=dict_row)
+    """聊天历史 PG 仓储（使用 AppPool 连接池）。"""
 
     def ensure_tables(self) -> None:
         ddl = """
@@ -40,7 +31,7 @@ class ChatRepository:
         CREATE INDEX IF NOT EXISTS idx_chat_history_user
             ON chat_history (user_id, created_at DESC);
         """
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(ddl)
             conn.commit()
         logger.info("chat_history 表初始化完成")
@@ -59,7 +50,7 @@ class ChatRepository:
             "thread_id": thread_id,
             "messages": json.dumps(messages, ensure_ascii=False, default=str),
         }
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(sql, params)
             conn.commit()
 
@@ -69,7 +60,7 @@ class ChatRepository:
         SELECT messages FROM chat_history
         WHERE user_id = %(user_id)s AND thread_id = %(thread_id)s
         """
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(sql, {"user_id": user_id, "thread_id": thread_id})
             row = cur.fetchone()
         if not row:
@@ -92,7 +83,7 @@ class ChatRepository:
         ORDER BY updated_at DESC
         LIMIT %(limit)s
         """
-        with self.connect() as conn, conn.cursor() as cur:
+        with app_connection() as conn, conn.cursor() as cur:
             cur.execute(sql, {"user_id": user_id, "limit": limit})
             rows = cur.fetchall()
 

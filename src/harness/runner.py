@@ -12,8 +12,8 @@ from typing import Any
 import psycopg
 import requests
 
-from src.core.config import settings
 from src.harness.knowledge import normalize_join_expr, parse_expected_joins, split_cn_list
+from src.services.db_pool import execution_connection
 
 KEYWORDS = {
     "WHERE",
@@ -189,10 +189,9 @@ def evaluate_cases(
     report_path: Path,
     max_workers: int = 4,
 ) -> list[dict[str, Any]]:
-    db_url = settings.execution_database_url.replace("+asyncpg", "")
     report_by_case_id: dict[str, dict[str, Any]] = {}
 
-    with psycopg.connect(db_url) as conn:
+    with execution_connection() as conn:
         for case in cases:
             report_by_case_id[str(case["case_id"])] = _build_report_item(conn, case)
 

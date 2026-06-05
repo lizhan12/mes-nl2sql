@@ -14,18 +14,31 @@ export function Panel({ title, subtitle, action, children, className }: PanelPro
   return (
     <section
       className={cn(
-        "rounded-xl border border-white/[0.07] bg-[#141414] p-6",
+        "relative rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-5",
         className,
       )}
     >
-      <div className="mb-5 flex items-start justify-between gap-4">
+      {/* Corner accent line */}
+      <div
+        className="pointer-events-none absolute inset-0 rounded-lg opacity-[0.06]"
+        style={{
+          border: "1px solid transparent",
+          borderImage: `linear-gradient(135deg, var(--accent) 0%, transparent 40%, transparent 60%, var(--accent) 100%) 1`,
+        }}
+      />
+
+      <div className="relative z-10 mb-4 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold tracking-tight text-white">{title}</h2>
-          {subtitle ? <p className="mt-1 text-[13px] leading-relaxed text-text-tertiary">{subtitle}</p> : null}
+          <h2 className="font-display text-sm font-semibold uppercase tracking-[0.06em] text-[var(--text-primary)]">
+            {title}
+          </h2>
+          {subtitle ? (
+            <p className="mt-1 text-[12px] leading-relaxed text-[var(--text-tertiary)]">{subtitle}</p>
+          ) : null}
         </div>
         {action}
       </div>
-      {children}
+      <div className="relative z-10">{children}</div>
     </section>
   );
 }

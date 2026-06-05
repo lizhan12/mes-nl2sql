@@ -94,6 +94,9 @@ async def lifespan(app: FastAPI):
     logger.info("聊天历史数据表初始化完成")
 
     yield
+    from src.services.db_pool import close_all_pools
+
+    close_all_pools()
     logger.info("服务关闭")
 
 

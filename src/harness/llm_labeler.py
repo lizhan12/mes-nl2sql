@@ -11,11 +11,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-import psycopg
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.core.config import settings
 from src.harness.runner import build_probe_sql, parse_tables
+from src.services.db_pool import execution_connection
 from src.services.llm import get_llm
 from src.utils.sql_validator import validate_sql
 
@@ -340,25 +340,15 @@ def _is_error_likely_fixed(failed_sql: str, new_sql: str, error_msg: str) -> boo
 
 def _evaluate_execution(sql: str, db_url: str | None = None) -> tuple[float, dict]:
     """维度3：执行正确性 —— 在数据库上实际执行 SQL 探针查询。"""
-    if not db_url:
-        return 0.5, {"status": "skipped", "reason": "无数据库连接串"}
-
     try:
-        conn = psycopg.connect(db_url.replace("+asyncpg", ""))
-        try:
-            with conn.cursor() as cur:
-                cur.execute(build_probe_sql(sql))
-                if cur.description:
-                    columns = [d.name for d in cur.description]
-                    return 1.0, {"status": "success", "columns": columns, "row_count": cur.rowcount}
-                return 0.8, {"status": "success_no_columns", "reason": "执行成功但无结果列"}
-        except Exception as exc:
-            conn.rollback()
-            return 0.0, {"status": "failed", "error": str(exc)[:300]}
-        finally:
-            conn.close()
+        with execution_connection() as conn, conn.cursor() as cur:
+            cur.execute(build_probe_sql(sql))
+            if cur.description:
+                columns = [d.name for d in cur.description]
+                return 1.0, {"status": "success", "columns": columns, "row_count": cur.rowcount}
+            return 0.8, {"status": "success_no_columns", "reason": "执行成功但无结果列"}
     except Exception as exc:
-        return 0.0, {"status": "connection_failed", "error": str(exc)[:200]}
+        return 0.0, {"status": "failed", "error": str(exc)[:300]}
 
 
 def _evaluate_compliance(sql: str) -> tuple[float, dict]:
