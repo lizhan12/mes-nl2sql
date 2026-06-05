@@ -32,7 +32,7 @@ else
 fi
 
 # 从 .env 读取端口，默认 8000
-PORT=$(grep -oP '^port\s*=\s*\K\d+' .env 2>/dev/null || echo "8000")
+PORT=$(grep -i -oP '^PORT\s*=\s*\K\d+' .env 2>/dev/null || echo "8000")
 
 # 启动后端服务
 echo "[3/3] 启动后端服务 (port $PORT)..."
