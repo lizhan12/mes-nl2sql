@@ -7,9 +7,13 @@ Write-Host "========================================" -ForegroundColor Cyan
 
 $root = Split-Path -Parent $PSScriptRoot
 
+# 从 .env 读取端口，默认 8000
+$port = (Select-String -Path "$root\.env" -Pattern '^port\s*=\s*(\d+)' | Select-Object -First 1).Matches.Groups[1].Value
+if (-not $port) { $port = "8000" }
+
 # 启动后端
-Write-Host "`n[1/2] 启动后端服务 (port 8000)..." -ForegroundColor Green
-$backend = Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root'; uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000" -PassThru
+Write-Host "`n[1/2] 启动后端服务 (port $port)..." -ForegroundColor Green
+$backend = Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root'; uv run uvicorn src.main:app --reload --host 0.0.0.0 --port $port" -PassThru
 
 # 等待后端就绪
 Write-Host "  等待后端启动..." -ForegroundColor Yellow

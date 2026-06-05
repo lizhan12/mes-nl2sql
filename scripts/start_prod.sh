@@ -31,10 +31,13 @@ else
     echo "[2/3] 前端构建产物已存在，跳过构建"
 fi
 
+# 从 .env 读取端口，默认 8000
+PORT=$(grep -oP '^port\s*=\s*\K\d+' .env 2>/dev/null || echo "8000")
+
 # 启动后端服务
-echo "[3/3] 启动后端服务 (port 8000)..."
+echo "[3/3] 启动后端服务 (port $PORT)..."
 echo "========================================"
-echo "  服务地址: http://0.0.0.0:8000"
+echo "  服务地址: http://0.0.0.0:$PORT"
 echo "========================================"
 
-uv run uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 4
+uv run uvicorn src.main:app --host 0.0.0.0 --port "$PORT" --workers 4
