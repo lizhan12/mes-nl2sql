@@ -123,6 +123,8 @@ SQL_EXECUTION_DATABASE_URL=postgresql://user:pass@host:5432/mes
 
 节点 7 校验失败时触发 LLM 修复，通过条件边回到自身重试（最多 3 次）。
 
+![Graph 工作流](docs/graph_workflow.png)
+
 ### 3.2 节点 1：意图理解
 
 - **输入**：用户自然语言问题 + 运行时规则约束
