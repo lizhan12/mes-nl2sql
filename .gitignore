@@ -17,3 +17,5 @@ files/
 temp_*
 .trae/documents/
 tests/
+logs/
+.server.pid
