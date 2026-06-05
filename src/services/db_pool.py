@@ -27,9 +27,10 @@ def _build_app_pool() -> ConnectionPool:
     return ConnectionPool(
         conninfo=url,
         kwargs={"row_factory": dict_row, "application_name": "mes_nl2sql_app"},
-        min_size=2,
-        max_size=10,
+        min_size=1,
+        max_size=5,
         timeout=_TIMEOUT,
+        max_idle=120,  # 空闲连接 120s 后回收
         open=True,
     )
 
@@ -41,8 +42,9 @@ def _build_execution_pool() -> ConnectionPool:
         conninfo=url,
         kwargs={"application_name": "mes_nl2sql_exec"},
         min_size=1,
-        max_size=5,
+        max_size=3,
         timeout=_TIMEOUT,
+        max_idle=120,  # 空闲连接 120s 后回收
         open=True,
     )
 
