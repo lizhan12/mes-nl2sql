@@ -64,7 +64,7 @@ start_fg() {
     echo "  服务地址: http://0.0.0.0:$PORT"
     echo "  按 Ctrl+C 停止"
     echo "========================================"
-    uv run uvicorn src.main:app --host 0.0.0.0 --port "$PORT" --workers 4
+    uv run uvicorn src.main:app --host 0.0.0.0 --port "$PORT" --workers 2
 }
 
 start_bg() {
@@ -82,7 +82,7 @@ start_bg() {
 
     mkdir -p logs
     echo "[启动] 后端服务 (port $PORT)..."
-    nohup uv run uvicorn src.main:app --host 0.0.0.0 --port "$PORT" --workers 4 \
+    nohup uv run uvicorn src.main:app --host 0.0.0.0 --port "$PORT" --workers 2 \
         >> "$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
 
