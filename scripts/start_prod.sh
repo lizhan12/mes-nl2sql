@@ -19,6 +19,17 @@ LOG_FILE="$ROOT_DIR/logs/server.log"
 PORT=$(grep -i -oP '^PORT\s*=\s*\K\d+' .env 2>/dev/null || echo "8000")
 
 # ---- helpers ----
+kill_port() {
+    local pid
+    pid=$(lsof -ti :"$PORT" 2>/dev/null || true)
+    if [ -n "$pid" ]; then
+        echo "[端口] 端口 $PORT 被占用 (PID: $pid)，正在释放..."
+        kill -9 $pid 2>/dev/null || true
+        sleep 1
+        echo "[端口] 已释放"
+    fi
+}
+
 check_deps() {
     if [ ! -d ".venv" ]; then
         echo "[依赖] 创建虚拟环境..."
@@ -46,6 +57,7 @@ start_fg() {
     echo "========================================"
     echo "  MES NL2SQL - 前台启动"
     echo "========================================"
+    kill_port
     check_deps
     check_frontend
     echo "[启动] 后端服务 (port $PORT)..."
@@ -64,6 +76,7 @@ start_bg() {
     echo "========================================"
     echo "  MES NL2SQL - 后台启动"
     echo "========================================"
+    kill_port
     check_deps
     check_frontend
 
