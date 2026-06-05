@@ -376,6 +376,7 @@ uv run pytest --cov=src --cov-report=html
 
 - 测试文件：`test_<模块名>.py`
 - 测试函数：`test_<被测试函数>_<场景>`
+- 所有测试的文件必须在 `tests/` 目录下
 
 ```python
 # tests/test_services/test_user_service.py
