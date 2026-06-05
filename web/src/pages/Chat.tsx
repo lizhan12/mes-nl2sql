@@ -28,8 +28,10 @@ const NODE_LABELS: Record<string, string> = {
   execute: "执行查询",
 };
 
+let _msgId = 1;
+
 function makeId(): string {
-  return crypto.randomUUID();
+  return String(_msgId++);
 }
 
 function userMessage(content: string): Message {

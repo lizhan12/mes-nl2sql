@@ -37,8 +37,10 @@ export default function Home() {
   const successCount = useMemo(() => activity.filter((item) => item.status === "success").length, [activity]);
   const errorCount = useMemo(() => activity.filter((item) => item.status === "error").length, [activity]);
 
+  let _nextId = 1;
+
   function pushActivity(item: Omit<ActivityItem, "id" | "createdAt">): string {
-    const id = crypto.randomUUID();
+    const id = String(_nextId++);
     setActivity((current) => [{ id, createdAt: new Date().toLocaleString(), ...item }, ...current].slice(0, 8));
     return id;
   }
