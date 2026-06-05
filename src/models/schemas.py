@@ -10,6 +10,7 @@ class NL2SQLRequest(BaseModel):
 
     query: str = Field(..., min_length=1, description="用户的自然语言查询问题")
     thread_id: str = Field("", description="可选：对话线程ID，用于多轮记忆")
+    user_id: str = Field("", description="用户标识，来自前端 localStorage")
 
 
 class NL2SQLResponse(BaseModel):
@@ -114,3 +115,30 @@ class GraphEdgeCreate(BaseModel):
             confidence=self.confidence,
             note=self.note,
         )
+
+
+# ── 聊天历史模型 ──
+
+
+class ChatHistoryItem(BaseModel):
+    """会话摘要条目。"""
+
+    thread_id: str
+    first_query: str = ""
+    message_count: int = 0
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class ChatHistoryListResponse(BaseModel):
+    """用户会话列表响应。"""
+
+    sessions: list[ChatHistoryItem]
+
+
+class ChatThreadResponse(BaseModel):
+    """单个会话线程完整响应。"""
+
+    thread_id: str
+    user_id: str
+    messages: list[dict]

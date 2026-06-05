@@ -1,13 +1,15 @@
-import { Bot, GitBranch, MessageCircle, Moon, Plus, Send, Sun, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, Clock, GitBranch, MessageCircle, Moon, Plus, Send, Sun, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { CodeBlock } from "@/components/CodeBlock";
 import { PaginationBar } from "@/components/PaginationBar";
 import { StatusBadge } from "@/components/StatusBadge";
-import { fetchPage, submitFeedback } from "@/lib/api";
+import { fetchPage, fetchChatHistory, loadChatThread, submitFeedback } from "@/lib/api";
+import type { ChatHistoryItem as ChatHistoryItemType } from "@/lib/api";
 import { fetchSSE } from "@/lib/stream";
 import { useTheme } from "@/hooks/useTheme";
+import { useUser } from "@/hooks/useUser";
 import type { ChatStreamEvent, JsonValue, Message, PageResponse, SqlResult } from "@/types";
 
 function parseSqlLimit(sql: string): { limit: number } {
@@ -65,6 +67,7 @@ function ThemeToggle() {
 }
 
 export default function Chat() {
+  const { userId } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
@@ -77,10 +80,55 @@ export default function Chat() {
   const [feedbackModal, setFeedbackModal] = useState<{ msgId: string; requestId: string } | null>(null);
   const [feedbackReason, setFeedbackReason] = useState("");
 
+  // 历史会话
+  const [historySessions, setHistorySessions] = useState<ChatHistoryItemType[]>([]);
+  const [showHistory, setShowHistory] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  // 加载用户历史会话列表
+  useEffect(() => {
+    if (userId) {
+      setHistoryLoading(true);
+      fetchChatHistory(userId)
+        .then(setHistorySessions)
+        .catch(() => {})
+        .finally(() => setHistoryLoading(false));
+    }
+  }, [userId]);
+
+  async function loadSession(targetThreadId: string) {
+    setHistoryLoading(true);
+    try {
+      const thread = await loadChatThread(userId, targetThreadId);
+      if (thread && thread.messages) {
+        setMessages(
+          thread.messages.map((m) => ({
+            id: makeId(),
+            role: (m.role as "user" | "assistant") || "user",
+            content: m.content || "",
+            type: "text" as const,
+            timestamp: Date.now(),
+          })),
+        );
+        setThreadId(targetThreadId);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  const refreshHistory = useCallback(() => {
+    if (userId) {
+      fetchChatHistory(userId).then(setHistorySessions).catch(() => {});
+    }
+  }, [userId]);
 
   const handleSend = useCallback(async () => {
     const query = input.trim();
@@ -100,7 +148,7 @@ export default function Chat() {
       const stepAcc: Array<{ node: string; label: string; textPreview: string; status: "running" | "done" | "error" }> = [];
       await fetchSSE(
         "/chat/stream",
-        { query, thread_id: threadId },
+        { query, thread_id: threadId, user_id: userId },
         (event: ChatStreamEvent) => {
           if (event.thread_id && !threadId) {
             setThreadId(event.thread_id);
@@ -212,6 +260,7 @@ export default function Chat() {
         },
         () => {
           setRunning(false);
+          refreshHistory();
           inputRef.current?.focus();
         },
       );
@@ -226,7 +275,7 @@ export default function Chat() {
         }),
       );
     }
-  }, [input, running, threadId]);
+  }, [input, running, threadId, userId, refreshHistory]);
 
   function handleNewChat() {
     setMessages([]);
@@ -261,10 +310,19 @@ export default function Chat() {
       {/* ── Header ── */}
       <header className="flex shrink-0 items-center justify-between border-b border-[var(--border-default)] bg-[var(--bg-raised)] px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowHistory((v) => !v)}
+            title={showHistory ? "隐藏历史" : "显示历史"}
+            className="inline-flex items-center rounded-md border border-[var(--border-default)] bg-[var(--bg-overlay)] p-1.5 text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)]"
+          >
+            {showHistory ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </button>
           <Bot className="h-5 w-5 text-accent-500" />
           <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text-primary)]">
             MES <span className="font-normal text-text-tertiary">对话助手</span>
           </h1>
+          <StatusBadge tone="neutral">{userId.slice(0, 8)}</StatusBadge>
           {threadId ? <StatusBadge tone="warning">{threadId.slice(0, 8)}</StatusBadge> : null}
           {running ? <StatusBadge tone="loading">处理中</StatusBadge> : null}
         </div>
@@ -298,6 +356,53 @@ export default function Chat() {
 
       {/* ── Body ── */}
       <div className="flex flex-1 overflow-hidden">
+        {/* ── History Sidebar ── */}
+        {showHistory ? (
+          <div className="w-64 shrink-0 overflow-y-auto border-r border-[var(--border-default)] bg-[var(--bg-raised)]">
+            <div className="px-3 py-3">
+              <h2 className="flex items-center gap-1.5 text-[12px] font-medium tracking-[0.04em] text-[var(--text-secondary)] uppercase">
+                <Clock className="h-3 w-3" />
+                对话历史
+              </h2>
+            </div>
+            {historyLoading && historySessions.length === 0 ? (
+              <div className="px-3 py-6 text-center text-[13px] text-text-tertiary/50">加载中...</div>
+            ) : historySessions.length === 0 ? (
+              <div className="px-3 py-6 text-center text-[13px] text-text-tertiary/50">暂无对话记录</div>
+            ) : (
+              <div className="space-y-0.5 px-2 pb-3">
+                {historySessions.map((s) => (
+                  <button
+                    key={s.thread_id}
+                    type="button"
+                    onClick={() => loadSession(s.thread_id)}
+                    className={`w-full rounded-md px-3 py-2 text-left transition-colors ${
+                      s.thread_id === threadId
+                        ? "bg-accent/10 text-accent-500"
+                        : "text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)]"
+                    }`}
+                  >
+                    <div className="truncate text-[13px]">{s.first_query || "空对话"}</div>
+                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-text-tertiary/50">
+                      <span>{s.message_count} 条消息</span>
+                      <span>
+                        {s.updated_at
+                          ? new Date(s.updated_at).toLocaleDateString("zh-CN", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : ""}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
+
         {/* Messages Area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
           {messages.length === 0 ? (
@@ -568,8 +673,7 @@ function MultiSqlTabs({ message }: { message: Message }) {
           )}
           {currentResult.success && (
             <div className="rounded-lg border border-emerald-500/10 bg-emerald-500/5 px-3 py-2 text-[13px] text-emerald-400">
-              查询成功
-              {typeof currentResult.rows === "number" && `，${currentResult.rows} 行`}
+              SQL 执行成功
               {currentResult.repaired && <span className="ml-2 text-amber-400">（已修复）</span>}
             </div>
           )}
@@ -723,9 +827,7 @@ function ChatBubble({
           message.executionResult &&
           !(message.executionResult as Record<string, JsonValue>).error && (
             <div className="rounded-lg border border-emerald-500/10 bg-emerald-500/5 px-3 py-1.5 text-[13px] text-emerald-400">
-              查询成功
-              {typeof (message.executionResult as Record<string, JsonValue>).rows === "number" &&
-                `，${(message.executionResult as Record<string, JsonValue>).rows} 行`}
+              SQL 执行成功
             </div>
           )}
 

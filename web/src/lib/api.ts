@@ -8,6 +8,7 @@ import type {
   HarnessListResponse,
   Nl2SqlResponse,
   PageResponse,
+  Message,
 } from "@/types";
 
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
@@ -210,4 +211,36 @@ export function deleteGraphEdge(edgeId: number): Promise<GraphEdgeMutationRespon
   return requestJson<GraphEdgeMutationResponse>(`/api/graph/edges/${edgeId}`, {
     method: "DELETE",
   });
+}
+
+// ── 聊天历史 ────────────────────────────────────────────────────────
+
+export interface ChatHistoryItem {
+  thread_id: string;
+  first_query: string;
+  message_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ChatHistoryListResponse {
+  sessions: ChatHistoryItem[];
+}
+
+interface ChatThreadResponse {
+  thread_id: string;
+  user_id: string;
+  messages: Message[];
+}
+
+export function fetchChatHistory(userId: string): Promise<ChatHistoryItem[]> {
+  return requestJson<ChatHistoryListResponse>(
+    `/chat/history?user_id=${encodeURIComponent(userId)}`,
+  ).then((r) => r.sessions);
+}
+
+export function loadChatThread(userId: string, threadId: string): Promise<ChatThreadResponse> {
+  return requestJson<ChatThreadResponse>(
+    `/chat/history/${threadId}?user_id=${encodeURIComponent(userId)}`,
+  );
 }

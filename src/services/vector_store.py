@@ -63,18 +63,18 @@ def _parse_schema_chunk(chunk: str) -> dict:
     for line in chunk.split("\n"):
         stripped = line.strip()
         if stripped.startswith("表名："):
-            table_name = stripped[len("表名："):].strip()
+            table_name = stripped[len("表名：") :].strip()
         elif stripped.startswith("模块："):
-            module = stripped[len("模块："):].strip()
+            module = stripped[len("模块：") :].strip()
         elif stripped.startswith("业务含义："):
-            business_meaning = stripped[len("业务含义："):].strip()
+            business_meaning = stripped[len("业务含义：") :].strip()
         elif stripped == "关键字段：":
             section = "columns"
         elif stripped == "关联关系：":
             section = "relations"
         elif stripped.startswith("适用场景："):
             section = "scenarios"
-            scenarios.append(stripped[len("适用场景："):].strip())
+            scenarios.append(stripped[len("适用场景：") :].strip())
         elif stripped and section == "columns" and " -- " in stripped:
             # "col_name (type) -- comment" -> "col_name(comment)"
             col_match = re.match(r"(\w+)\s*\(.*?\)\s*--\s*(.*)", stripped)
@@ -203,7 +203,7 @@ def _build_keyword_index(chunks: list[dict]) -> dict[str, list[str]]:
             if len(part) >= 2:
                 for win_size in (2, 3, 4):
                     for i in range(len(part) - win_size + 1):
-                        terms.append(part[i:i + win_size])
+                        terms.append(part[i : i + win_size])
         return terms
 
     for item in chunks:
@@ -219,10 +219,10 @@ def _build_keyword_index(chunks: list[dict]) -> dict[str, list[str]]:
         for col in meta.get("columns", []):
             # 提取注释部分
             if "(" in col and ")" in col:
-                sources.append(col[col.rindex("(") + 1:col.rindex(")")])
+                sources.append(col[col.rindex("(") + 1 : col.rindex(")")])
         for rel in meta.get("relations", []):
             if "(" in rel and ")" in rel:
-                sources.append(rel[rel.rindex("(") + 1:rel.rindex(")")])
+                sources.append(rel[rel.rindex("(") + 1 : rel.rindex(")")])
         for sc in meta.get("scenarios", []):
             sources.append(sc)
 
@@ -252,7 +252,7 @@ def keyword_search_schema(query: str, top_n: int = 10) -> list[str]:
     terms: list[str] = []
     for win_size in (2, 3, 4, 5):
         for i in range(len(query) - win_size + 1):
-            terms.append(query[i:i + win_size])
+            terms.append(query[i : i + win_size])
     terms.append(query)  # 也加完整查询
 
     # 去重
@@ -558,8 +558,10 @@ def hybrid_search_schema(
 
     logger.info(
         "混合检索: 向量=%d (阈值>=%.2f) + 关键词=%d -> 合并=%d",
-        len(vector_results), similarity_threshold or _SIMILARITY_THRESHOLD,
-        len(keyword_full_texts), len(merged),
+        len(vector_results),
+        similarity_threshold or _SIMILARITY_THRESHOLD,
+        len(keyword_full_texts),
+        len(merged),
     )
     return merged
 

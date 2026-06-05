@@ -38,6 +38,9 @@ from src.harness.online_service import (
 )
 from src.harness.repository import get_online_harness_repository
 from src.models.schemas import (
+    ChatHistoryItem,
+    ChatHistoryListResponse,
+    ChatThreadResponse,
     GraphEdgeCreate,
     HarnessCandidateReviewRequest,
     HarnessFailureLabelRequest,
@@ -50,6 +53,7 @@ from src.models.schemas import (
     SqlPageResponse,
 )
 from src.services.bfs import _get_graph as load_relation_graph
+from src.services.chat_repository import get_chat_repository
 from src.services.vector_store import build_few_shot_store, build_schema_store
 
 # ---- 日志配置 ----
@@ -84,6 +88,10 @@ async def lifespan(app: FastAPI):
         logger.info("正在初始化线上 Harness 数据表...")
         get_online_harness_repository().ensure_tables()
         logger.info("线上 Harness 数据表初始化完成")
+
+    logger.info("正在初始化聊天历史数据表...")
+    get_chat_repository().ensure_tables()
+    logger.info("聊天历史数据表初始化完成")
 
     yield
     logger.info("服务关闭")
@@ -421,6 +429,14 @@ async def chat_stream(request: NL2SQLRequest):
                 session_history = session_history[-10:]
             _chat_sessions[thread_id] = session_history
 
+            # 持久化到数据库
+            if request.user_id:
+                messages_payload = [{"type": msg.__class__.__name__, "content": msg.content} for msg in session_history]
+                try:
+                    get_chat_repository().save_session(request.user_id, thread_id, messages_payload)
+                except Exception as exc:
+                    logger.warning("聊天历史持久化失败: %s", exc)
+
             done_event = {
                 "node": "done",
                 "status": "complete",
@@ -453,6 +469,25 @@ async def chat_stream(request: NL2SQLRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ── 聊天历史 API ───────────────────────────────────────────────────
+
+
+@app.get("/chat/history", response_model=ChatHistoryListResponse)
+async def list_chat_history(user_id: str, limit: int = 50):
+    """获取用户的所有对话记录列表。"""
+    sessions = get_chat_repository().list_user_sessions(user_id, limit)
+    return ChatHistoryListResponse(sessions=[ChatHistoryItem(**s) for s in sessions])
+
+
+@app.get("/chat/history/{thread_id}", response_model=ChatThreadResponse)
+async def get_chat_thread(thread_id: str, user_id: str):
+    """获取指定对话线程的完整消息记录。"""
+    messages = get_chat_repository().load_session(user_id, thread_id)
+    if messages is None:
+        raise HTTPException(status_code=404, detail="对话记录不存在")
+    return ChatThreadResponse(thread_id=thread_id, user_id=user_id, messages=messages)
 
 
 @app.get("/admin/harness/failure-cases")
