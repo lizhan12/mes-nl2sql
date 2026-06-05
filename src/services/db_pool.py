@@ -26,12 +26,20 @@ def _build_app_pool() -> ConnectionPool:
     logger.info("创建 AppPool → %s", _mask_url(url))
     return ConnectionPool(
         conninfo=url,
-        kwargs={"row_factory": dict_row, "application_name": "mes_nl2sql_app"},
+        kwargs={
+            "row_factory": dict_row,
+            "application_name": "mes_nl2sql_app",
+            "tcp_keepalive_interval": 30,
+            "tcp_keepalive_idle": 60,
+            "tcp_keepalive_count": 3,
+        },
         min_size=1,
         max_size=5,
         timeout=_TIMEOUT,
-        max_idle=600,       # 空闲 10 分钟后回收，避免频繁重连
-        reconnect_timeout=10,  # 重连超时 10 秒
+        max_idle=300,           # 空闲 5 分钟后回收
+        max_lifetime=1800,      # 连接最大存活 30 分钟，到期自动关闭
+        reconnect_timeout=10,
+        check=ConnectionPool.check_connection,  # 每次取连接前验证
         open=True,
     )
 
@@ -41,12 +49,19 @@ def _build_execution_pool() -> ConnectionPool:
     logger.info("创建 ExecutionPool → %s", _mask_url(url))
     return ConnectionPool(
         conninfo=url,
-        kwargs={"application_name": "mes_nl2sql_exec"},
+        kwargs={
+            "application_name": "mes_nl2sql_exec",
+            "tcp_keepalive_interval": 30,
+            "tcp_keepalive_idle": 60,
+            "tcp_keepalive_count": 3,
+        },
         min_size=1,
         max_size=3,
         timeout=_TIMEOUT,
-        max_idle=600,       # 空闲 10 分钟后回收
-        reconnect_timeout=10,  # 重连超时 10 秒
+        max_idle=300,           # 空闲 5 分钟后回收
+        max_lifetime=1800,      # 连接最大存活 30 分钟
+        reconnect_timeout=10,
+        check=ConnectionPool.check_connection,
         open=True,
     )
 
