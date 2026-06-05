@@ -21,7 +21,15 @@ PORT=$(grep -i -oP '^PORT\s*=\s*\K\d+' .env 2>/dev/null || echo "8000")
 # ---- helpers ----
 kill_port() {
     local pid
-    pid=$(lsof -ti :"$PORT" 2>/dev/null || true)
+    # 优先用 fuser，其次 ss，最后 lsof
+    pid=$(fuser -n tcp "$PORT" 2>/dev/null | grep -oP '\d+' | head -1 || true)
+    if [ -z "$pid" ]; then
+        pid=$(ss -tlnp "sport = :$PORT" 2>/dev/null | grep -oP 'pid=\K\d+' | head -1 || true)
+    fi
+    if [ -z "$pid" ]; then
+        pid=$(lsof -ti :"$PORT" 2>/dev/null || true)
+    fi
+
     if [ -n "$pid" ]; then
         echo "[端口] 端口 $PORT 被占用 (PID: $pid)，正在释放..."
         kill -9 $pid 2>/dev/null || true
