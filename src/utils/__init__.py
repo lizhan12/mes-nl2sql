@@ -2,6 +2,8 @@
 
 import re
 
+from src.core.config import settings
+
 _DANGEROUS_KEYWORDS = [
     "DELETE",
     "UPDATE",
@@ -15,12 +17,14 @@ _DANGEROUS_KEYWORDS = [
 ]
 
 
-def validate_sql(sql: str, default_limit: int = 500) -> dict:
+def validate_sql(sql: str, default_limit: int | None = None) -> dict:
     """校验生成的 SQL，过滤危险操作，自动补 LIMIT。
 
     Returns:
         {"safe": bool, "final_sql": str, "error": str}
     """
+    if default_limit is None:
+        default_limit = settings.default_limit
     sql_upper = sql.upper().strip()
 
     # 1. 危险操作黑名单

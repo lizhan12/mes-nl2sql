@@ -112,6 +112,85 @@ export function fetchPage(sql: string, page: number, pageSize = 20): Promise<Pag
   });
 }
 
+// ── 指标路由 API ───────────────────────────────────────────────────
+
+export interface Metric {
+  metric_id: string;
+  view_name: string;
+  name: string;
+  category: string;
+  description: string;
+  aliases: string[];
+  params: Array<{ name: string; type: string; column: string; required: boolean }>;
+  status: string;
+  note: string;
+}
+
+export interface ListMetricsResponse {
+  metrics: Metric[];
+  total: number;
+}
+
+export interface MetricRouteRequest {
+  query: string;
+}
+
+export interface MetricRouteResponse {
+  channel: "metric" | "nl2sql" | "clarify" | "multi_metric";
+  query: string;
+  metric_id?: string;
+  metric_name?: string;
+  sql?: string;
+  explain?: string;
+  params?: Record<string, string>;
+  matched_term?: string;
+  clarification_prompt?: string;
+  candidates?: Array<{ metric_id: string; name: string; description: string; category: string }>;
+  multi_metric_ids?: string[];
+  multi_sqls?: Array<{ metric_id: string; metric_name: string; sql: string; explain: string }>;
+}
+
+export interface MetricClarifyRequest {
+  query: string;
+  metric_id: string;
+}
+
+export interface MetricClarifyResponse {
+  channel: "metric";
+  metric_id: string;
+  metric_name: string;
+  sql: string;
+  explain: string;
+  params: Record<string, string>;
+}
+
+export function fetchMetrics(category?: string): Promise<ListMetricsResponse> {
+  const params = new URLSearchParams();
+  if (category) params.set("category", category);
+  return requestJson<ListMetricsResponse>(`/api/metrics?${params}`);
+}
+
+export function routeMetric(request: MetricRouteRequest): Promise<MetricRouteResponse> {
+  return requestJson<MetricRouteResponse>("/api/metrics/route", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export function clarifyMetric(query: string, metricId: string): Promise<MetricClarifyResponse> {
+  return requestJson<MetricClarifyResponse>("/api/metrics/clarify", {
+    method: "POST",
+    body: JSON.stringify({ query, metric_id: metricId }),
+  });
+}
+
+export function slotAnswerMetric(query: string, metricId: string): Promise<MetricClarifyResponse> {
+  return requestJson<MetricClarifyResponse>("/api/metrics/slot-answer", {
+    method: "POST",
+    body: JSON.stringify({ query, metric_id: metricId }),
+  });
+}
+
 export interface GraphEdge {
   to: string;
   from_field: string;

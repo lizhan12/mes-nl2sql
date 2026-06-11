@@ -206,13 +206,21 @@ class OnlineHarnessRepository:
         return inserted
 
     def fetch_promotable_requests(self, limit: int = 200) -> list[dict[str, Any]]:
+        """获取可晋级为知识的成功请求。
+        收录条件：
+          - 尚未被晋级过
+          - SQL 执行成功
+          - final_sql 与 generated_sql 有实质性差异（修复合法的标志）
+          - 用户未明确点踩（排除已知错误的案例）
+        """
         query = """
         SELECT *
         FROM nl2sql_request_log
         WHERE promoted_to_knowledge = FALSE
           AND execution_success = TRUE
-          AND retry_count > 0
           AND final_sql <> ''
+          AND final_sql <> generated_sql
+          AND (user_rating IS NULL OR user_rating >= 0)
         ORDER BY created_at ASC
         LIMIT %(limit)s
         """

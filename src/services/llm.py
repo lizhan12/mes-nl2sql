@@ -5,14 +5,15 @@ from langchain_openai import ChatOpenAI
 from src.core.config import settings
 
 
-def _build_openai_kwargs(model: str, temperature: float = 0.0) -> dict:
-    return dict(
-        model=model,
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url,
-        temperature=max(temperature, 0.01),
-        streaming=True,
-    )
+def _build_openai_kwargs(model: str, temperature: float = 0.0, timeout: int | None = None) -> dict:
+    return {
+        "model": model,
+        "api_key": settings.openai_api_key,
+        "base_url": settings.openai_base_url,
+        "temperature": max(temperature, 0.01),
+        "streaming": True,
+        "request_timeout": timeout if timeout is not None else settings.llm_request_timeout,
+    }
 
 
 def get_llm(model: str | None = None, temperature: float = 0.0) -> ChatOpenAI:

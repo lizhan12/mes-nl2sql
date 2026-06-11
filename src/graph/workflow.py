@@ -46,12 +46,31 @@ def build_workflow(schema_store, few_shot_store):
 
     # 定义边
     workflow.set_entry_point("intent")
-    workflow.add_edge("intent", "retrieval")
+
+    # 条件边：非 MES 业务域直接结束，跳过检索/SQL生成/执行
+    workflow.add_conditional_edges(
+        "intent",
+        _route_after_intent,
+        {
+            "end": END,
+            "continue": "retrieval",
+        },
+    )
+
     workflow.add_edge("retrieval", "bfs")
     workflow.add_edge("bfs", "schema")
     workflow.add_edge("schema", "sql_gen")
-    # workflow.add_edge("sql_gen", END)
-    workflow.add_edge("sql_gen", "safety")
+
+    # sql_gen 之后也检查 non_mes_domain（兜底：SQL prompt 防御性规则触发域外标记）
+    workflow.add_conditional_edges(
+        "sql_gen",
+        _route_after_intent,
+        {
+            "end": END,
+            "continue": "safety",
+        },
+    )
+
     workflow.add_edge("safety", "execute")
 
     # 条件边：execute 节点根据结果决定是结束还是重试
@@ -65,6 +84,16 @@ def build_workflow(schema_store, few_shot_store):
     )
 
     return workflow.compile(checkpointer=MemorySaver())
+
+
+def _route_after_intent(state: GraphState) -> str:
+    """判断意图理解后是否继续流水线。
+
+    非 MES 业务域问题直接结束，避免 LLM 编造数据。
+    """
+    if state.get("non_mes_domain", False):
+        return "end"
+    return "continue"
 
 
 def _route_after_execute(state: GraphState) -> str:

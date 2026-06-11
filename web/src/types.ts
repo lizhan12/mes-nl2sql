@@ -127,13 +127,15 @@ export interface SqlResult {
   preview?: Array<Record<string, JsonValue>>;
   error?: string;
   repaired?: boolean;
+  empty_result?: boolean;
+  empty_message?: string;
 }
 
 export interface Message {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
-  type: "text" | "sql" | "progress" | "error";
+  type: "text" | "sql" | "progress" | "error" | "clarify" | "ask";
   timestamp: number;
   nodeStatus?: Record<string, "pending" | "running" | "done" | "error">;
   sql?: string;
@@ -146,6 +148,23 @@ export interface Message {
   executionResults?: SqlResult[];
   subQueries?: Array<{ question: string; description: string }>;
   steps?: StepInfo[];
+  // 指标路由相关
+  channel?: "metric" | "nl2sql" | "clarify" | "multi_metric" | "ask";
+  metricId?: string;
+  metricName?: string;
+  clarifyCandidates?: Array<{ metric_id: string; name: string; description: string; category: string }>;
+  clarifyPrompt?: string;
+  // 槽位追问相关
+  askPrompt?: string;
+  askMetricId?: string;
+  // 多指标相关
+  multiMetricIds?: string[];
+  multiSqls?: Array<{ metric_id: string; metric_name: string; sql: string; explain: string }>;
+  // 交互式组件所需的原始用户查询
+  originalQuery?: string;
+  // 空结果提示
+  emptyResult?: boolean;
+  emptyMessage?: string;
 }
 
 export interface ChatStreamEvent {

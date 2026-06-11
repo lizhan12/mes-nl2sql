@@ -1,7 +1,8 @@
 """生成技术方案简要说明 Word 文档"""
+
 from docx import Document
-from docx.shared import Pt, Cm
 from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.shared import Cm, Pt
 
 doc = Document()
 
@@ -84,7 +85,9 @@ add_para(
 
 add_para("方案不是替代现有系统，而是在其前面加一层指标路由层，形成双层架构：")
 
-add_para("用户查询 \u2192 术语归一化 \u2192 路由判断 \u2192 指标通道（查视图，100% 可靠）或 SQL 通道（LLM 生成，现有方案）")
+add_para(
+    "用户查询 \u2192 术语归一化 \u2192 路由判断 \u2192 指标通道（查视图，100% 可靠）或 SQL 通道（LLM 生成，现有方案）"
+)
 
 # ═══════════════════════════════════════════
 # 2. 双层架构
@@ -178,10 +181,7 @@ add_para("完整执行示例：", bold=True)
 add_para(f"用户输入：{LQ}今天A线良品率多少{RQ}")
 add_para(f"  \u2192 术语归一化：命中{LQ}良品率{RQ} \u2192 M004")
 add_para("  \u2192 参数提取：{date: 2026-06-05, pdline: A线}")
-add_para(
-    "  \u2192 SQL 拼装：SELECT ... FROM v_m004_yield_rate "
-    "WHERE 统计日期='2026-06-05' AND 产线名称 ILIKE '%A线%'"
-)
+add_para("  \u2192 SQL 拼装：SELECT ... FROM v_m004_yield_rate WHERE 统计日期='2026-06-05' AND 产线名称 ILIKE '%A线%'")
 add_para("  \u2192 执行查询 \u2192 返回表格结果")
 
 # ═══════════════════════════════════════════

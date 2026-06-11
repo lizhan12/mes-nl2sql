@@ -7,6 +7,9 @@ class NL2SQLRequest(BaseModel):
     """自然语言查询请求。"""
 
     query: str = Field(..., description="用户的自然语言查询问题", min_length=1)
+    thread_id: str = Field("", description="可选：对话线程ID，用于多轮记忆")
+    user_id: str = Field("", description="用户标识，来自前端 localStorage")
+    metric_id: str = Field("", description="可选：clarify/ask 流程中用户选择的指标 ID")
 
 
 class NL2SQLResponse(BaseModel):

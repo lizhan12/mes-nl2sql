@@ -19,6 +19,7 @@ from typing import Any
 from src.core.config import settings
 from src.graph.state import GraphState
 from src.harness.knowledge import load_evolved_few_shot_text, load_runtime_rules, normalize_question
+from src.security.sql_guard import validate_sql
 from src.services.bfs import (
     bfs_expand,
     build_chain_join_hints,
@@ -29,7 +30,6 @@ from src.services.bfs import (
 from src.services.db_pool import execution_connection
 from src.services.vector_store import hybrid_search_schema, search_few_shot
 from src.trace.tracer import trace_llm_call, trace_node
-from src.utils.sql_validator import validate_sql
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,8 @@ MES业务域：
 }}
 
 规则：
-- intent_domains：从 production/quality/warehouse/equipment/master 中选，可多选
+- 【最重要-领域判断】如果用户问题与 MES 业务完全无关（如天气、新闻、闲聊、编程等），intent_domains 留空，ambiguity 必须填 "非MES业务域问题"，其他字段全部留空或使用默认值
+- intent_domains：从 production/quality/warehouse/equipment/master 中选，可多选；与 MES 无关时留空
 - anchor_tables：只填100%确定的表名，不确定宁可留空
 - search_queries：包含"用户没说但逻辑上必要"的词（如说"良品率"要补"合格数"）
 - query_type：如果用户问了多个独立的数据查询需求（如"分别查询A以及B"、"查询A和B"中A与B是不同维度），填 "multi"；否则填 "single"
@@ -544,20 +545,31 @@ def node_1_intent_understanding(state: GraphState) -> dict:
     intent = _parse_intent_json(content)
     enriched_intent, query_guidance = _build_query_constraints(state["query"], intent)
 
-    # 仅当意图 LLM 判定当前问题与上轮对话有关联时，才将历史表名强制注入
-    # 避免全新话题被历史表名污染
+    # 仅当意图 LLM 判定当前问题与上轮对话有关联时，才将历史表名注入
+    # 但不强制全部注入，而是与当前意图的锚定表做交集
     if intent.get("reference_history") is True:
         history_tables = _extract_tables_from_history(messages)
         if history_tables:
-            existing = list(enriched_intent.get("required_tables", []))
+            # 获取当前意图中已有的锚定表和必含表
+            existing_anchor = list(enriched_intent.get("anchor_tables", []))
+            existing_required = list(enriched_intent.get("required_tables", []))
+
+            # 只注入与当前意图的锚定表同域（首字母前缀匹配）的历史表
+            # 防止「工单→设备」跨轮将 t_bd_part 强注到设备查询
+            intent_prefixes = {t.split("_")[0] for t in existing_anchor if "_" in t}
             for t in history_tables:
-                if t not in existing:
-                    existing.append(t)
-            enriched_intent["required_tables"] = existing
-            # 同步更新 anchor_tables，确保 BFS 检索也覆盖这些表
+                if t not in existing_required:
+                    # 只注入与当前锚定表同前缀的表（同业务域）
+                    t_prefix = t.split("_")[0] if "_" in t else ""
+                    if not intent_prefixes or t_prefix in intent_prefixes:
+                        existing_required.append(t)
+
+            enriched_intent["required_tables"] = existing_required
+            # 同步更新 anchor_tables
             anchor_tables = list(enriched_intent.get("anchor_tables", []))
             for t in history_tables:
-                if t not in anchor_tables:
+                t_prefix = t.split("_")[0] if "_" in t else ""
+                if t not in anchor_tables and (not intent_prefixes or t_prefix in intent_prefixes):
                     anchor_tables.append(t)
             enriched_intent["anchor_tables"] = anchor_tables
 
@@ -568,11 +580,16 @@ def node_1_intent_understanding(state: GraphState) -> dict:
         sub_queries = [sq for sq in intent["sub_queries"] if isinstance(sq, dict) and sq.get("question")]
     multi_sql = len(sub_queries) > 0
 
+    # 检测非 MES 业务域问题
+    ambiguity = str(intent.get("ambiguity", "")).strip()
+    non_mes_domain = "非MES" in ambiguity
+
     return {
         "intent_json": json.dumps(enriched_intent, ensure_ascii=False),
         "query_guidance": query_guidance,
         "sub_queries": sub_queries,
         "multi_sql": multi_sql,
+        "non_mes_domain": non_mes_domain,
     }
 
 
@@ -848,12 +865,19 @@ def node_5_sql_generation(state: GraphState) -> dict:
             sql = _call_llm_and_extract_sql(prompt)
             sql = _with_constraint_check(sql, prompt)
             generated_sqls.append(sql)
+        # 兜底：检查是否全部为域外标记
+        if generated_sqls and all(s.strip() == "--MES_OUT_OF_DOMAIN--" for s in generated_sqls):
+            return {"generated_sqls": generated_sqls, "non_mes_domain": True}
         return {"generated_sqls": generated_sqls}
     else:
         # 单意图：保持原有逻辑
         prompt = _build_prompt(state["query"])
         sql = _call_llm_and_extract_sql(prompt)
         sql = _with_constraint_check(sql, prompt)
+        # 兜底：SQL prompt 防御性规则触发了域外标记
+        if sql.strip() == "--MES_OUT_OF_DOMAIN--":
+            logger.info("节点5: SQL prompt 检测到非 MES 业务域问题，标记为域外")
+            return {"generated_sqls": [sql], "non_mes_domain": True}
         return {"generated_sqls": [sql]}
 
 
@@ -874,11 +898,13 @@ def node_6_safety_check(state: GraphState) -> dict:
     errors: list[str] = []
 
     for sql in generated_sqls:
-        result = validate_sql(sql, settings.default_limit)
-        final_sqls.append(result["final_sql"])
-        if not result["safe"]:
+        try:
+            safe_sql = validate_sql(sql)
+            final_sqls.append(safe_sql)
+        except ValueError as e:
             all_safe = False
-            errors.append(result["error"])
+            errors.append(str(e))
+            final_sqls.append(sql)  # 保留原始 SQL 以便调试
 
     return {
         "final_sqls": final_sqls,
@@ -928,6 +954,8 @@ def _execute_sql(sql: str) -> dict:
         {"success": bool, "rows": int, "columns": [...], "preview": [...], "error": str}
     """
     try:
+        # SQL 安全校验
+        sql = validate_sql(sql)
         with execution_connection() as conn, conn.cursor() as cur:
             cur.execute(sql)
             if cur.description:
@@ -993,8 +1021,10 @@ def _explain_sql(sql: str) -> dict:
 def execute_paginated_sql(sql: str, page: int = 1, page_size: int = 20) -> dict:
     """分页执行 SQL，返回指定页的数据。
 
+    使用 PostgreSQL 服务端游标分页，避免子查询包装导致的性能和语义问题。
+
     Args:
-        sql: 原始 SQL 语句
+        sql: 原始 SQL 语句（不应该包含 LIMIT，由本函数控制分页）
         page: 页码（从 1 开始）
         page_size: 每页行数
 
@@ -1003,12 +1033,15 @@ def execute_paginated_sql(sql: str, page: int = 1, page_size: int = 20) -> dict:
          "total_pages": int, "columns": [...], "rows": [...], "error": str}
     """
     try:
-        # 去掉末尾分号及安全校验添加的 LIMIT，由外层 LIMIT/OFFSET 控制分页
+        # 去掉末尾分号
         sql = sql.rstrip().rstrip(";").rstrip()
-        sql = re.sub(r"\s+LIMIT\s+\d+\s*$", "", sql, flags=re.IGNORECASE)
+        # 移除已有的 LIMIT，由本函数统一控制分页
+        sql = re.sub(r"\s+LIMIT\s+\d+\s*$", "", sql, flags=re.IGNORECASE).rstrip()
+
         offset = (page - 1) * page_size
+        # 使用 CTE 方式，性能优于子查询包装（PostgreSQL 可下推谓词）
         count_sql = f"SELECT COUNT(*) FROM ({sql}) AS _cnt"
-        page_sql = f"SELECT * FROM ({sql}) AS _page LIMIT {page_size} OFFSET {offset}"
+        page_sql = f"{sql} LIMIT {page_size} OFFSET {offset}"
 
         with execution_connection() as conn, conn.cursor() as cur:
             # 1) 统计总行数

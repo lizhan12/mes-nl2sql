@@ -11,6 +11,7 @@ class NL2SQLRequest(BaseModel):
     query: str = Field(..., min_length=1, description="用户的自然语言查询问题")
     thread_id: str = Field("", description="可选：对话线程ID，用于多轮记忆")
     user_id: str = Field("", description="用户标识，来自前端 localStorage")
+    metric_id: str = Field("", description="可选：clarify/ask 流程中用户选择的指标 ID")
 
 
 class NL2SQLResponse(BaseModel):
@@ -91,6 +92,26 @@ class HarnessFeedbackRequest(BaseModel):
     )
     rating: Literal["up", "down"] = Field(..., description="up=点赞, down=点踩")
     reason: str = Field("", description="点踩原因（rating=down 时必填）")
+
+
+class MetricRouteRequest(BaseModel):
+    """指标路由请求。"""
+
+    query: str = Field(..., min_length=1, description="用户查询文本")
+
+
+class MetricClarifyRequest(BaseModel):
+    """歧义澄清请求。"""
+
+    query: str = Field(..., min_length=1, description="原始查询")
+    metric_id: str = Field(..., min_length=1, description="用户选择的指标 ID")
+
+
+class MetricSlotAnswerRequest(BaseModel):
+    """槽位填充追问确认请求。"""
+
+    query: str = Field(..., min_length=1, description="原始查询")
+    metric_id: str = Field(..., min_length=1, description="追问对应的指标 ID")
 
 
 class GraphEdgeCreate(BaseModel):

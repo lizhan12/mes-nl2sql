@@ -26,7 +26,12 @@ const NODE_LABELS: Record<string, string> = {
   sql_gen: "生成 SQL",
   safety: "安全校验",
   execute: "执行查询",
+  metric: "指标直达",
+  clarify: "术语澄清",
 };
+
+/** 查询超时时间（毫秒），超时后自动取消并提示用户 */
+const QUERY_TIMEOUT_MS = 60_000;
 
 let _msgId = 1;
 
@@ -77,6 +82,28 @@ export default function Chat() {
   const [threadId, setThreadId] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // 查询超时控制
+  const abortRef = useRef<AbortController | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 绕过 React 状态时序问题：SSE 事件(done)可能先于通道事件(multi_metric/clarify等)在状态中被应用
+  // 用 ref 作为可靠数据源，done 事件到达时直接读取 ref 而非依赖 prev 状态
+  const channelDataRef = useRef<{
+    type: string;
+    content: string;
+    // clarify/ask
+    candidates?: Array<{ metric_id: string; name: string; description: string; category: string }>;
+    prompt?: string;
+    metricId?: string;
+    metricName?: string;
+    // metric
+    sql?: string;
+    explain?: string;
+    // multi_metric
+    multiMetricIds?: string[];
+    multiSqls?: Array<{ metric_id: string; metric_name: string; sql: string; explain: string }>;
+  } | null>(null);
 
   // 反馈状态
   const [ratedMessages, setRatedMessages] = useState<Set<string>>(new Set());
@@ -156,6 +183,39 @@ export default function Chat() {
     const assistantMsg = assistantProgress("正在理解您的问题...");
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
+    channelDataRef.current = null;
+
+    // 超时控制：创建 AbortController，60 秒后自动取消
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+    let timedOut = false;
+
+    timeoutRef.current = setTimeout(() => {
+      timedOut = true;
+      abortController.abort();
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id === assistantMsg.id) {
+            return {
+              ...msg,
+              content: `查询超时（超过 ${QUERY_TIMEOUT_MS / 1000} 秒），请简化问题后重试`,
+              type: "error",
+              nodeStatus: Object.fromEntries(
+                ["intent", "retrieval", "bfs", "schema", "sql_gen", "safety", "execute"].map((n) => [n, "error"])
+              ),
+            };
+          }
+          return msg;
+        }),
+      );
+    }, QUERY_TIMEOUT_MS);
+
     const currentNodeStatus: Record<string, "pending" | "running" | "done" | "error"> = {};
     const allNodes = ["intent", "retrieval", "bfs", "schema", "sql_gen", "safety", "execute"];
 
@@ -180,11 +240,12 @@ export default function Chat() {
             const subQueries = (event.data?.sub_queries as Array<{ question: string; description: string }>) || [];
             const finalSqls = (event.data?.final_sqls as string[]) || [];
             const execResults = (event.data?.execution_results as SqlResult[]) || [];
+            const channel = (event.data?.channel as string) || "";
 
             const execData = execResults.length > 0 ? (execResults[0] as unknown as Record<string, JsonValue>) : null;
             const requestId = (event.request_id as string) || "";
             const traceId = (event.trace_id as string) || requestId;
-            const finalSql = finalSqls.length > 0 ? finalSqls[0] : (event.data?.final_sql as string) || (event.data?.generated_sql as string) || "";
+            const finalSqlFromEvent = finalSqls.length > 0 ? finalSqls[0] : (event.data?.final_sql as string) || (event.data?.generated_sql as string) || "";
             const content = status === "error"
               ? `错误: ${(event.data?.error as string) || "未知错误"}`
               : multiSql
@@ -199,11 +260,28 @@ export default function Chat() {
             setMessages((prev) =>
               prev.map((msg) => {
                 if (msg.id === assistantMsg.id) {
+                  // 优先用 ref 判断通道类型，绕过 React 状态时序问题
+                  const cd = channelDataRef.current;
+                  const hasChannelData = cd !== null;
+                  const finalType = hasChannelData
+                    ? cd!.type
+                    : (status === "error" ? "error" : "text");
+                  // content：有通道数据用 ref，否则用 computed content
+                  const finalContent = hasChannelData
+                    ? cd!.content
+                    : content;
+                  // metric 通道兜底
+                  const finalMetricId = (event.data?.metric_id as string) || cd?.metricId || undefined;
+                  const finalMetricName = (event.data?.metric_name as string) || cd?.metricName || undefined;
+                  const finalSql = cd?.sql || finalSqlFromEvent;
+                  // multi_metric 通道兜底
+                  const finalMultiMetricIds = cd?.multiMetricIds || (msg as Message).multiMetricIds;
+                  const finalMultiSqls = cd?.multiSqls || (msg as Message).multiSqls;
                   return {
                     ...msg,
-                    content,
-                    type: status === "error" ? "error" : "text",
-                    nodeStatus: currentNodeStatus as Record<string, "pending" | "running" | "done" | "error">,
+                    content: finalContent,
+                    type: finalType as Message["type"],
+                    nodeStatus: { ...currentNodeStatus } as Record<string, "pending" | "running" | "done" | "error">,
                     sql: finalSql,
                     executionResult: execData,
                     requestId,
@@ -213,6 +291,22 @@ export default function Chat() {
                     executionResults: enrichedResults,
                     subQueries,
                     steps: [...stepAcc],
+                    channel: channel ? (channel as "metric" | "nl2sql" | "clarify" | "multi_metric" | "ask") : undefined,
+                    metricId: finalMetricId,
+                    metricName: finalMetricName,
+                    emptyResult: (event.data?.empty_result as boolean) || false,
+                    emptyMessage: (event.data?.empty_message as string) || "",
+                    // clarify 特有字段
+                    clarifyCandidates: cd?.candidates || (msg as Message & { clarifyCandidates?: unknown }).clarifyCandidates,
+                    clarifyPrompt: cd?.prompt || (msg as Message & { clarifyPrompt?: string }).clarifyPrompt,
+                    // ask 特有字段
+                    ...(cd?.type === "ask" ? {
+                      askPrompt: cd.prompt,
+                      askMetricId: cd.metricId,
+                    } : {}),
+                    // multi_metric 特有字段
+                    multiMetricIds: finalMultiMetricIds,
+                    multiSqls: finalMultiSqls,
                   };
                 }
                 return msg;
@@ -224,6 +318,102 @@ export default function Chat() {
           if (currentNodeStatus[nodeName] !== "error") {
             currentNodeStatus[nodeName] = "done";
           }
+
+          // 处理指标路由事件
+          if (nodeName === "clarify") {
+            const candidates = (event.data?.candidates as Array<{ metric_id: string; name: string; description: string; category: string }>) || [];
+            const prompt = (event.data?.clarification_prompt as string) || "";
+            channelDataRef.current = { type: "clarify", content: prompt || "请选择要查询的指标", candidates, prompt };
+            setMessages((prev) =>
+              prev.map((msg) => {
+                if (msg.id === assistantMsg.id) {
+                  return {
+                    ...msg,
+                    content: prompt || "请选择要查询的指标",
+                    type: "clarify",
+                    clarifyCandidates: candidates,
+                    clarifyPrompt: prompt,
+                    originalQuery: query,
+                    nodeStatus: { ...currentNodeStatus },
+                  };
+                }
+                return msg;
+              }),
+            );
+            return;
+          }
+
+          if (nodeName === "ask") {
+            const prompt = (event.data?.clarification_prompt as string) || "";
+            const metricId = (event.data?.metric_id as string) || "";
+            const metricName = (event.data?.metric_name as string) || "";
+            channelDataRef.current = { type: "ask", content: prompt || "请确认参数", prompt, metricId, metricName };
+            setMessages((prev) =>
+              prev.map((msg) => {
+                if (msg.id === assistantMsg.id) {
+                  return {
+                    ...msg,
+                    content: prompt || "请确认参数",
+                    type: "ask",
+                    askPrompt: prompt,
+                    askMetricId: metricId,
+                    metricName,
+                    originalQuery: query,
+                    nodeStatus: { ...currentNodeStatus },
+                  };
+                }
+                return msg;
+              }),
+            );
+            return;
+          }
+
+          if (nodeName === "metric") {
+            const sql = (event.data?.sql as string) || "";
+            const metricName = (event.data?.metric_name as string) || "";
+            const explain = (event.data?.explain as string) || "";
+            const metricId = (event.data?.metric_id as string) || "";
+            channelDataRef.current = { type: "metric", content: `指标直达: ${metricName}`, metricId, metricName, sql, explain };
+            setMessages((prev) =>
+              prev.map((msg) => {
+                if (msg.id === assistantMsg.id) {
+                  return {
+                    ...msg,
+                    content: `指标直达: ${metricName}`,
+                    type: "progress",
+                    sql,
+                    metricName,
+                    nodeStatus: { ...currentNodeStatus, metric: "done" },
+                    steps: [...stepAcc, { node: "metric", label: "指标直达", textPreview: explain, status: "done" }],
+                  };
+                }
+                return msg;
+              }),
+            );
+          }
+
+          if (nodeName === "multi_metric") {
+            const multiMetricIds = (event.data?.multi_metric_ids as string[]) || [];
+            const multiSqls = (event.data?.multi_sqls as Array<{ metric_id: string; metric_name: string; sql: string; explain: string }>) || [];
+            channelDataRef.current = { type: "multi_metric", content: `多指标查询完成（共 ${multiMetricIds.length} 个指标）`, multiMetricIds, multiSqls };
+            setMessages((prev) =>
+              prev.map((msg) => {
+                if (msg.id === assistantMsg.id) {
+                  return {
+                    ...msg,
+                    content: `多指标查询完成（共 ${multiMetricIds.length} 个指标）`,
+                    type: "progress",
+                    multiMetricIds,
+                    multiSqls,
+                    nodeStatus: { ...currentNodeStatus, multi_metric: "done" },
+                    steps: [...stepAcc, { node: "multi_metric", label: "多指标直达", textPreview: multiMetricIds.join(", "), status: "done" }],
+                  };
+                }
+                return msg;
+              }),
+            );
+          }
+
           const label = NODE_LABELS[nodeName] || nodeName;
           const textPreview = (event.data?.text_preview as string) || "";
 
@@ -261,6 +451,10 @@ export default function Chat() {
           );
         },
         (error: Error) => {
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+          }
           setMessages((prev) =>
             prev.map((msg) => {
               if (msg.id === assistantMsg.id) {
@@ -276,12 +470,21 @@ export default function Chat() {
           );
         },
         () => {
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+          }
           setRunning(false);
           refreshHistory();
           inputRef.current?.focus();
         },
+        abortController.signal,
       );
     } catch {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
       setRunning(false);
       setMessages((prev) =>
         prev.map((msg) => {
@@ -293,6 +496,216 @@ export default function Chat() {
       );
     }
   }, [input, running, threadId, userId, refreshHistory]);
+
+  const handleSendMetric = useCallback(
+    async (query: string, metricId: string, displayText: string) => {
+      if (running) return;
+
+      setRunning(true);
+
+      const userMsg = userMessage(displayText);
+      const assistantMsg = assistantProgress("正在查询...");
+      setMessages((prev) => [...prev, userMsg, assistantMsg]);
+
+      const currentNodeStatus: Record<string, "pending" | "running" | "done" | "error"> = {};
+      const allNodes = ["intent", "retrieval", "bfs", "schema", "sql_gen", "safety", "execute"];
+
+      // 超时控制
+      if (abortRef.current) {
+        abortRef.current.abort();
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      const abortController = new AbortController();
+      abortRef.current = abortController;
+
+      timeoutRef.current = setTimeout(() => {
+        abortController.abort();
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id === assistantMsg.id) {
+              return {
+                ...msg,
+                content: `查询超时（超过 ${QUERY_TIMEOUT_MS / 1000} 秒），请简化问题后重试`,
+                type: "error",
+                nodeStatus: Object.fromEntries(allNodes.map((n) => [n, "error"])),
+              };
+            }
+            return msg;
+          }),
+        );
+      }, QUERY_TIMEOUT_MS);
+
+      try {
+        const stepAcc: Array<{ node: string; label: string; textPreview: string; status: "running" | "done" | "error" }> = [];
+        await fetchSSE(
+          "/chat/stream",
+          { query, thread_id: threadId, user_id: userId, metric_id: metricId },
+          (event: ChatStreamEvent) => {
+            if (event.thread_id && !threadId) {
+              setThreadId(event.thread_id);
+            }
+
+            const nodeName = event.node;
+            if (nodeName === "done" || nodeName === "error") {
+              allNodes.forEach((n) => {
+                if (currentNodeStatus[n] !== "error") currentNodeStatus[n] = "done";
+              });
+              const status = event.status === "error" ? "error" : "success";
+
+              const multiSql = (event.data?.multi_sql as boolean) || false;
+              const subQueries = (event.data?.sub_queries as Array<{ question: string; description: string }>) || [];
+              const finalSqls = (event.data?.final_sqls as string[]) || [];
+              const execResults = (event.data?.execution_results as SqlResult[]) || [];
+              const channel = (event.data?.channel as string) || "";
+
+              const execData = execResults.length > 0 ? (execResults[0] as unknown as Record<string, JsonValue>) : null;
+              const requestId = (event.request_id as string) || "";
+              const traceId = (event.trace_id as string) || requestId;
+              const finalSql = finalSqls.length > 0 ? finalSqls[0] : (event.data?.final_sql as string) || (event.data?.generated_sql as string) || "";
+              const content = status === "error"
+                ? `错误: ${(event.data?.error as string) || "未知错误"}`
+                : multiSql
+                  ? `查询完成（共 ${finalSqls.length} 条查询）`
+                  : `查询完成`;
+
+              const enrichedResults: SqlResult[] = execResults.map((r, i) => ({
+                ...r,
+                sql: finalSqls[i] || "",
+              }));
+
+              setMessages((prev) =>
+                prev.map((msg) => {
+                  if (msg.id === assistantMsg.id) {
+                    return {
+                      ...msg,
+                      content,
+                      type: status === "error" ? "error" : "text",
+                      nodeStatus: { ...currentNodeStatus } as Record<string, "pending" | "running" | "done" | "error">,
+                      sql: finalSql,
+                      executionResult: execData,
+                      requestId,
+                      traceId,
+                      multiSql,
+                      finalSqls,
+                      executionResults: enrichedResults,
+                      subQueries,
+                      steps: [...stepAcc],
+                      channel: channel ? (channel as "metric" | "nl2sql" | "clarify" | "multi_metric" | "ask") : undefined,
+                      metricId: (event.data?.metric_id as string) || undefined,
+                      metricName: (event.data?.metric_name as string) || undefined,
+                      emptyResult: (event.data?.empty_result as boolean) || false,
+                      emptyMessage: (event.data?.empty_message as string) || "",
+                    };
+                  }
+                  return msg;
+                }),
+              );
+              return;
+            }
+
+            if (currentNodeStatus[nodeName] !== "error") {
+              currentNodeStatus[nodeName] = "done";
+            }
+
+            if (nodeName === "metric") {
+              const sql = (event.data?.sql as string) || "";
+              const metricName = (event.data?.metric_name as string) || "";
+              const explain = (event.data?.explain as string) || "";
+              setMessages((prev) =>
+                prev.map((msg) => {
+                  if (msg.id === assistantMsg.id) {
+                    return {
+                      ...msg,
+                      content: `指标直达: ${metricName}`,
+                      type: "progress",
+                      sql,
+                      metricName,
+                      nodeStatus: { ...currentNodeStatus, metric: "done" },
+                      steps: [...stepAcc, { node: "metric", label: "指标直达", textPreview: explain, status: "done" }],
+                    };
+                  }
+                  return msg;
+                }),
+              );
+            }
+
+            const label = NODE_LABELS[nodeName] || nodeName;
+            const textPreview = (event.data?.text_preview as string) || "";
+
+            const existing = stepAcc.find((s) => s.node === nodeName);
+            if (existing) {
+              existing.textPreview = textPreview || existing.textPreview;
+              existing.status = "done";
+            } else {
+              stepAcc.push({ node: nodeName, label, textPreview, status: "running" });
+            }
+            stepAcc.forEach((s) => {
+              if (s.node !== nodeName && s.status === "running") s.status = "done";
+            });
+
+            setMessages((prev) =>
+              prev.map((msg) => {
+                if (msg.id === assistantMsg.id) {
+                  return {
+                    ...msg,
+                    content: textPreview || `${label}...`,
+                    type: "progress" as const,
+                    nodeStatus: { ...currentNodeStatus },
+                  };
+                }
+                return msg;
+              }),
+            );
+          },
+          (error: Error) => {
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
+              timeoutRef.current = null;
+            }
+            setMessages((prev) =>
+              prev.map((msg) => {
+                if (msg.id === assistantMsg.id) {
+                  return {
+                    ...msg,
+                    content: `请求失败: ${error.message}`,
+                    type: "error",
+                    nodeStatus: Object.fromEntries(allNodes.map((n) => [n, "error"])),
+                  };
+                }
+                return msg;
+              }),
+            );
+          },
+          () => {
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
+              timeoutRef.current = null;
+            }
+            setRunning(false);
+            refreshHistory();
+          },
+          abortController.signal,
+        );
+      } catch {
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        setRunning(false);
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id === assistantMsg.id) {
+              return { ...msg, content: "请求异常，请重试", type: "error" };
+            }
+            return msg;
+          }),
+        );
+      }
+    },
+    [running, threadId, userId, refreshHistory],
+  );
 
   function handleNewChat() {
     setMessages([]);
@@ -440,6 +853,7 @@ export default function Chat() {
                   onThumbsUp={(requestId) => handleThumbsUp(msg.id, requestId)}
                   onThumbsDown={(requestId) => handleThumbsDown(msg.id, requestId)}
                   onTraceView={(traceId) => setTracePanelTraceId(traceId)}
+                  onSendMetric={handleSendMetric}
                 />
               ))}
               {running && (
@@ -729,6 +1143,13 @@ function MultiSqlTabs({ message }: { message: Message }) {
             </div>
           )}
 
+          {/* 空结果友好提示 */}
+          {currentResult.success && currentResult.empty_result && currentResult.empty_message && (
+            <div className="rounded-[var(--radius-md)] border border-[var(--warning)] px-3 py-2.5" style={{ backgroundColor: "color-mix(in srgb, var(--warning) 8%, transparent)" }}>
+              <span className="font-mono text-[13px] text-[var(--warning)]">{currentResult.empty_message}</span>
+            </div>
+          )}
+
           {currentResult.success && (
             <div className="space-y-2">
               {pState.loading && !tableData && (
@@ -783,15 +1204,19 @@ function ChatBubble({
   onThumbsUp,
   onThumbsDown,
   onTraceView,
+  onSendMetric,
 }: {
   message: Message;
   rated: boolean;
   onThumbsUp: (requestId: string) => void;
   onThumbsDown: (requestId: string) => void;
   onTraceView: (traceId: string) => void;
+  onSendMetric: (query: string, metricId: string, displayText: string) => void;
 }) {
   const isUser = message.role === "user";
   const isError = message.type === "error";
+  const isClarify = message.type === "clarify";
+  const isAsk = message.type === "ask";
 
   const hasSqlResult =
     !isUser &&
@@ -872,7 +1297,38 @@ function ChatBubble({
                 : undefined
             }
           >
-            {message.content}
+            {isClarify ? (
+              <ClarifySelector message={message} onSendMetric={onSendMetric} />
+            ) : isAsk ? (
+              <AskConfirmer message={message} onSendMetric={onSendMetric} />
+            ) : (
+              message.content
+            )}
+          </div>
+        )}
+
+        {/* 指标通道标签 */}
+        {message.channel === "metric" && message.metricName && (
+          <div className="flex items-center gap-2">
+            <StatusBadge tone="success">指标直达</StatusBadge>
+            <span className="font-mono text-[12px] text-[var(--success)]">{message.metricName}</span>
+          </div>
+        )}
+
+        {/* 多指标通道 */}
+        {message.channel === "multi_metric" && message.multiSqls && message.multiSqls.length > 0 && (
+          <div className="space-y-3">
+            <StatusBadge tone="success">多指标直达</StatusBadge>
+            {message.multiSqls.map((ms) => (
+              <div key={ms.metric_id} className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[12px] font-medium text-[var(--text-primary)]">
+                    {ms.metric_name} ({ms.metric_id})
+                  </span>
+                </div>
+                <CodeBlock title="SQL" value={ms.sql} language="sql" maxHeightClassName="max-h-36" />
+              </div>
+            ))}
           </div>
         )}
 
@@ -890,6 +1346,13 @@ function ChatBubble({
               <span className="font-mono text-[12px] text-[var(--success)]">SQL 执行成功</span>
             </div>
           )}
+
+        {/* 空结果友好提示 */}
+        {!isUser && message.emptyResult && message.emptyMessage && (
+          <div className="rounded-[var(--radius-md)] border border-[var(--warning)] px-3 py-2.5" style={{ backgroundColor: "color-mix(in srgb, var(--warning) 8%, transparent)" }}>
+            <span className="font-mono text-[13px] text-[var(--warning)]">{message.emptyMessage}</span>
+          </div>
+        )}
 
         {/* Single SQL error display */}
         {hasSingleSql &&
@@ -994,6 +1457,97 @@ function ChatBubble({
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function ClarifySelector({ message, onSendMetric }: { message: Message; onSendMetric: (query: string, metricId: string, displayText: string) => void }) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  if (!message.clarifyCandidates || message.clarifyCandidates.length === 0) {
+    return <p className="text-[var(--text-secondary)]">{message.content}</p>;
+  }
+
+  const handleSelect = async (metricId: string, metricName: string) => {
+    setSelected(metricId);
+    setLoading(true);
+    onSendMetric(message.originalQuery || message.content || "", metricId, metricName);
+  };
+
+  const categoryLabel: Record<string, string> = {
+    production: "生产",
+    quality: "质量",
+    warehouse: "仓储",
+    equipment: "设备",
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[14px] text-[var(--text-primary)]">
+        「{message.content}」在不同部门有不同口径，请选择你要查询的指标：
+      </p>
+      <div className="space-y-1.5">
+        {message.clarifyCandidates.map((c) => (
+          <button
+            key={c.metric_id}
+            type="button"
+            onClick={() => handleSelect(c.metric_id, c.name)}
+            disabled={loading}
+            className="w-full rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-2 text-left transition-all duration-150 hover:border-[var(--accent)] hover:bg-[var(--accent-surface)] disabled:opacity-50"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[13px] font-medium text-[var(--text-primary)]">
+                {c.name}
+              </span>
+              <span className="font-mono text-[11px] text-[var(--text-tertiary)]">
+                {categoryLabel[c.category] || c.category}
+              </span>
+            </div>
+            <p className="mt-0.5 font-mono text-[12px] text-[var(--text-secondary)]">{c.description}</p>
+          </button>
+        ))}
+      </div>
+      {selected && loading && (
+        <p className="font-mono text-[12px] text-[var(--text-tertiary)]">正在查询 {selected}...</p>
+      )}
+    </div>
+  );
+}
+
+function AskConfirmer({ message, onSendMetric }: { message: Message; onSendMetric: (query: string, metricId: string, displayText: string) => void }) {
+  const [confirmed, setConfirmed] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const prompt = message.askPrompt || "请确认参数";
+  const metricId = message.askMetricId || message.metricId || "";
+  const metricName = message.metricName || "";
+
+  const handleConfirm = async () => {
+    setConfirmed(true);
+    setLoading(true);
+    onSendMetric(message.originalQuery || message.content || "", metricId, metricName || "确认查询");
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[14px] text-[var(--text-primary)]">{prompt}</p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleConfirm}
+          disabled={loading || confirmed}
+          className="rounded-[var(--radius-sm)] border border-[var(--accent)] bg-[var(--accent)] px-4 py-1.5 font-mono text-[13px] font-medium text-white transition-all duration-150 hover:opacity-90 disabled:opacity-50"
+        >
+          {loading ? "确认中..." : "是"}
+        </button>
+        <span className="font-mono text-[12px] text-[var(--text-tertiary)]">
+          确认后系统将直接查询指标
+        </span>
+      </div>
+      {confirmed && loading && (
+        <p className="font-mono text-[12px] text-[var(--text-tertiary)]">正在查询...</p>
+      )}
     </div>
   );
 }

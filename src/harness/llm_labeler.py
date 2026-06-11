@@ -17,7 +17,8 @@ from src.core.config import settings
 from src.harness.runner import build_probe_sql, parse_tables
 from src.services.db_pool import execution_connection
 from src.services.llm import get_llm
-from src.utils.sql_validator import validate_sql
+from src.security.sql_guard import validate_sql as guard_validate_sql
+from src.security.sql_guard import SecurityError
 
 # ── LLM 生成修正 SQL 的 Prompt ───────────────────────────────────
 
@@ -79,18 +80,21 @@ _SEMANTIC_EVAL_USER = """## 用户问题
 
 # ── 维度权重 ─────────────────────────────────────────────────────
 
-# 四个维度的权重
+# 四个维度的权重（语义一致性权重提高，执行正确性降低，防止答非所问的 SQL 因"能跑通"而高分）
 DIMENSION_WEIGHTS = {
-    "semantic_consistency": 0.30,  # LLM 语义评估
-    "structural_integrity": 0.25,  # 结构完整性
-    "execution_correctness": 0.35,  # 执行正确性
+    "semantic_consistency": 0.40,  # LLM 语义评估（提高权重，核心维度）
+    "structural_integrity": 0.20,  # 结构完整性
+    "execution_correctness": 0.30,  # 执行正确性
     "sql_compliance": 0.10,  # SQL 规范度
 }
 
 # 置信度阈值
-CONFIDENCE_HIGH = 0.70  # >= 此值：自动审批
-CONFIDENCE_MEDIUM = 0.40  # >= 此值：待审核（带自动标注备注）
+CONFIDENCE_HIGH = 0.85  # >= 此值：自动审批（从 0.70 提高到 0.85，需语义维度也达标）
+CONFIDENCE_MEDIUM = 0.50  # >= 此值：待审核（带自动标注备注）
 # < CONFIDENCE_MEDIUM：待人工审核
+
+# 语义一致性最低分：低于此值即使总分达标也不自动审批
+MIN_SEMANTIC_SCORE = 0.50
 
 
 @dataclass
@@ -116,8 +120,10 @@ class DimensionScores:
 
     @property
     def confidence_level(self) -> str:
-        """置信度等级：high / medium / low。"""
-        if self.overall_confidence >= CONFIDENCE_HIGH:
+        """置信度等级：high / medium / low。
+        即使总分达标，语义一致性低于 MIN_SEMANTIC_SCORE 也降级到 medium。
+        """
+        if self.overall_confidence >= CONFIDENCE_HIGH and self.semantic_consistency >= MIN_SEMANTIC_SCORE:
             return "high"
         if self.overall_confidence >= CONFIDENCE_MEDIUM:
             return "medium"
@@ -125,8 +131,10 @@ class DimensionScores:
 
     @property
     def needs_human_review(self) -> bool:
-        """是否需要人工审核。"""
-        return self.overall_confidence < CONFIDENCE_HIGH
+        """是否需要人工审核。
+        总分 >= HIGH 且 语义 >= MIN_SEMANTIC_SCORE 才不需要审核。
+        """
+        return self.overall_confidence < CONFIDENCE_HIGH or self.semantic_consistency < MIN_SEMANTIC_SCORE
 
 
 def generate_correct_sql(
@@ -363,12 +371,12 @@ def _evaluate_compliance(sql: str) -> tuple[float, dict]:
     checks: list[dict] = []
 
     # 安全检查
-    result = validate_sql(sql, limit=settings.default_limit)
-    if result["safe"]:
+    try:
+        safe_sql = guard_validate_sql(sql)
         checks.append({"check": "safe", "pass": True})
-    else:
+    except SecurityError as e:
         score -= 0.4
-        checks.append({"check": "safe", "pass": False, "reason": result.get("error", "不安全")})
+        checks.append({"check": "safe", "pass": False, "reason": str(e)})
 
     # LIMIT 检查
     sql_upper = sql.upper()
@@ -460,14 +468,22 @@ def auto_label_failure_case(
         model=eval_model,
     )
 
-    # 步骤3：判断审核等级
+    # 步骤3：判断审核等级（语义一致性必须达标才能自动审批）
     confidence = scores.overall_confidence
     needs_review = scores.needs_human_review
+    semantic_ok = scores.semantic_consistency >= MIN_SEMANTIC_SCORE
 
     # 生成审核备注
-    if confidence >= CONFIDENCE_HIGH:
-        review_note = f"LLM自动标注，置信度 {confidence:.2%}，各维度均通过。建议自动审批。"
+    if confidence >= CONFIDENCE_HIGH and semantic_ok:
+        review_note = f"LLM自动标注，综合置信度 {confidence:.2%}，语义一致性 {scores.semantic_consistency:.2%}（达标），可自动审批。"
         candidate_type = "llm_auto_approved"
+    elif confidence >= CONFIDENCE_HIGH and not semantic_ok:
+        # 总分达标但语义不达标：降级为待审核
+        review_note = (
+            f"LLM自动标注，综合置信度 {confidence:.2%}，但语义一致性仅 {scores.semantic_consistency:.2%}"
+            f"（<{MIN_SEMANTIC_SCORE:.0%}），SQL 可能未正确回答用户问题，需人工审核。"
+        )
+        candidate_type = "llm_labeled_failure"
     elif confidence >= CONFIDENCE_MEDIUM:
         dim_info = ", ".join(
             f"{k}={v:.2f}"

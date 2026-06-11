@@ -24,6 +24,7 @@ class GraphState(TypedDict):
     query_guidance: str  # 规则层补充的查询约束
     sub_queries: list[dict]  # 子问题列表 [{"question": "...", "description": "..."}]
     multi_sql: bool  # 是否多 SQL（sub_queries 非空）
+    non_mes_domain: bool  # 是否为非 MES 业务域问题（意图 LLM 判定）
 
     # ---- 节点2 输出 ----
     schema_docs: str  # 知识库检索到的表结构文档（换行分隔）

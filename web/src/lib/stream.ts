@@ -5,15 +5,22 @@ export async function fetchSSE(
   onEvent: (event: { node: string; status: string; thread_id: string; data: Record<string, unknown> }) => void,
   onError: (error: Error) => void,
   onComplete: () => void,
-): Promise<AbortController> {
+  externalSignal?: AbortSignal,
+): Promise<void> {
   const controller = new AbortController();
+  const signal = externalSignal || controller.signal;
+
+  // 如果传入了外部 signal，监听外部 abort
+  if (externalSignal) {
+    externalSignal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
 
   try {
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: controller.signal,
+      signal,
     });
 
     if (!response.ok) {
@@ -70,6 +77,4 @@ export async function fetchSSE(
   } finally {
     onComplete();
   }
-
-  return controller;
 }

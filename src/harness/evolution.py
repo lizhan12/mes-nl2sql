@@ -309,5 +309,7 @@ def build_llm_labeled_candidate(
             "review_note": review_note,
         },
         "review_note": review_note,
-        "status": "approved" if candidate_type == "llm_auto_approved" else "pending",
+        # 所有 LLM 生成的候选规则默认为 pending，需人工确认后才能 publish
+        # 自动审批仅作为推荐标记，不做为最终审批决策
+        "status": "pending",
     }

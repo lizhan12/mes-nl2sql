@@ -37,8 +37,8 @@ def _build_app_pool() -> ConnectionPool:
         min_size=1,
         max_size=5,
         timeout=_TIMEOUT,
-        max_idle=300,           # 空闲 5 分钟后回收
-        max_lifetime=1800,      # 连接最大存活 30 分钟，到期自动关闭
+        max_idle=300,  # 空闲 5 分钟后回收
+        max_lifetime=1800,  # 连接最大存活 30 分钟，到期自动关闭
         reconnect_timeout=10,
         check=ConnectionPool.check_connection,  # 每次取连接前验证
         open=True,
@@ -51,7 +51,9 @@ def _build_execution_pool() -> ConnectionPool:
     return ConnectionPool(
         conninfo=url,
         kwargs={
+            "row_factory": dict_row,
             "application_name": "mes_nl2sql_exec",
+            "options": "-c statement_timeout=30000",  # 30 秒查询超时
             "keepalives": 1,
             "keepalives_idle": 60,
             "keepalives_interval": 30,
@@ -60,8 +62,8 @@ def _build_execution_pool() -> ConnectionPool:
         min_size=1,
         max_size=3,
         timeout=_TIMEOUT,
-        max_idle=300,           # 空闲 5 分钟后回收
-        max_lifetime=1800,      # 连接最大存活 30 分钟
+        max_idle=300,  # 空闲 5 分钟后回收
+        max_lifetime=1800,  # 连接最大存活 30 分钟
         reconnect_timeout=10,
         check=ConnectionPool.check_connection,
         open=True,

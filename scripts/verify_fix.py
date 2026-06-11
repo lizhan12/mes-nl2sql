@@ -1,5 +1,7 @@
 """快速验证：测试 S1-R1 查询是否不再使用不存在的 defect_id 列。"""
+
 import json
+
 import requests
 
 URL = "http://localhost:8000/chat/stream"

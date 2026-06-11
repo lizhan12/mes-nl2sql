@@ -310,13 +310,13 @@ def auto_label_failures_online_service(
 
         repo.upsert_rule_candidate(candidate)
 
-        # 根据置信度分级处理
+        # 根据置信度分级处理（所有候选默认为 pending，需人工确认后 publish）
         if result.candidate_type == "llm_auto_approved":
-            # 高置信度：自动审批 + 保存标准答案，状态变为 labeled
+            # 高置信度：保存标准答案+标注记录(推荐审批)，候选状态仍为 pending 等人工确认
             repo.upsert_failure_label(
                 failure_case_id=case_id,
                 correct_sql=result.corrected_sql,
-                note=f"LLM自动标注，置信度 {result.confidence:.2%}",
+                note=f"LLM自动标注(推荐审批)，置信度 {result.confidence:.2%}",
                 label_type="llm_auto_label",
             )
             stats["auto_approved"] += 1

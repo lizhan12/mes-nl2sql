@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     llm_model: str = "gpt-4o"
     intent_model: str = "gpt-4o-mini"
+    llm_request_timeout: int = 120  # LLM 调用超时（秒），超时后抛出 ReadTimeout 异常
 
     # ---- Embedding ----
     embedding_provider: str = "openai"
@@ -34,6 +35,12 @@ class Settings(BaseSettings):
     # ---- Service ----
     host: str = "0.0.0.0"
     port: int = 8000
+    admin_api_key: str = ""  # 管理员 API Key，用于 /admin/* 和 /api/graph/* 鉴权，为空则跳过校验
+
+    # ---- Rate Limit ----
+    rate_limit_enabled: bool = True
+    rate_limit_max_requests: int = 30  # 每个时间窗口内最大请求数
+    rate_limit_window_seconds: int = 60  # 限流时间窗口（秒）
 
     # ---- Trace ----
     trace_enabled: bool = True
@@ -49,6 +56,7 @@ class Settings(BaseSettings):
     few_shot_top_k: int = 3
     retrieval_similarity_threshold: float = 0.55  # 向量检索相似度阈值，低于此值丢弃
     default_limit: int = 500
+    sql_max_rows: int = 2000  # SQL 安全校验兜底上限，无 LIMIT 时自动追加
 
     # ---- Harness Knowledge Limits ----
     max_runtime_rules: int = 200  # 运行时规则最大加载条数

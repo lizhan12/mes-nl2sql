@@ -23,10 +23,28 @@ class ChatRepository:
             user_id TEXT NOT NULL,
             thread_id TEXT NOT NULL,
             messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+            route_type TEXT DEFAULT '',
+            row_count INT DEFAULT 0,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             UNIQUE(user_id, thread_id)
         );
+
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'chat_history' AND column_name = 'route_type'
+            ) THEN
+                ALTER TABLE chat_history ADD COLUMN route_type TEXT DEFAULT '';
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'chat_history' AND column_name = 'row_count'
+            ) THEN
+                ALTER TABLE chat_history ADD COLUMN row_count INT DEFAULT 0;
+            END IF;
+        END $$;
 
         CREATE INDEX IF NOT EXISTS idx_chat_history_user
             ON chat_history (user_id, created_at DESC);
@@ -112,6 +130,29 @@ class ChatRepository:
                 }
             )
         return result
+
+    def log_route(self, user_id: str, thread_id: str, route_type: str, row_count: int = 0) -> None:
+        """记录路由类型和返回行数，用于审计分析。
+
+        在每次查询完成后调用，更新已有会话的路由信息。
+        """
+        sql = """
+        UPDATE chat_history
+        SET route_type = %(route_type)s, row_count = %(row_count)s, updated_at = NOW()
+        WHERE user_id = %(user_id)s AND thread_id = %(thread_id)s
+        """
+        params = {
+            "user_id": user_id,
+            "thread_id": thread_id,
+            "route_type": route_type,
+            "row_count": row_count,
+        }
+        try:
+            with app_connection() as conn, conn.cursor() as cur:
+                cur.execute(sql, params)
+                conn.commit()
+        except Exception:
+            logger.warning("记录审计日志失败", exc_info=True)
 
 
 _chat_repo: ChatRepository | None = None
