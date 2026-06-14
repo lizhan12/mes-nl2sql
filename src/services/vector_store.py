@@ -3,15 +3,20 @@
 每个文档存入 pgvector 时同时携带元数据：
   - 表结构库 (mes_knowledge_base.txt)：table_name, module, business_meaning, full_text, columns, relations, scenarios
   - SQL 示例库 (dify_few_shot.txt)：scenario, question, full_text
-  - 关键词索引：table_name -> keywords 映射，用于混合检索
 
-启动时检查集合中是否已有数据，避免重复 embedding。
+同时支持 Neo4j 向量存储，通过 build_neo4j_* 函数构建。
 """
+
+from __future__ import annotations
 
 import logging
 import re
 from collections import defaultdict
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.services.neo4j_vector_store import Neo4jVectorStore
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
@@ -609,3 +614,123 @@ def search_few_shot_with_meta(store: PGVectorStore, query: str, k: int | None = 
 def _get_full_text(doc: Document) -> str:
     """从 Document 的 metadata 中取 full_text，若无则回退到 page_content。"""
     return doc.metadata.get("full_text", doc.page_content)
+
+
+# ── Neo4j 向量库构建 ────────────────────────────────────────────────
+
+
+def build_neo4j_schema_store(force_rebuild: bool = False) -> Neo4jVectorStore:
+    """构建 Neo4j 表结构向量库。
+
+    从 mes_knowledge_base.txt 加载数据，生成 embedding 后写入 Table 节点的
+    schema_embedding 属性。同时构建关键词倒排索引。
+
+    Args:
+        force_rebuild: 是否强制重建（忽略已有数据）
+    """
+    global _keyword_index
+    from src.services.neo4j_graph import batch_set_schema_embeddings, ensure_vector_indexes, schema_has_embeddings
+    from src.services.neo4j_vector_store import Neo4jVectorStore
+
+    ensure_vector_indexes()
+
+    embeddings = _get_embeddings()
+    store = Neo4jVectorStore("schema", embeddings)
+
+    if force_rebuild or not schema_has_embeddings():
+        if force_rebuild:
+            logger.info("强制重建 Neo4j schema 向量库...")
+        else:
+            logger.info("Neo4j schema 向量库为空，开始初始化...")
+
+        chunks = _load_chunks_with_metadata("mes_knowledge_base.txt", _parse_schema_chunk)
+        if chunks:
+            # 生成 embedding
+            texts = [c["embed_text"] for c in chunks]
+            logger.info("正在生成 %d 个 schema embedding...", len(texts))
+            vectors = embeddings.embed_documents(texts)
+
+            # 批量写入 Neo4j
+            batch = [
+                {
+                    "name": c["metadata"].get("table_name", ""),
+                    "embedding": vec,
+                    "full_text": c["full_text"],
+                    "module": c["metadata"].get("module", ""),
+                    "business_meaning": c["metadata"].get("business_meaning", ""),
+                }
+                for c, vec in zip(chunks, vectors, strict=False)
+            ]
+            batch_set_schema_embeddings(batch)
+            logger.info("Neo4j schema 向量库初始化完成，共 %d 条记录", len(chunks))
+
+        # 构建关键词倒排索引
+        _keyword_index = _build_keyword_index(chunks)
+        logger.info("关键词索引构建完成，共 %d 个词条", len(_keyword_index))
+    else:
+        logger.info("Neo4j schema 向量库已有数据，跳过初始化")
+        if not _keyword_index:
+            chunks = _load_chunks_with_metadata("mes_knowledge_base.txt", _parse_schema_chunk)
+            _keyword_index = _build_keyword_index(chunks)
+            logger.info("关键词索引构建完成（已有数据），共 %d 个词条", len(_keyword_index))
+
+    return store
+
+
+def build_neo4j_few_shot_store(force_rebuild: bool = False) -> Neo4jVectorStore:
+    """构建 Neo4j SQL 示例向量库。
+
+    从 dify_few_shot.txt 加载数据，生成 embedding 后写入 FewShot 节点的
+    question_embedding 属性。
+
+    Args:
+        force_rebuild: 是否强制重建（忽略已有数据）
+    """
+    from src.services.neo4j_graph import (
+        batch_set_few_shot_embeddings,
+        clear_few_shot_nodes,
+        ensure_vector_indexes,
+        few_shot_has_embeddings,
+    )
+    from src.services.neo4j_vector_store import Neo4jVectorStore
+
+    ensure_vector_indexes()
+
+    embeddings = _get_embeddings()
+    store = Neo4jVectorStore("few_shot", embeddings)
+
+    if force_rebuild or not few_shot_has_embeddings():
+        if force_rebuild:
+            logger.info("强制重建 Neo4j few_shot 向量库...")
+            clear_few_shot_nodes()
+        else:
+            logger.info("Neo4j few_shot 向量库为空，开始初始化...")
+
+        chunks = _load_chunks_with_metadata("dify_few_shot.txt", _parse_few_shot_chunk)
+        if chunks:
+            # 生成 embedding
+            texts = [c["embed_text"] for c in chunks]
+            logger.info("正在生成 %d 个 few_shot embedding...", len(texts))
+            vectors = embeddings.embed_documents(texts)
+
+            # 批量写入 Neo4j
+            batch = [
+                {
+                    "id": f"few_{i}",
+                    "embedding": vec,
+                    "scenario": c["metadata"].get("scenario", ""),
+                    "question": c["metadata"].get("question", ""),
+                    "full_text": c["full_text"],
+                }
+                for i, (c, vec) in enumerate(zip(chunks, vectors, strict=False))
+            ]
+            # 分批写入，每批最多 500 条
+            batch_size = 500
+            total = 0
+            for i in range(0, len(batch), batch_size):
+                total += batch_set_few_shot_embeddings(batch[i : i + batch_size])
+            logger.info("Neo4j few_shot 向量库初始化完成，共 %d 条记录", total)
+    else:
+        logger.info("Neo4j few_shot 向量库已有数据，跳过初始化")
+
+    return store

@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from src.harness.runner import evaluate_cases, load_cases_from_csv
+
 from src.core.config import settings
 from src.harness.evolution import (
     build_evolved_few_shot_text,
@@ -35,7 +37,6 @@ from src.harness.online_service import (
     publish_approved_service,
     review_candidate_service,
 )
-from src.harness.runner import evaluate_cases, load_cases_from_csv
 
 DEFAULT_CSV_PATH = Path("mes联表测试问题清单_含完整SQL.csv")
 DEFAULT_REPORT_PATH = Path("temp_batch_e2e_report.json")

@@ -1,6 +1,7 @@
 """快速验证 NL2SQL 通道 SSE 工作流"""
-import json
 import asyncio
+import json
+
 import httpx
 
 

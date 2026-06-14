@@ -12,13 +12,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from src.harness.runner import build_probe_sql, parse_tables
 
 from src.core.config import settings
-from src.harness.runner import build_probe_sql, parse_tables
+from src.security.sql_guard import SecurityError
+from src.security.sql_guard import validate_sql as guard_validate_sql
 from src.services.db_pool import execution_connection
 from src.services.llm import get_llm
-from src.security.sql_guard import validate_sql as guard_validate_sql
-from src.security.sql_guard import SecurityError
 
 # ── LLM 生成修正 SQL 的 Prompt ───────────────────────────────────
 

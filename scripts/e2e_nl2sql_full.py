@@ -1,5 +1,9 @@
 """NL2SQL 通道 E2E 测试"""
-import json, asyncio, httpx
+import asyncio
+import json
+
+import httpx
+
 
 async def test_one(query: str):
     payload = {"query": query, "thread_id": f"e2e-nl2sql-{query[:6]}", "user_id": "e2e_test"}

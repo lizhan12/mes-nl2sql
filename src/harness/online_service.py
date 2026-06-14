@@ -59,14 +59,32 @@ def evolve_online_service(limit: int = 200, sync_failures: bool = True) -> dict[
 
     version = f"online-{Path.cwd().name}-{len(candidates)}-{len(rules)}"
     if rules or few_shot_text:
-        published = repo.load_published_knowledge()
-        merged_few_shot = _merge_few_shot_deduped(published.few_shot_text, few_shot_text.split("\n---\n"))
-        repo.publish_runtime_knowledge(
-            version=version,
-            rules=merge_runtime_rules(published.rules, rules),
-            few_shot_text=merged_few_shot,
-            source="online_harness_job",
-        )
+        if getattr(settings, "use_neo4j_for_harness_knowledge", False):
+            from src.services.neo4j_graph import (
+                load_published_few_shot_text,
+                load_published_rules,
+                publish_harness_knowledge,
+            )
+
+            existing_rules = load_published_rules()
+            existing_few_shot = load_published_few_shot_text()
+            merged_rules = merge_runtime_rules(existing_rules, rules)
+            merged_few_shot = _merge_few_shot_deduped(existing_few_shot, few_shot_text.split("\n---\n"))
+            publish_harness_knowledge(
+                version=version,
+                rules=merged_rules,
+                few_shot_text=merged_few_shot,
+                source="online_harness_job",
+            )
+        else:
+            published = repo.load_published_knowledge()
+            merged_few_shot = _merge_few_shot_deduped(published.few_shot_text, few_shot_text.split("\n---\n"))
+            repo.publish_runtime_knowledge(
+                version=version,
+                rules=merge_runtime_rules(published.rules, rules),
+                few_shot_text=merged_few_shot,
+                source="online_harness_job",
+            )
         repo.mark_requests_promoted([str(item["request_id"]) for item in candidates if item.get("request_id")])
 
     return {
@@ -156,7 +174,6 @@ def publish_approved_service(version: str | None = None) -> dict[str, int | str]
     repo = get_online_harness_repository()
     repo.ensure_tables()
     approved = repo.fetch_publishable_candidates()
-    published = repo.load_published_knowledge()
 
     new_rules: list[dict[str, Any]] = []
     few_shot_chunks: list[str] = []
@@ -183,17 +200,36 @@ def publish_approved_service(version: str | None = None) -> dict[str, int | str]
             promoted_failure_case_ids.extend(int(v) for v in source_failure_ids if str(v).strip())
         published_candidate_ids.append(int(item["id"]))
 
-    merged_rules = merge_runtime_rules(published.rules, new_rules)
-    merged_few_shot = _merge_few_shot_deduped(published.few_shot_text, few_shot_chunks)
     final_version = version or f"reviewed-{Path.cwd().name}-{len(published_candidate_ids)}"
 
     if published_candidate_ids:
-        repo.publish_runtime_knowledge(
-            version=final_version,
-            rules=merged_rules,
-            few_shot_text=merged_few_shot,
-            source="candidate_publish",
-        )
+        if getattr(settings, "use_neo4j_for_harness_knowledge", False):
+            from src.services.neo4j_graph import (
+                load_published_few_shot_text,
+                load_published_rules,
+                publish_harness_knowledge,
+            )
+
+            existing_rules = load_published_rules()
+            existing_few_shot = load_published_few_shot_text()
+            merged_rules = merge_runtime_rules(existing_rules, new_rules)
+            merged_few_shot = _merge_few_shot_deduped(existing_few_shot, few_shot_chunks)
+            publish_harness_knowledge(
+                version=final_version,
+                rules=merged_rules,
+                few_shot_text=merged_few_shot,
+                source="candidate_publish",
+            )
+        else:
+            published = repo.load_published_knowledge()
+            merged_rules = merge_runtime_rules(published.rules, new_rules)
+            merged_few_shot = _merge_few_shot_deduped(published.few_shot_text, few_shot_chunks)
+            repo.publish_runtime_knowledge(
+                version=final_version,
+                rules=merged_rules,
+                few_shot_text=merged_few_shot,
+                source="candidate_publish",
+            )
         repo.mark_candidates_published(published_candidate_ids, final_version)
         repo.update_failure_case_statuses(promoted_failure_case_ids, "promoted")
 

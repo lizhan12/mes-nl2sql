@@ -1,7 +1,8 @@
 """端到端 SSE 集成测试 — 验证全链路：路由 → 安全校验 → SQL执行 → 审计埋点"""
 
-import json
 import asyncio
+import json
+
 import httpx
 
 BASE = "http://localhost:8000"

@@ -6,8 +6,9 @@
   3. build_join_hints: 将 JOIN 路径转为 LLM 可读的提示文本
 
 图数据加载策略：
-  1. 优先从 PG 数据库加载（支持动态编辑、版本感知热更新）
-  2. 若 PG 不可用，降级到本地 JSON 文件
+  1. 优先从 Neo4j 加载（若配置启用）
+  2. 降级到 PG 数据库加载（支持动态编辑、版本感知热更新）
+  3. 若 PG 不可用，降级到本地 JSON 文件
 """
 
 import json
@@ -53,13 +54,27 @@ def _load_graph_from_json() -> dict[str, list[dict]]:
 
 
 def _get_graph() -> dict[str, list[dict]]:
-    """获取当前关系图，自动检测 PG 版本变化并热更新。
+    """获取当前关系图，数据源优先级：Neo4j > PG > JSON。
 
-    首次调用时尝试从 PG 加载，若失败则降级到 JSON 文件。
-    后续调用会比对 PG 版本号，若版本号变化则自动重新加载。
+    首次调用时加载图数据，后续调用复用缓存（Neo4j 每次请求重新加载以保证最新）。
     """
     global _GRAPH, _CACHED_VERSION, _GRAPH_INITIALIZED
 
+    from src.core.config import settings
+
+    # 优先从 Neo4j 加载
+    if getattr(settings, "use_neo4j_for_graph", False):
+        try:
+            from src.services.neo4j_graph import load_graph_from_neo4j
+
+            _GRAPH = load_graph_from_neo4j()
+            if _GRAPH:
+                logger.info("从 Neo4j 加载关系图，表: %d", len(_GRAPH))
+                return _GRAPH
+        except Exception as e:
+            logger.warning("Neo4j 不可用，降级到 PG/JSON: %s", e)
+
+    # 降级：从 PG 加载
     try:
         from src.services.graph_repository import get_graph_repository
 

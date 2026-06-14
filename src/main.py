@@ -34,7 +34,7 @@ from src.graph.workflow import build_workflow
 from src.harness.repository import get_online_harness_repository
 from src.models.schemas import HealthResponse
 from src.services.chat_repository import get_chat_repository
-from src.services.vector_store import build_few_shot_store, build_schema_store
+from src.services.vector_store import build_neo4j_few_shot_store, build_neo4j_schema_store
 from src.trace.repository import get_trace_repository
 
 # ---- 日志配置 ----
@@ -56,9 +56,9 @@ async def lifespan(app: FastAPI):
     """应用生命周期：启动时初始化向量库和 LangGraph 工作流。"""
     global _app
 
-    logger.info("正在初始化向量库...")
-    schema_store = build_schema_store(force_rebuild=_force_rebuild)
-    few_shot_store = build_few_shot_store(force_rebuild=_force_rebuild)
+    logger.info("正在初始化向量库（Neo4j）...")
+    schema_store = build_neo4j_schema_store(force_rebuild=_force_rebuild)
+    few_shot_store = build_neo4j_few_shot_store(force_rebuild=_force_rebuild)
     logger.info("向量库初始化完成")
 
     logger.info("正在编译 LangGraph 工作流...")
@@ -69,10 +69,24 @@ async def lifespan(app: FastAPI):
     set_chat_app(_app)
     set_nl2sql_app(_app)
 
+    if settings.use_neo4j_for_graph:
+        logger.info("正在初始化 Neo4j 关系图...")
+        from src.services.neo4j_graph import init_neo4j_graph
+
+        init_neo4j_graph()
+        logger.info("Neo4j 关系图初始化完成")
+
     if settings.enable_online_harness and settings.harness_auto_init_db:
         logger.info("正在初始化线上 Harness 数据表...")
         get_online_harness_repository().ensure_tables()
         logger.info("线上 Harness 数据表初始化完成")
+
+    if settings.enable_online_harness and getattr(settings, "use_neo4j_for_harness_knowledge", False):
+        logger.info("正在初始化 Neo4j Harness 知识索引...")
+        from src.services.neo4j_graph import ensure_harness_knowledge_indexes
+
+        ensure_harness_knowledge_indexes()
+        logger.info("Neo4j Harness 知识索引初始化完成")
 
     logger.info("正在初始化聊天历史数据表...")
     get_chat_repository().ensure_tables()

@@ -1,6 +1,10 @@
-"""应用配置管理，所有环境变量从 .env 文件加载。"""
+"""应用配置管理，环境变量从 .env 和 .env.dev 加载，.env.dev 中的值优先。"""
+
+from pathlib import Path
 
 from pydantic_settings import BaseSettings
+
+_project_root = Path(__file__).resolve().parent.parent.parent  # mes_graph/
 
 
 class Settings(BaseSettings):
@@ -13,6 +17,7 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o"
     intent_model: str = "gpt-4o-mini"
     llm_request_timeout: int = 120  # LLM 调用超时（秒），超时后抛出 ReadTimeout 异常
+    llm_streaming_enabled: bool = False
 
     # ---- Embedding ----
     embedding_provider: str = "openai"
@@ -46,6 +51,7 @@ class Settings(BaseSettings):
     trace_enabled: bool = True
     trace_max_prompt_preview_chars: int = 500
     trace_max_span_retention_days: int = 30
+    trace_max_preview_chars: int = 20000
 
     # ---- BFS ----
     bfs_max_hops: int = 2
@@ -65,7 +71,21 @@ class Settings(BaseSettings):
     max_schema_context_items: int = 12  # schema_context 表结构 chunk 条数上限（每条约 420 字符）
     max_prompt_chars: int = 48000  # SQL 生成 prompt 总字符硬上限（最终兜底）
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    # ---- Neo4j ----
+    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = "password"
+    use_neo4j_for_graph: bool = True
+    use_neo4j_for_harness_knowledge: bool = True
+
+    model_config = {
+        # env_file 列表中后面的文件优先级更高：.env.dev > .env
+        "env_file": [
+            str(_project_root / ".env"),
+            str(_project_root / ".env.dev"),
+        ],
+        "env_file_encoding": "utf-8",
+    }
 
     @property
     def embedding_key(self) -> str:

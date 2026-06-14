@@ -98,8 +98,13 @@ def load_runtime_rules() -> list[dict[str, Any]]:
     数量限制：超过 settings.max_runtime_rules 时截断尾部。
     """
     if settings.enable_online_harness:
-        knowledge = get_online_harness_repository().load_published_knowledge()
-        rules = knowledge.rules
+        if getattr(settings, "use_neo4j_for_harness_knowledge", False):
+            from src.services.neo4j_graph import load_published_rules
+
+            rules = load_published_rules()
+        else:
+            knowledge = get_online_harness_repository().load_published_knowledge()
+            rules = knowledge.rules
     else:
         data = load_json_file(_RUNTIME_RULES_PATH, [])
         rules = data if isinstance(data, list) else []
@@ -131,8 +136,13 @@ def load_evolved_few_shot_text() -> str:
     条数限制：超过 settings.max_evolved_few_shot_items 时截断。
     """
     if settings.enable_online_harness:
-        knowledge = get_online_harness_repository().load_published_knowledge()
-        raw = knowledge.few_shot_text
+        if getattr(settings, "use_neo4j_for_harness_knowledge", False):
+            from src.services.neo4j_graph import load_published_few_shot_text
+
+            raw = load_published_few_shot_text()
+        else:
+            knowledge = get_online_harness_repository().load_published_knowledge()
+            raw = knowledge.few_shot_text
     elif _EVOLVED_FEW_SHOT_PATH.exists():
         raw = _EVOLVED_FEW_SHOT_PATH.read_text(encoding="utf-8").strip()
     else:
