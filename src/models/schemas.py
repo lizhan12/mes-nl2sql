@@ -59,6 +59,7 @@ class HarnessPublishRequest(BaseModel):
 
     version: str = Field("", description="发布版本号，可为空")
     force: bool = Field(False, description="强制发布（跳过去重检查）")
+    candidate_ids: list[int] | None = Field(None, description="指定发布的候选 ID，为空则发布全部 approved")
 
 
 class HarnessFeedbackRequest(BaseModel):
@@ -86,21 +87,6 @@ class GraphEdgeCreate(BaseModel):
     description: str = Field("", description="关系描述")
     confidence: str = Field("high", description="置信度: high/medium/low")
     note: str = Field("", description="备注")
-
-    def to_graph_edge(self):
-        from src.services.graph_repository import GraphEdge
-
-        return GraphEdge(
-            from_table=self.from_table,
-            to_table=self.to_table,
-            from_field=self.from_field,
-            to_field=self.to_field,
-            join_condition=self.join_condition,
-            join_type=self.join_type,
-            description=self.description,
-            confidence=self.confidence,
-            note=self.note,
-        )
 
 
 # ── 知识库管理模型 ──
@@ -283,6 +269,7 @@ class FewShotItem(BaseModel):
     scenario: str = Field("", description="场景")
     question: str = Field("", description="用户问题")
     full_text: str = Field("", description="完整文本")
+    enabled: bool = Field(True, description="是否启用")
 
 
 class FewShotCreateRequest(BaseModel):
@@ -308,6 +295,7 @@ class EvolvedFewShotItem(BaseModel):
     scenario: str = Field("", description="场景")
     question: str = Field("", description="用户问题")
     full_text: str = Field("", description="完整文本")
+    enabled: bool = Field(True, description="是否启用")
 
 
 class EvolvedFewShotCreateRequest(BaseModel):
@@ -338,6 +326,7 @@ class RuntimeRuleItem(BaseModel):
     required_tables: list[str] = Field(default_factory=list, description="所需表列表")
     required_joins: list[str] = Field(default_factory=list, description="所需 JOIN 列表")
     source: str = Field("", description="来源")
+    enabled: bool = Field(True, description="是否启用")
 
 
 class RuntimeRuleCreateRequest(BaseModel):
@@ -359,6 +348,12 @@ class RuntimeRuleUpdateRequest(BaseModel):
     required_tables: list[str] = Field(default_factory=list, description="所需表列表")
     required_joins: list[str] = Field(default_factory=list, description="所需 JOIN 列表")
     source: str = Field("", description="来源")
+
+
+class ToggleEnabledRequest(BaseModel):
+    """启用/禁用请求。"""
+
+    enabled: bool = Field(..., description="是否启用")
 
 
 # ── 去重检查模型 ──

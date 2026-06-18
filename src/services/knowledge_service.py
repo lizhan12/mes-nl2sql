@@ -453,7 +453,8 @@ async def list_few_shots() -> list[dict]:
             result = await session.run("""
                 MATCH (f:FewShot)
                 RETURN f.id AS id, f.scenario AS scenario,
-                       f.question AS question, f.full_text AS full_text
+                       f.question AS question, f.full_text AS full_text,
+                       COALESCE(f.enabled, true) AS enabled
                 ORDER BY f.id
             """)
             return [
@@ -462,6 +463,7 @@ async def list_few_shots() -> list[dict]:
                     "scenario": rec["scenario"] or "",
                     "question": rec["question"] or "",
                     "full_text": rec["full_text"] or "",
+                    "enabled": rec["enabled"] if rec["enabled"] is not None else True,
                 }
                 async for rec in result
             ]
@@ -733,7 +735,8 @@ async def create_few_shot(scenario: str, question: str, sql: str) -> dict:
                 scenario: $scenario,
                 question: $question,
                 full_text: $full_text,
-                question_embedding: $embedding
+                question_embedding: $embedding,
+                enabled: true
             })
             """,
             {
@@ -808,6 +811,24 @@ async def delete_few_shot(few_shot_id: str) -> bool:
     return bool(deleted)
 
 
+async def toggle_few_shot(few_shot_id: str, enabled: bool) -> bool:
+    """切换 FewShot 启用/禁用状态。"""
+    from src.services.neo4j_graph import _get_driver
+
+    driver = await _get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            "MATCH (f:FewShot {id: $id}) SET f.enabled = $enabled RETURN count(f) AS updated",
+            {"id": few_shot_id, "enabled": enabled},
+        )
+        rec = await result.single()
+        updated = rec["updated"] if rec else 0
+
+    if updated:
+        logger.info("已%s FewShot: %s", "启用" if enabled else "禁用", few_shot_id)
+    return bool(updated)
+
+
 # ── EvolvedFewShot CRUD ──────────────────────────────────────────────
 
 
@@ -821,7 +842,8 @@ async def list_evolved_few_shots() -> list[dict]:
             result = await session.run("""
                 MATCH (f:EvolvedFewShot)
                 RETURN f.id AS id, f.scenario AS scenario,
-                       f.question AS question, f.full_text AS full_text
+                       f.question AS question, f.full_text AS full_text,
+                       COALESCE(f.enabled, true) AS enabled
                 ORDER BY f.id
             """)
             return [
@@ -830,6 +852,7 @@ async def list_evolved_few_shots() -> list[dict]:
                     "scenario": rec["scenario"] or "",
                     "question": rec["question"] or "",
                     "full_text": rec["full_text"] or "",
+                    "enabled": rec["enabled"] if rec["enabled"] is not None else True,
                 }
                 async for rec in result
             ]
@@ -866,7 +889,8 @@ async def create_evolved_few_shot(scenario: str, question: str, sql: str) -> dic
                 scenario: $scenario,
                 question: $question,
                 full_text: $full_text,
-                question_embedding: $embedding
+                question_embedding: $embedding,
+                enabled: true
             })
             """,
             {
@@ -941,6 +965,24 @@ async def delete_evolved_few_shot(evolved_id: str) -> bool:
     return bool(deleted)
 
 
+async def toggle_evolved_few_shot(evolved_id: str, enabled: bool) -> bool:
+    """切换 EvolvedFewShot 启用/禁用状态。"""
+    from src.services.neo4j_graph import _get_driver
+
+    driver = await _get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            "MATCH (f:EvolvedFewShot {id: $id}) SET f.enabled = $enabled RETURN count(f) AS updated",
+            {"id": evolved_id, "enabled": enabled},
+        )
+        rec = await result.single()
+        updated = rec["updated"] if rec else 0
+
+    if updated:
+        logger.info("已%s EvolvedFewShot: %s", "启用" if enabled else "禁用", evolved_id)
+    return bool(updated)
+
+
 # ── RuntimeRule CRUD ─────────────────────────────────────────────────
 
 
@@ -989,7 +1031,8 @@ async def list_runtime_rules() -> list[dict]:
                        r.preferred_main_table AS preferred_main_table,
                        r.required_tables AS required_tables,
                        r.required_joins AS required_joins,
-                       r.source AS source
+                       r.source AS source,
+                       COALESCE(r.enabled, true) AS enabled
                 ORDER BY r.normalized_question
             """)
             return [
@@ -1000,6 +1043,7 @@ async def list_runtime_rules() -> list[dict]:
                     "required_tables": _parse_json_list(rec["required_tables"]),
                     "required_joins": _parse_json_list(rec["required_joins"]),
                     "source": rec["source"] or "",
+                    "enabled": rec["enabled"] if rec["enabled"] is not None else True,
                 }
                 async for rec in result
             ]
@@ -1043,7 +1087,8 @@ async def create_runtime_rule(
                 required_tables: $required_tables,
                 required_joins: $required_joins,
                 source: $source,
-                question_embedding: $embedding
+                question_embedding: $embedding,
+                enabled: true
             })
             """,
             {
@@ -1139,6 +1184,24 @@ async def delete_runtime_rule(normalized_question: str) -> bool:
     if deleted:
         logger.info("已删除 RuntimeRule: %s", normalized_question)
     return bool(deleted)
+
+
+async def toggle_runtime_rule(normalized_question: str, enabled: bool) -> bool:
+    """切换 RuntimeRule 启用/禁用状态。"""
+    from src.services.neo4j_graph import _get_driver
+
+    driver = await _get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            "MATCH (r:RuntimeRule {normalized_question: $normalized_question}) SET r.enabled = $enabled RETURN count(r) AS updated",
+            {"normalized_question": normalized_question, "enabled": enabled},
+        )
+        rec = await result.single()
+        updated = rec["updated"] if rec else 0
+
+    if updated:
+        logger.info("已%s RuntimeRule: %s", "启用" if enabled else "禁用", normalized_question)
+    return bool(updated)
 
 
 # ── 线上 → 本地全量同步 ────────────────────────────────────────────

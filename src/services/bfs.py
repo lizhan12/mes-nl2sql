@@ -54,51 +54,35 @@ def _load_graph_from_json() -> dict[str, list[dict]]:
 
 
 async def _get_graph() -> dict[str, list[dict]]:
-    """获取当前关系图，数据源优先级：Neo4j > PG。
+    """获取当前关系图，数据源：Neo4j > 本地 JSON。
 
     首次调用时加载图数据，后续调用复用缓存（Neo4j 每次请求重新加载以保证最新）。
-    不再降级到本地 JSON 文件（仅初始化时使用）。
+    PG graph_edges 已废弃，不再作为数据源。
     """
     global _GRAPH, _CACHED_VERSION, _GRAPH_INITIALIZED
 
-    from src.core.config import settings
-
     # 优先从 Neo4j 加载
-    if getattr(settings, "use_neo4j_for_graph", False):
-        try:
-            from src.services.neo4j_graph import load_graph_from_neo4j
-
-            _GRAPH = await load_graph_from_neo4j()
-            if _GRAPH:
-                logger.info("从 Neo4j 加载关系图，表: %d", len(_GRAPH))
-                return _GRAPH
-        except Exception as e:
-            logger.warning("Neo4j 不可用，降级到 PG: %s", e)
-
-    # 降级：从 PG 加载
     try:
-        from src.services.graph_repository import get_graph_repository
+        from src.services.neo4j_graph import load_graph_from_neo4j
 
-        repo = get_graph_repository()
-        if not _GRAPH_INITIALIZED:
-            repo.ensure_tables()
-            _GRAPH_INITIALIZED = True
+        _GRAPH = await load_graph_from_neo4j()
+        if _GRAPH:
+            logger.info("从 Neo4j 加载关系图，表: %d", len(_GRAPH))
+            return _GRAPH
+    except Exception as e:
+        logger.warning("Neo4j 不可用，降级到本地 JSON: %s", e)
 
-        current_version = repo.get_version()
-        if current_version != _CACHED_VERSION or not _GRAPH:
-            _GRAPH = repo.load_full_graph()
-            _CACHED_VERSION = current_version
-            if _GRAPH:
-                logger.info("从 PG 加载关系图，版本: %d, 表: %d", current_version, len(_GRAPH))
-            else:
-                logger.warning("PG 中关系图为空")
-                _GRAPH = {}
-    except Exception:
-        if not _GRAPH:
-            logger.warning("PG 不可用，关系图为空")
-            _GRAPH = {}
+    # 降级：从本地 JSON 加载
+    try:
+        _GRAPH = _load_graph_from_json()
+        if _GRAPH:
+            logger.info("从本地 JSON 加载关系图，表: %d", len(_GRAPH))
+            return _GRAPH
+    except Exception as e:
+        logger.warning("本地 JSON 加载失败: %s", e)
 
-    return _GRAPH
+    logger.error("所有图数据源均不可用")
+    return {}
 
 
 # ── BFS 扩展 ─────────────────────────────────────────────────────

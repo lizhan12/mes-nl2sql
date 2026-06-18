@@ -1,309 +1,1238 @@
-import { CheckCircle, FlaskConical, Loader2, Play, RefreshCw, Search, ThumbsDown, ThumbsUp, XCircle } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import {
+  ArrowUpRight,
+  Beaker,
+  Bot,
+  Brain,
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Database,
+  Eye,
+  MessageCircle,
+  Moon,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Sun,
+  ThumbsDown,
+  ThumbsUp,
+  XCircle,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
+import { useTheme } from "@/hooks/useTheme";
+
+import { CodeBlock } from "@/components/CodeBlock";
+import Empty from "@/components/Empty";
+import { MetricCard } from "@/components/MetricCard";
+import { Panel } from "@/components/Panel";
+import { StatusBadge } from "@/components/StatusBadge";
 import {
   analyzeFailures,
   autoLabelFailures,
+  deleteCandidate,
+  deleteFailureCase,
   evolveOnline,
   labelFailureCase,
   listCandidates,
   listFailureCases,
   listFeedback,
+  prePublishCheck,
+  publishApproved,
   reviewCandidate,
 } from "@/lib/api";
-import type { FeedbackRecord, HarnessCandidate, HarnessFailureCase } from "@/types";
+import type {
+  DedupSimilarItem,
+  FeedbackRecord,
+  HarnessCandidate,
+  HarnessFailureCase,
+  PrePublishCheckResponse,
+} from "@/types";
 
-export default function Harness() {
-  const [tab, setTab] = useState<"cases" | "candidates" | "feedback">("cases");
+const STATUS_OPTIONS = [
+  { value: "", label: "全部" },
+  { value: "open", label: "Open" },
+  { value: "labeled", label: "Labeled" },
+  { value: "auto_labeled", label: "Auto-Labeled" },
+  { value: "promoted", label: "Promoted" },
+];
 
-  // 失败案例
-  const [cases, setCases] = useState<HarnessFailureCase[]>([]);
-  const [casesStatus, setCasesStatus] = useState("");
-  const [casesLoading, setCasesLoading] = useState(true);
-  const [casesError, setCasesError] = useState("");
+const CANDIDATE_STATUS_OPTIONS = [
+  { value: "", label: "全部" },
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+  { value: "published", label: "Published" },
+];
 
-  // 候选规则
-  const [candidates, setCandidates] = useState<HarnessCandidate[]>([]);
-  const [candStatus, setCandStatus] = useState("");
-  const [candLoading, setCandLoading] = useState(true);
-
-  // 反馈
-  const [feedbacks, setFeedbacks] = useState<FeedbackRecord[]>([]);
-  const [fbLoading, setFbLoading] = useState(true);
-
-  // 操作状态
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [actionMsg, setActionMsg] = useState("");
-
-  // 标注弹窗
-  const [labelId, setLabelId] = useState<number | null>(null);
-  const [correctSql, setCorrectSql] = useState("");
-  const [labelNote, setLabelNote] = useState("");
-  const [labelSubmitting, setLabelSubmitting] = useState(false);
-
-  const loadCases = useCallback(async () => {
-    setCasesLoading(true);
-    setCasesError("");
-    try {
-      const data = await listFailureCases(casesStatus || undefined, 100);
-      setCases(data);
-    } catch (err) {
-      setCasesError(err instanceof Error ? err.message : "加载失败");
-    } finally {
-      setCasesLoading(false);
-    }
-  }, [casesStatus]);
-
-  const loadCandidates = useCallback(async () => {
-    setCandLoading(true);
-    try {
-      const data = await listCandidates(candStatus || undefined, 100);
-      setCandidates(data);
-    } catch {
-      // ignore
-    } finally {
-      setCandLoading(false);
-    }
-  }, [candStatus]);
-
-  const loadFeedback = useCallback(async () => {
-    setFbLoading(true);
-    try {
-      const data = await listFeedback(100);
-      setFeedbacks(data);
-    } catch {
-      // ignore
-    } finally {
-      setFbLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { loadCases(); }, [loadCases]);
-  useEffect(() => { loadCandidates(); }, [loadCandidates]);
-  useEffect(() => { loadFeedback(); }, [loadFeedback]);
-
-  async function handleAction(label: string, fn: () => Promise<unknown>) {
-    setActionLoading(label);
-    setActionMsg("");
-    try {
-      const result = await fn();
-      setActionMsg(JSON.stringify(result));
-      loadCases();
-      loadCandidates();
-    } catch (err) {
-      setActionMsg(err instanceof Error ? err.message : "操作失败");
-    } finally {
-      setActionLoading(null);
-    }
-  }
-
-  async function submitLabel() {
-    if (!labelId) return;
-    setLabelSubmitting(true);
-    try {
-      await labelFailureCase(labelId, correctSql, labelNote);
-      setLabelId(null);
-      setCorrectSql("");
-      setLabelNote("");
-      loadCases();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "标注失败");
-    } finally {
-      setLabelSubmitting(false);
-    }
-  }
+function FeedbackItem({ fb }: { fb: FeedbackRecord }) {
+  const [sqlExpanded, setSqlExpanded] = useState(false);
+  const displaySql = fb.final_sql || fb.generated_sql || "";
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-[var(--border-default)] px-4 py-3">
-        <h2 className="font-display text-sm font-semibold text-[var(--text-primary)]">数据飞轮</h2>
-        <div className="flex gap-1">
-          <button type="button" onClick={() => handleAction("同步", () => analyzeFailures(200))} disabled={actionLoading !== null} className="inline-flex items-center gap-1 rounded border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1 text-[11px] text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
-            {actionLoading === "同步" ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            同步
-          </button>
-          <button type="button" onClick={() => handleAction("自动标注", () => autoLabelFailures(50))} disabled={actionLoading !== null} className="inline-flex items-center gap-1 rounded border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1 text-[11px] text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
-            {actionLoading === "自动标注" ? <Loader2 className="h-3 w-3 animate-spin" /> : <FlaskConical className="h-3 w-3" />}
-            自动标注
-          </button>
-          <button type="button" onClick={() => handleAction("进化", () => evolveOnline(200))} disabled={actionLoading !== null} className="inline-flex items-center gap-1 rounded bg-[var(--accent)] px-2 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50">
-            {actionLoading === "进化" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-            进化
-          </button>
-        </div>
-      </div>
-
-      {actionMsg && (
-        <div className="mx-4 mt-3 rounded border border-[var(--border-default)] bg-[var(--bg-default)] px-3 py-2 font-mono text-[10px] whitespace-pre-wrap text-[var(--text-secondary)]">
-          {actionMsg}
-        </div>
-      )}
-
-      {/* Tab 切换 */}
-      <div className="flex border-b border-[var(--border-default)] px-4">
-        {[
-          ["cases", "失败案例"],
-          ["candidates", "候选规则"],
-          ["feedback", "用户反馈"],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key as typeof tab)}
-            className={`border-b-2 px-3 py-2 text-xs transition-colors ${
-              tab === key ? "border-[var(--accent)] text-[var(--accent)]" : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex-1 overflow-auto px-4 py-3">
-        {tab === "cases" && (
-          <>
-            <div className="mb-2 flex items-center gap-2">
-              <select value={casesStatus} onChange={(e) => setCasesStatus(e.target.value)} className="rounded border border-[var(--border-default)] bg-[var(--bg-input)] px-2 py-1 text-[11px] text-[var(--text-primary)]">
-                <option value="">全部状态</option>
-                <option value="unlabeled">未标注</option>
-                <option value="labeled">已标注</option>
-                <option value="ignored">已忽略</option>
-              </select>
-              <button type="button" onClick={loadCases} className="rounded border border-[var(--border-default)] bg-[var(--bg-subtle)] p-1 text-[var(--text-tertiary)] hover:text-[var(--accent)]">
-                <Search className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            {casesLoading ? (
-              <div className="py-4 text-center text-xs text-[var(--text-tertiary)]">加载中...</div>
-            ) : casesError ? (
-              <div className="rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">{casesError}</div>
-            ) : cases.length === 0 ? (
-              <div className="py-4 text-center text-xs text-[var(--text-tertiary)]">暂无数据</div>
-            ) : (
-              <div className="space-y-2">
-                {cases.map((c) => (
-                  <div key={c.id} className="rounded border border-[var(--border-default)] bg-[var(--bg-default)] p-3">
-                    <div className="mb-1 flex items-start justify-between gap-2">
-                      <span className="text-[11px] font-medium text-[var(--text-primary)]">{c.query_text || "(无查询)"}</span>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${
-                          c.status === "labeled" ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300" :
-                          c.status === "ignored" ? "bg-gray-100 text-gray-500" :
-                          "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                        }`}>
-                          {c.status === "labeled" ? "已标注" : c.status === "ignored" ? "已忽略" : "未标注"}
-                        </span>
-                        <button type="button" onClick={() => { setLabelId(c.id); setCorrectSql(""); setLabelNote(""); }} className="rounded p-1 text-[var(--text-tertiary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--accent)]">标注</button>
-                      </div>
-                    </div>
-                    {c.generated_sql && <code className="mt-1 block text-[10px] text-[var(--text-tertiary)]">{c.generated_sql}</code>}
-                    {c.correct_sql && (
-                      <div className="mt-1 rounded bg-green-50 px-2 py-1 dark:bg-green-950">
-                        <code className="text-[10px] text-green-700 dark:text-green-300">{c.correct_sql}</code>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {tab === "candidates" && (
-          <>
-            <div className="mb-2 flex items-center gap-2">
-              <select value={candStatus} onChange={(e) => setCandStatus(e.target.value)} className="rounded border border-[var(--border-default)] bg-[var(--bg-input)] px-2 py-1 text-[11px] text-[var(--text-primary)]">
-                <option value="">全部状态</option>
-                <option value="pending">待审核</option>
-                <option value="approved">已通过</option>
-                <option value="rejected">已拒绝</option>
-              </select>
-            </div>
-            {candLoading ? (
-              <div className="py-4 text-center text-xs text-[var(--text-tertiary)]">加载中...</div>
-            ) : candidates.length === 0 ? (
-              <div className="py-4 text-center text-xs text-[var(--text-tertiary)]">暂无数据</div>
-            ) : (
-              <div className="space-y-2">
-                {candidates.map((c) => (
-                  <div key={c.id} className="rounded border border-[var(--border-default)] bg-[var(--bg-default)] p-3">
-                    <div className="mb-1 flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[11px] font-medium text-[var(--text-primary)]">{c.question_example || "(无问题)"}</span>
-                        <span className={`ml-2 rounded px-1.5 py-0.5 font-mono text-[10px] ${
-                          c.status === "approved" ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300" :
-                          c.status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" :
-                          "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                        }`}>
-                          {c.status === "approved" ? "已通过" : c.status === "rejected" ? "已拒绝" : "待审核"}
-                        </span>
-                      </div>
-                      {c.status === "pending" && (
-                        <div className="flex shrink-0 gap-1">
-                          <button type="button" onClick={() => handleAction("通过", () => reviewCandidate(c.id, "approve"))} disabled={actionLoading !== null} className="rounded p-1 text-[var(--success)] hover:bg-[var(--bg-subtle)]" title="通过">
-                            <CheckCircle className="h-3.5 w-3.5" />
-                          </button>
-                          <button type="button" onClick={() => handleAction("拒绝", () => reviewCandidate(c.id, "reject"))} disabled={actionLoading !== null} className="rounded p-1 text-[var(--error)] hover:bg-[var(--error-glow)]" title="拒绝">
-                            <XCircle className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {c.proposed_rule_json && (
-                      <span className="rounded bg-[var(--accent-surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--accent)]">
-                        {String(c.proposed_rule_json.preferred_main_table || c.candidate_type)}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {tab === "feedback" && (
-          fbLoading ? (
-            <div className="py-4 text-center text-xs text-[var(--text-tertiary)]">加载中...</div>
-          ) : feedbacks.length === 0 ? (
-            <div className="py-4 text-center text-xs text-[var(--text-tertiary)]">暂无数据</div>
+    <div className="group relative rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)]">
+      <div className={`absolute inset-y-0 left-0 w-[2px] rounded-l-[var(--radius-sm)] transition-opacity duration-[var(--duration-normal)] ${fb.user_rating === 1 ? "bg-[var(--success)]" : "bg-[var(--error)]"} opacity-60`} />
+      <div className="relative flex items-center gap-3 p-3">
+        <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.04em] ${fb.user_rating === 1 ? "bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/20" : "bg-[var(--error)]/10 text-[var(--error)] border-[var(--error)]/20"}`}>
+          {fb.user_rating === 1 ? (
+            <ThumbsUp className="h-3 w-3" />
           ) : (
-            <div className="space-y-2">
-              {feedbacks.map((f) => (
-                <div key={f.request_id} className="rounded border border-[var(--border-default)] bg-[var(--bg-default)] p-3">
-                  <div className="flex items-center gap-2">
-                    {f.user_rating === 1 ? <ThumbsUp className="h-3.5 w-3.5 text-[var(--success)]" /> : <ThumbsDown className="h-3.5 w-3.5 text-[var(--error)]" />}
-                    <span className="font-mono text-[10px] text-[var(--text-tertiary)]">{f.request_id}</span>
-                    <span className="text-[11px] text-[var(--text-primary)]">{f.user_feedback}</span>
-                  </div>
-                </div>
-              ))}
+            <ThumbsDown className="h-3 w-3" />
+          )}
+          {fb.user_rating === 1 ? "点赞" : "点踩"}
+        </span>
+        <span className="flex-1 truncate text-[12px] text-[var(--text-secondary)]">
+          {fb.query_text || "(无查询文本)"}
+        </span>
+        <span className="font-mono text-[10px] text-[var(--text-tertiary)]/50 tabular-nums shrink-0">
+          {fb.created_at ? new Date(fb.created_at).toLocaleString() : ""}
+        </span>
+      </div>
+      {fb.user_feedback ? (
+        <div className="mx-3 mb-3 rounded-[var(--radius-sm)] border border-[var(--warning)]/20 bg-[var(--warning)]/5 px-3 py-2">
+          <p className="font-mono text-[12px] leading-relaxed text-[var(--text-secondary)]">
+            {fb.user_feedback}
+          </p>
+        </div>
+      ) : null}
+      {displaySql ? (
+        <div className="mx-3 mb-3">
+          <button
+            type="button"
+            onClick={() => setSqlExpanded(!sqlExpanded)}
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+          >
+            {sqlExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            SQL
+            {fb.execution_success ? (
+              <CheckCircle className="h-3 w-3 text-[var(--success)]" />
+            ) : (
+              <XCircle className="h-3 w-3 text-[var(--error)]" />
+            )}
+          </button>
+          {sqlExpanded ? (
+            <div className="mt-2">
+              <CodeBlock title={fb.final_sql ? "Final SQL" : "Generated SQL"} value={displaySql} language="sql" maxHeightClassName="max-h-48" />
             </div>
-          )
-        )}
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export default function Harness() {
+  const { isDark, toggleTheme } = useTheme();
+
+  // ── State ──
+  const [failures, setFailures] = useState<HarnessFailureCase[]>([]);
+  const [candidates, setCandidates] = useState<HarnessCandidate[]>([]);
+  const [feedbacks, setFeedbacks] = useState<FeedbackRecord[]>([]);
+  const [failureStatus, setFailureStatus] = useState("");
+  const [candidateStatus, setCandidateStatus] = useState("");
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<number>>(new Set());
+  const [busy, setBusy] = useState("");
+
+  // Label modal
+  const [labelModalOpen, setLabelModalOpen] = useState(false);
+  const [labelingCase, setLabelingCase] = useState<HarnessFailureCase | null>(null);
+  const [labelSql, setLabelSql] = useState("");
+  const [labelNote, setLabelNote] = useState("");
+
+  // Review modal
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewingCandidate, setReviewingCandidate] = useState<HarnessCandidate | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
+
+  // Publish
+  const [publishVersion, setPublishVersion] = useState(`web-${new Date().toISOString().slice(0, 10)}`);
+
+  // Pre-publish check state
+  const [prePublishDialog, setPrePublishDialog] = useState<{
+    open: boolean;
+    result: PrePublishCheckResponse | null;
+  }>({ open: false, result: null });
+
+  // Auto-label config
+  const [autoLabelLimit, setAutoLabelLimit] = useState(50);
+  const [autoLabelGenModel, setAutoLabelGenModel] = useState("");
+  const [autoLabelEvalModel, setAutoLabelEvalModel] = useState("");
+
+  // Evolve online config
+  const [evolveOnlineLimit, setEvolveOnlineLimit] = useState(200);
+
+  // Analyze config
+  const [analyzeLimit, setAnalyzeLimit] = useState(200);
+
+  // Expanded states
+  const [expandedFailure, setExpandedFailure] = useState<number | null>(null);
+  const [expandedCandidate, setExpandedCandidate] = useState<number | null>(null);
+
+  // Last operation result
+  const [lastResult, setLastResult] = useState<Record<string, unknown> | null>(null);
+  const [lastResultTitle, setLastResultTitle] = useState("");
+
+  // ── Stats ──
+  const openCount = useMemo(() => failures.filter((f) => f.status === "open").length, [failures]);
+  const labeledCount = useMemo(() => failures.filter((f) => f.status === "labeled").length, [failures]);
+  const pendingCount = useMemo(() => candidates.filter((c) => c.status === "pending").length, [candidates]);
+  const approvedCount = useMemo(() => candidates.filter((c) => c.status === "approved").length, [candidates]);
+  const upCount = useMemo(() => feedbacks.filter((f) => f.user_rating === 1).length, [feedbacks]);
+  const downCount = useMemo(() => feedbacks.filter((f) => f.user_rating === -1).length, [feedbacks]);
+
+  // ── Effects ──
+  useEffect(() => {
+    void refreshFailures();
+    void refreshCandidates();
+    void refreshFeedbacks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Actions ──
+  async function refreshFeedbacks() {
+    try {
+      const items = await listFeedback();
+      setFeedbacks(items);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function refreshFailures() {
+    setBusy("failures");
+    try {
+      const items = await listFailureCases(failureStatus || undefined);
+      setFailures(items);
+    } catch {
+      // ignore
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function refreshCandidates() {
+    setBusy("candidates");
+    try {
+      const items = await listCandidates(candidateStatus || undefined);
+      setCandidates(items);
+    } catch {
+      // ignore
+    } finally {
+      setBusy("");
+    }
+  }
+
+  useEffect(() => {
+    void refreshFailures();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failureStatus]);
+
+  useEffect(() => {
+    void refreshCandidates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidateStatus]);
+
+  // 默认选中所有 approved 候选
+  useEffect(() => {
+    setSelectedCandidateIds(new Set(candidates.filter((c) => c.status === "approved").map((c) => c.id)));
+  }, [candidates]);
+
+  async function handleAnalyze() {
+    setBusy("analyze");
+    try {
+      const result = await analyzeFailures(analyzeLimit);
+      setLastResult(result);
+      setLastResultTitle("分析失败案例");
+      await refreshCandidates();
+      await refreshFailures();
+    } catch {
+      // ignore
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function handleAutoLabel() {
+    setBusy("auto-label");
+    try {
+      const result = await autoLabelFailures(autoLabelLimit, autoLabelGenModel, autoLabelEvalModel);
+      setLastResult(result as unknown as Record<string, unknown>);
+      setLastResultTitle("LLM 自动标注");
+      await refreshCandidates();
+      await refreshFailures();
+    } catch {
+      // ignore
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function handleEvolveOnline() {
+    setBusy("evolve");
+    try {
+      const result = await evolveOnline(evolveOnlineLimit);
+      setLastResult(result as unknown as Record<string, unknown>);
+      setLastResultTitle("线上进化");
+      await refreshCandidates();
+      await refreshFailures();
+    } catch {
+      // ignore
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function handlePublish() {
+    setBusy("publish");
+    const publishIds = [...selectedCandidateIds];
+    try {
+      // 先做去重检查
+      const checkResult = await prePublishCheck();
+      if (checkResult.duplicate_items && checkResult.duplicate_items.length > 0) {
+        setPrePublishDialog({ open: true, result: checkResult });
+        setBusy("");
+        return;
+      }
+
+      // 无重复，直接发布选中项
+      const result = await publishApproved(publishVersion, false, publishIds);
+      setLastResult(result);
+      setLastResultTitle("发布版本");
+      await refreshCandidates();
+    } catch {
+      // ignore
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function handleLabel() {
+    if (!labelingCase || !labelSql.trim()) return;
+    setBusy("label");
+    try {
+      await labelFailureCase(labelingCase.id, labelSql.trim(), labelNote);
+      setLabelModalOpen(false);
+      setLabelingCase(null);
+      setLabelSql("");
+      setLabelNote("");
+      await refreshFailures();
+    } catch {
+      // ignore
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function handleReview(action: "approve" | "reject") {
+    if (!reviewingCandidate) return;
+    setBusy("review");
+    try {
+      await reviewCandidate(reviewingCandidate.id, action, reviewNote);
+      setReviewModalOpen(false);
+      setReviewingCandidate(null);
+      setReviewNote("");
+      await refreshCandidates();
+    } catch {
+      // ignore
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function handleDeleteCandidate(candidateId: number) {
+    if (!window.confirm("确认删除此候选规则？此操作不可撤销。")) return;
+    setBusy("delete");
+    try {
+      await deleteCandidate(candidateId);
+      setSelectedCandidateIds((prev) => {
+        const next = new Set(prev);
+        next.delete(candidateId);
+        return next;
+      });
+      await refreshCandidates();
+    } catch {
+      // ignore
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function handleDeleteFailureCase(failureCaseId: number) {
+    if (!window.confirm("确认删除此失败案例？此操作不可撤销。")) return;
+    setBusy("delete");
+    try {
+      await deleteFailureCase(failureCaseId);
+      await refreshFailures();
+    } catch {
+      // ignore
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function openLabelModal(fc: HarnessFailureCase) {
+    setLabelingCase(fc);
+    setLabelSql(fc.correct_sql || "");
+    setLabelNote(fc.label_note || "");
+    setLabelModalOpen(true);
+  }
+
+  function openReviewModal(c: HarnessCandidate) {
+    setReviewingCandidate(c);
+    setReviewNote("");
+    setReviewModalOpen(true);
+  }
+
+  function statusTone(s: string): "success" | "error" | "warning" | "loading" | "neutral" {
+    const map: Record<string, "success" | "error" | "warning" | "loading" | "neutral"> = {
+      open: "error",
+      labeled: "success",
+      auto_labeled: "warning",
+      promoted: "warning",
+      pending: "warning",
+      approved: "success",
+      rejected: "error",
+      published: "success",
+    };
+    return map[s] || "neutral";
+  }
+
+  function statusLabel(s: string) {
+    const map: Record<string, string> = {
+      open: "Open",
+      labeled: "Labeled",
+      auto_labeled: "Auto",
+      promoted: "Promoted",
+      pending: "Pending",
+      approved: "Approved",
+      rejected: "Rejected",
+      published: "Published",
+    };
+    return map[s] || s;
+  }
+
+  // ── Render ──
+  return (
+    <main className="min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)]">
+      {/* ── Top Navigation Bar ── */}
+      <div className="flex items-center justify-between border-b border-[var(--border-default)] bg-[var(--bg-raised)] px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-4">
+          <Link
+            to="/"
+            className="font-mono text-[11px] uppercase tracking-[0.06em] text-[var(--text-tertiary)] transition-colors hover:text-[var(--accent)]"
+          >
+            ← 对话
+          </Link>
+          <Link
+            to="/home"
+            className="font-mono text-[11px] uppercase tracking-[0.06em] text-[var(--text-tertiary)] transition-colors hover:text-[var(--accent)]"
+          >
+            调试
+          </Link>
+          <Link
+            to="/graph"
+            className="font-mono text-[11px] uppercase tracking-[0.06em] text-[var(--text-tertiary)] transition-colors hover:text-[var(--accent)]"
+          >
+            关系图
+          </Link>
+          <Link
+            to="/trace"
+            className="font-mono text-[11px] uppercase tracking-[0.06em] text-[var(--text-tertiary)] transition-colors hover:text-[var(--accent)]"
+          >
+            链路追踪
+          </Link>
+        </div>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          title={isDark ? "切换到亮色模式" : "切换到暗色模式"}
+          className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--text-secondary)] transition-all duration-150 hover:border-[var(--border-accent)] hover:text-[var(--accent)] hover:shadow-[var(--shadow-glow)]"
+        >
+          {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          {isDark ? "LIGHT" : "DARK"}
+        </button>
       </div>
 
-      {/* 标注弹窗 */}
-      {labelId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-96 rounded border border-[var(--border-default)] bg-[var(--bg-raised)] p-4 shadow-xl">
-            <h3 className="mb-3 text-xs font-semibold text-[var(--text-primary)]">标注失败案例</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-[11px] text-[var(--text-secondary)]">正确 SQL</label>
-                <textarea rows={4} value={correctSql} onChange={(e) => setCorrectSql(e.target.value)} className="w-full rounded border border-[var(--border-default)] bg-[var(--bg-input)] px-2 py-1.5 font-mono text-xs focus:border-[var(--accent)] focus:outline-none" />
+      <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+        {/* ── Header ── */}
+        <section className="relative overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-6 sm:p-8">
+          {/* Corner accent decorative border */}
+          <div
+            className="pointer-events-none absolute inset-0 rounded-lg opacity-[0.06]"
+            style={{
+              border: "1px solid transparent",
+              borderImage: "linear-gradient(135deg, var(--accent) 0%, transparent 40%, transparent 60%, var(--accent) 100%) 1",
+            }}
+          />
+          <div className="relative z-10 flex flex-wrap items-start justify-between gap-6">
+            <div className="flex-1">
+              <StatusBadge tone="success">Online</StatusBadge>
+              <h1 className="mt-4 font-display text-[32px] font-semibold leading-none tracking-[0.02em] text-[var(--text-primary)] sm:text-[38px]">
+                Harness{" "}
+                <span className="font-sans text-[var(--text-tertiary)] font-normal tracking-normal">
+                  知识进化
+                </span>
+              </h1>
+              <p className="mt-3 max-w-lg font-mono text-[12px] leading-relaxed text-[var(--text-tertiary)]">
+                管理 NL2SQL 运行时知识闭环：查看失败案例、审核候选规则、自动标注、进化发布。
+              </p>
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <Link
+                  to="/"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-accent)] hover:text-[var(--text-primary)] hover:shadow-[var(--shadow-glow)]"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  对话助手
+                </Link>
+                <Link
+                  to="/home"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-accent)] hover:text-[var(--text-primary)] hover:shadow-[var(--shadow-glow)]"
+                >
+                  <Beaker className="h-3.5 w-3.5" />
+                  调试控制台
+                </Link>
               </div>
-              <div>
-                <label className="mb-1 block text-[11px] text-[var(--text-secondary)]">备注</label>
-                <input type="text" value={labelNote} onChange={(e) => setLabelNote(e.target.value)} className="w-full rounded border border-[var(--border-default)] bg-[var(--bg-input)] px-2 py-1.5 text-xs focus:border-[var(--accent)] focus:outline-none" />
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <MetricCard
+                label="Open 失败"
+                value={openCount}
+                hint="待处理"
+                icon={<XCircle className="h-4 w-4" />}
+              />
+              <MetricCard
+                label="已标注"
+                value={labeledCount}
+                hint="已补SQL"
+                icon={<CheckCircle className="h-4 w-4" />}
+              />
+              <MetricCard
+                label="待审核"
+                value={pendingCount}
+                hint="候选规则"
+                icon={<Eye className="h-4 w-4" />}
+              />
+              <MetricCard
+                label="已批准"
+                value={approvedCount}
+                hint="待发布"
+                icon={<ThumbsUp className="h-4 w-4" />}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* ── Operations ── */}
+        <Panel
+          title="操作面板"
+          subtitle="触发分析、自动标注、进化与发布等核心闭环操作。"
+          action={<StatusBadge tone={busy ? "loading" : "neutral"}>{busy || "Idle"}</StatusBadge>}
+        >
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Analyze Failures */}
+            <div className="group relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4 transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)] hover:shadow-[0_0_24px_var(--accent-glow)]">
+              <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--accent)] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-30" />
+              <div className="mb-2 flex h-8 w-8 items-center justify-center rounded border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--accent)] transition-colors duration-300 group-hover:border-[var(--border-accent)] group-hover:bg-[var(--accent-surface)]">
+                <Search className="h-4 w-4" />
               </div>
-              <div className="flex gap-2">
-                <button type="button" disabled={labelSubmitting} onClick={submitLabel} className="rounded bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60">{labelSubmitting ? "提交中..." : "提交"}</button>
-                <button type="button" onClick={() => setLabelId(null)} className="rounded border border-[var(--border-default)] px-3 py-1.5 text-xs text-[var(--text-secondary)]">取消</button>
+              <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-primary)]">
+                分析失败案例
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                从线上失败案例和用户点赞记录生成候选规则
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    Limit:
+                  </label>
+                  <input
+                    type="number"
+                    value={analyzeLimit}
+                    onChange={(e) => setAnalyzeLimit(Number(e.target.value) || 200)}
+                    className="w-20 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAnalyze}
+                  disabled={busy === "analyze"}
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[var(--shadow-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                >
+                  <Bot className="h-3.5 w-3.5" />
+                  {busy === "analyze" ? "分析中..." : "分析"}
+                </button>
+              </div>
+            </div>
+
+            {/* Auto-Label */}
+            <div className="group relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4 transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)] hover:shadow-[0_0_24px_var(--success-glow)]">
+              <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--success)] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-30" />
+              <div className="mb-2 flex h-8 w-8 items-center justify-center rounded border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--success)] transition-colors duration-300 group-hover:border-[var(--success)]/20 group-hover:bg-[var(--success)]/5">
+                <Brain className="h-4 w-4" />
+              </div>
+              <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-primary)]">
+                LLM 自动标注
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                LLM 对失败案例生成修正 SQL + 多维度置信度评估
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    Limit:
+                  </label>
+                  <input
+                    type="number"
+                    value={autoLabelLimit}
+                    onChange={(e) => setAutoLabelLimit(Number(e.target.value) || 50)}
+                    className="w-16 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    生成模型:
+                  </label>
+                  <input
+                    value={autoLabelGenModel}
+                    onChange={(e) => setAutoLabelGenModel(e.target.value)}
+                    placeholder="默认"
+                    className="w-28 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    评估模型:
+                  </label>
+                  <input
+                    value={autoLabelEvalModel}
+                    onChange={(e) => setAutoLabelEvalModel(e.target.value)}
+                    placeholder="默认"
+                    className="w-28 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAutoLabel}
+                  disabled={busy === "auto-label"}
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--success)] px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[0_0_20px_var(--success-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {busy === "auto-label" ? "标注中..." : "自动标注"}
+                </button>
+              </div>
+            </div>
+
+            {/* Evolve Online */}
+            <div className="group relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4 transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)] hover:shadow-[0_0_24px_var(--warning-glow)]">
+              <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--warning)] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-30" />
+              <div className="mb-2 flex h-8 w-8 items-center justify-center rounded border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--warning)] transition-colors duration-300 group-hover:border-[var(--warning)]/20 group-hover:bg-[var(--warning)]/5">
+                <ArrowUpRight className="h-4 w-4" />
+              </div>
+              <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-primary)]">
+                线上进化
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                从线上高成本成功请求中提炼规则并直接发布
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    Limit:
+                  </label>
+                  <input
+                    type="number"
+                    value={evolveOnlineLimit}
+                    onChange={(e) => setEvolveOnlineLimit(Number(e.target.value) || 200)}
+                    className="w-20 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleEvolveOnline}
+                  disabled={busy === "evolve"}
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--warning)] px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[0_0_20px_var(--warning-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                >
+                  <Database className="h-3.5 w-3.5" />
+                  {busy === "evolve" ? "进化中..." : "执行进化"}
+                </button>
+              </div>
+            </div>
+
+            {/* Publish */}
+            <div className="group relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4 transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)] hover:shadow-[0_0_24px_var(--accent-glow)]">
+              <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--accent)] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-30" />
+              <div className="mb-2 flex h-8 w-8 items-center justify-center rounded border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--accent)] transition-colors duration-300 group-hover:border-[var(--border-accent)] group-hover:bg-[var(--accent-surface)]">
+                <ArrowUpRight className="h-4 w-4" />
+              </div>
+              <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-primary)]">
+                发布版本
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                将已审核通过的候选规则发布为运行时知识
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <input
+                  value={publishVersion}
+                  onChange={(e) => setPublishVersion(e.target.value)}
+                  className="flex-1 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-3 py-1.5 font-mono text-[13px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
+                />
+                <button
+                  type="button"
+                  onClick={handlePublish}
+                  disabled={busy === "publish"}
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[var(--shadow-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                >
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                  {busy === "publish" ? "发布中..." : "发布"}
+                </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        </Panel>
+
+        {/* ── Last Result (if any) ── */}
+        {lastResult ? (
+          <Panel
+            title={`结果：${lastResultTitle}`}
+            subtitle="最近一次操作的返回值"
+          >
+            <CodeBlock title="结果" value={lastResult} language="json" maxHeightClassName="max-h-64" />
+          </Panel>
+        ) : null}
+
+        {/* ── Failure Cases ── */}
+        <Panel
+          title="失败案例"
+          subtitle={`共 ${failures.length} 条`}
+          action={
+            <div className="flex items-center gap-2">
+              <select
+                value={failureStatus}
+                onChange={(e) => setFailureStatus(e.target.value)}
+                className="rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-2 py-1 font-mono text-[11px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] focus:border-[var(--border-accent)]"
+              >
+                {STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={refreshFailures}
+                className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+              >
+                <RefreshCw className="h-3 w-3" />
+                刷新
+              </button>
+            </div>
+          }
+        >
+          {failures.length === 0 ? (
+            <Empty />
+          ) : (
+            <div className="max-h-[600px] space-y-1 overflow-auto">
+              {failures.map((fc) => (
+                <div
+                  key={fc.id}
+                  className="group relative rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)]"
+                >
+                  {/* Left accent bar on hover */}
+                  <div className="absolute inset-y-0 left-0 w-[2px] rounded-l-[var(--radius-sm)] bg-[var(--accent)] opacity-0 transition-opacity duration-[var(--duration-normal)] group-hover:opacity-50" />
+                  <div
+                    className="relative flex cursor-pointer items-center gap-3 p-3 transition-colors duration-[var(--duration-fast)] hover:bg-[var(--accent-surface)]"
+                    onClick={() => setExpandedFailure(expandedFailure === fc.id ? null : fc.id)}
+                  >
+                    <span className="font-mono text-[11px] text-[var(--text-tertiary)]/60 tabular-nums">
+                      #{fc.id}
+                    </span>
+                    <StatusBadge tone={statusTone(fc.status)}>{statusLabel(fc.status)}</StatusBadge>
+                    <StatusBadge tone="neutral">{fc.failure_type}</StatusBadge>
+                    {fc.user_feedback ? (
+                      <span className="inline-flex items-center gap-1 rounded border border-[var(--warning)]/20 bg-[var(--warning)]/5 px-1.5 py-0.5 font-mono text-[9px] text-[var(--warning)]" title="用户反馈">
+                        <ThumbsDown className="h-2.5 w-2.5" />
+                        反馈
+                      </span>
+                    ) : null}
+                    <span className="flex-1 truncate text-[12px] text-[var(--text-secondary)]">
+                      {fc.query_text}
+                    </span>
+                    <span className="font-mono text-[10px] text-[var(--text-tertiary)]/50 tabular-nums">
+                      重试 {fc.retry_count}
+                    </span>
+                    {expandedFailure === fc.id ? (
+                      <ChevronUp className="h-4 w-4 text-[var(--text-tertiary)]/40 transition-transform duration-[var(--duration-fast)]" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-[var(--text-tertiary)]/40 transition-transform duration-[var(--duration-fast)] group-hover:text-[var(--text-tertiary)]/70" />
+                    )}
+                  </div>
+                  {expandedFailure === fc.id ? (
+                    <div className="animate-fade-slide-in border-t border-[var(--border-default)] p-4 space-y-3">
+                      <CodeBlock
+                        title="生成的 SQL"
+                        value={fc.final_sql || fc.generated_sql || "(无)"}
+                        language="sql"
+                        maxHeightClassName="max-h-48"
+                      />
+                      {fc.error_text ? (
+                        <CodeBlock
+                          title="错误信息"
+                          value={fc.error_text}
+                          language="text"
+                          maxHeightClassName="max-h-32"
+                        />
+                      ) : null}
+                      {fc.correct_sql ? (
+                        <CodeBlock
+                          title="正确 SQL (已标注)"
+                          value={fc.correct_sql}
+                          language="sql"
+                          maxHeightClassName="max-h-48"
+                        />
+                      ) : null}
+                      {fc.user_feedback ? (
+                        <div className="rounded-[var(--radius-sm)] border border-[var(--warning)]/20 bg-[var(--warning)]/5 p-3">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <ThumbsDown className="h-3.5 w-3.5 text-[var(--warning)]" />
+                            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--warning)]">
+                              用户反馈
+                            </span>
+                          </div>
+                          <p className="font-mono text-[12px] leading-relaxed text-[var(--text-secondary)]">
+                            {fc.user_feedback}
+                          </p>
+                        </div>
+                      ) : null}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openLabelModal(fc)}
+                          className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-accent)] hover:text-[var(--accent)] hover:bg-[var(--accent-surface)]"
+                        >
+                          {fc.correct_sql ? "修改标注" : "补充 SQL"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFailureCase(fc.id)}
+                          className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--error)]/30 bg-[var(--error)]/5 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--error)] transition-all duration-[var(--duration-fast)] hover:bg-[var(--error)]/15 hover:border-[var(--error)]/50"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        {/* ── Candidate Rules ── */}
+        <Panel
+          title="候选规则"
+          subtitle={`共 ${candidates.length} 条`}
+          action={
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const allApproved = candidates.filter((c) => c.status === "approved");
+                  if (selectedCandidateIds.size === allApproved.length && allApproved.length > 0) {
+                    setSelectedCandidateIds(new Set());
+                  } else {
+                    setSelectedCandidateIds(new Set(allApproved.map((c) => c.id)));
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 py-1 font-mono text-[11px] leading-none text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+              >
+                {selectedCandidateIds.size > 0 ? `已选 ${selectedCandidateIds.size}` : "全选"}
+              </button>
+              <select
+                value={candidateStatus}
+                onChange={(e) => setCandidateStatus(e.target.value)}
+                className="rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-2 py-1 font-mono text-[11px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] focus:border-[var(--border-accent)]"
+              >
+                {CANDIDATE_STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={refreshCandidates}
+                className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+              >
+                <RefreshCw className="h-3 w-3" />
+                刷新
+              </button>
+            </div>
+          }
+        >
+          {candidates.length === 0 ? (
+            <Empty />
+          ) : (
+            <div className="max-h-[600px] space-y-1 overflow-auto">
+              {candidates.map((c) => (
+                <div
+                  key={c.id}
+                  className="group relative rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)]"
+                >
+                  {/* Left accent bar on hover — color matches status */}
+                  <div className={`absolute inset-y-0 left-0 w-[2px] rounded-l-[var(--radius-sm)] opacity-0 transition-opacity duration-[var(--duration-normal)] group-hover:opacity-50 ${c.status === "approved" ? "bg-[var(--success)]" : c.status === "rejected" ? "bg-[var(--error)]" : "bg-[var(--accent)]"}`} />
+                  <div
+                    className="relative flex cursor-pointer items-center gap-3 p-3 transition-colors duration-[var(--duration-fast)] hover:bg-[var(--accent-surface)]"
+                    onClick={() => setExpandedCandidate(expandedCandidate === c.id ? null : c.id)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedCandidateIds.has(c.id)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setSelectedCandidateIds((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) {
+                            next.add(c.id);
+                          } else {
+                            next.delete(c.id);
+                          }
+                          return next;
+                        });
+                      }}
+                      className="h-3.5 w-3.5 cursor-pointer rounded border-[var(--border-default)] accent-[var(--accent)]"
+                    />
+                    <span className="font-mono text-[11px] text-[var(--text-tertiary)]/60 tabular-nums">
+                      #{c.id}
+                    </span>
+                    <StatusBadge tone={statusTone(c.status)}>{statusLabel(c.status)}</StatusBadge>
+                    <StatusBadge tone="neutral">{c.candidate_type}</StatusBadge>
+                    <span className="flex-1 truncate text-[12px] text-[var(--text-secondary)]">
+                      {c.question_example}
+                    </span>
+                    {c.confidence > 0 ? (
+                      <div className="flex items-center gap-2">
+                        {/* Confidence gradient bar */}
+                        <div className="h-1.5 w-14 overflow-hidden rounded-full bg-[var(--border-default)]">
+                          <div
+                            className="h-full rounded-full transition-all duration-[var(--duration-slow)]"
+                            style={{
+                              width: `${Math.round(c.confidence * 100)}%`,
+                              background:
+                                "linear-gradient(90deg, var(--accent) 0%, var(--accent-soft) 100%)",
+                            }}
+                          />
+                        </div>
+                        <span className="font-mono text-[10px] tabular-nums text-[var(--text-tertiary)]/70">
+                          {(c.confidence * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                    ) : null}
+                    {expandedCandidate === c.id ? (
+                      <ChevronUp className="h-4 w-4 text-[var(--text-tertiary)]/40 transition-transform duration-[var(--duration-fast)]" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-[var(--text-tertiary)]/40 transition-transform duration-[var(--duration-fast)] group-hover:text-[var(--text-tertiary)]/70" />
+                    )}
+                  </div>
+                  {expandedCandidate === c.id ? (
+                    <div className="animate-fade-slide-in border-t border-[var(--border-default)] p-4 space-y-3">
+                      <CodeBlock
+                        title="候选规则 (JSON)"
+                        value={c.proposed_rule_json || {}}
+                        language="json"
+                        maxHeightClassName="max-h-48"
+                      />
+                      {c.proposed_few_shot_text ? (
+                        <CodeBlock
+                          title="候选 Few-Shot"
+                          value={c.proposed_few_shot_text}
+                          language="text"
+                          maxHeightClassName="max-h-32"
+                        />
+                      ) : null}
+                      {c.evidence_json && Object.keys(c.evidence_json).length > 0 ? (
+                        <CodeBlock
+                          title="证据"
+                          value={c.evidence_json}
+                          language="json"
+                          maxHeightClassName="max-h-32"
+                        />
+                      ) : null}
+                      {c.review_note ? (
+                        <div className="text-[12px] text-[var(--text-tertiary)]">
+                          <span className="text-[var(--text-tertiary)]/60">审核备注：</span>
+                          {c.review_note}
+                        </div>
+                      ) : null}
+                      {c.published_version ? (
+                        <div className="text-[12px] text-[var(--text-tertiary)]">
+                          <span className="text-[var(--text-tertiary)]/60">已发布版本：</span>
+                          {c.published_version}
+                        </div>
+                      ) : null}
+                      {c.status === "pending" || c.status === "approved" ? (
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => openReviewModal(c)}
+                            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-accent)] hover:text-[var(--accent)] hover:bg-[var(--accent-surface)]"
+                          >
+                            审核
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCandidate(c.id)}
+                            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--error)]/30 bg-[var(--error)]/5 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--error)] transition-all duration-[var(--duration-fast)] hover:bg-[var(--error)]/15 hover:border-[var(--error)]/50"
+                          >
+                            删除
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        {/* ── User Feedback Records ── */}
+        <Panel
+          title="用户反馈记录"
+          subtitle={`共 ${feedbacks.length} 条（👍 ${upCount} / 👎 ${downCount}）`}
+          action={
+            <button
+              type="button"
+              onClick={refreshFeedbacks}
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+            >
+              <RefreshCw className="h-3 w-3" />
+              刷新
+            </button>
+          }
+        >
+          {feedbacks.length === 0 ? (
+            <Empty />
+          ) : (
+            <div className="max-h-[600px] space-y-1 overflow-auto">
+              {feedbacks.map((fb) => (
+                <FeedbackItem key={fb.request_id} fb={fb} />
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        {/* ── Label Modal ── */}
+        {labelModalOpen && labelingCase ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+            <div className="animate-fade-slide-in w-full max-w-2xl rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--bg-raised)] p-6 shadow-[0_0_60px_rgba(0,0,0,0.6)]">
+              <h3 className="font-mono text-[14px] font-medium uppercase tracking-[0.04em] text-[var(--text-primary)]">
+                标注失败案例 #{labelingCase.id}
+              </h3>
+              <p className="mt-2 font-mono text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                {labelingCase.query_text}
+              </p>
+              <div className="mt-3">
+                <CodeBlock
+                  title="原生成 SQL"
+                  value={labelingCase.final_sql || labelingCase.generated_sql}
+                  language="sql"
+                  maxHeightClassName="max-h-32"
+                />
+              </div>
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    正确 SQL
+                  </label>
+                  <textarea
+                    value={labelSql}
+                    onChange={(e) => setLabelSql(e.target.value)}
+                    rows={6}
+                    className="mt-1 w-full rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 font-mono text-[12px] leading-relaxed text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
+                    placeholder="输入正确的 SQL 语句..."
+                  />
+                </div>
+                <div>
+                  <label className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                    备注
+                  </label>
+                  <input
+                    value={labelNote}
+                    onChange={(e) => setLabelNote(e.target.value)}
+                    className="mt-1 w-full rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 font-mono text-[13px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
+                    placeholder="可选备注"
+                  />
+                </div>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLabelModalOpen(false);
+                    setLabelingCase(null);
+                  }}
+                  className="rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-4 py-2 font-mono text-[12px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLabel}
+                  disabled={!labelSql.trim() || busy === "label"}
+                  className="rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 font-mono text-[12px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[var(--shadow-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                >
+                  {busy === "label" ? "保存中..." : "保存标注"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* ── Review Modal ── */}
+        {reviewModalOpen && reviewingCandidate ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+            <div className="animate-fade-slide-in w-full max-w-2xl rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--bg-raised)] p-6 shadow-[0_0_60px_rgba(0,0,0,0.6)]">
+              <h3 className="font-mono text-[14px] font-medium uppercase tracking-[0.04em] text-[var(--text-primary)]">
+                审核候选规则 #{reviewingCandidate.id}
+              </h3>
+              <p className="mt-2 font-mono text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                {reviewingCandidate.question_example}
+              </p>
+              <div className="mt-3 space-y-3">
+                <CodeBlock
+                  title="候选规则"
+                  value={reviewingCandidate.proposed_rule_json || {}}
+                  language="json"
+                  maxHeightClassName="max-h-40"
+                />
+                {reviewingCandidate.proposed_few_shot_text ? (
+                  <CodeBlock
+                    title="候选 Few-Shot"
+                    value={reviewingCandidate.proposed_few_shot_text}
+                    language="text"
+                    maxHeightClassName="max-h-32"
+                  />
+                ) : null}
+              </div>
+              <div className="mt-4">
+                <label className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+                  审核备注
+                </label>
+                <input
+                  value={reviewNote}
+                  onChange={(e) => setReviewNote(e.target.value)}
+                  className="mt-1 w-full rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 font-mono text-[13px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
+                  placeholder="可选备注"
+                />
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReviewModalOpen(false);
+                    setReviewingCandidate(null);
+                  }}
+                  className="rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-4 py-2 font-mono text-[12px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReview("reject")}
+                  disabled={busy === "review"}
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--error)]/30 bg-[var(--error)]/10 px-4 py-2 font-mono text-[12px] font-medium uppercase tracking-[0.04em] text-[var(--error)] transition-all duration-[var(--duration-fast)] hover:bg-[var(--error)]/20 hover:shadow-[0_0_20px_var(--error-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                >
+                  <ThumbsDown className="h-3.5 w-3.5" />
+                  驳回
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReview("approve")}
+                  disabled={busy === "review"}
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--success)] px-4 py-2 font-mono text-[12px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[0_0_20px_var(--success-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                >
+                  <ThumbsUp className="h-3.5 w-3.5" />
+                  批准
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* ── Pre-Publish 去重确认弹窗 ── */}
+        {prePublishDialog.open && prePublishDialog.result ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+            <div className="animate-fade-slide-in w-full max-w-2xl rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--bg-raised)] p-6 shadow-[0_0_60px_rgba(0,0,0,0.6)]">
+              <h3 className="font-mono text-[14px] font-medium uppercase tracking-[0.04em] text-[var(--text-primary)]">
+                发布前确认 — 发现 {prePublishDialog.result.duplicate_items.length} 个相似条目
+              </h3>
+              <p className="mt-2 text-[11px] leading-relaxed text-[var(--text-warning)]">
+                以下候选项与知识库中已有条目高度相似。重复发布可能导致知识库冗余。无重复的候选 {prePublishDialog.result.clean_count} 项仍会正常发布。
+              </p>
+              <div className="mt-3 max-h-[300px] space-y-1 overflow-auto">
+                {prePublishDialog.result.duplicate_items.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="rounded border border-[var(--border-default)] bg-[var(--bg-overlay)] p-2 text-xs"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <StatusBadge tone={item.match_type === "exact" ? "error" : "warning"}>
+                        {item.match_type === "exact" ? "精确匹配" : "向量相似"}
+                      </StatusBadge>
+                      <span className="font-mono text-[10px] text-[var(--text-tertiary)]">
+                        相似度: {(item.score * 100).toFixed(1)}%
+                      </span>
+                      {item.candidate_id ? (
+                        <span className="font-mono text-[10px] text-[var(--text-tertiary)]/50">
+                          候选 #{item.candidate_id}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="text-[var(--text-primary)]">新增: {item.question}</div>
+                    {item.existing_item && Object.keys(item.existing_item).length > 0 ? (
+                      <div className="mt-1 text-[10px] text-[var(--text-tertiary)]">
+                        已有: {typeof item.existing_item.question === "string" ? item.existing_item.question : JSON.stringify(item.existing_item)}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPrePublishDialog({ open: false, result: null })}
+                  className="rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-4 py-2 font-mono text-[12px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-all duration-[var(--duration-fast)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setPrePublishDialog({ open: false, result: null });
+                    setBusy("publish");
+                    const forceIds = [...selectedCandidateIds];
+                    try {
+                      const result = await publishApproved(publishVersion, true, forceIds);
+                      setLastResult(result);
+                      setLastResultTitle("发布版本");
+                      await refreshCandidates();
+                    } catch {
+                      // ignore
+                    } finally {
+                      setBusy("");
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 font-mono text-[12px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[var(--shadow-glow)]"
+                >
+                  仍然发布全部
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </main>
   );
 }

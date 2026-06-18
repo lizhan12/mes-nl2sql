@@ -75,6 +75,36 @@ LEFT JOIN t_wms_wo_material_bill_detail md ON mb.id = md.doc_id AND md.part_id =
 WHERE wo.work_order = 'WO20240001'
 GROUP BY bd.item_part_id, bp.part_no, bp.part_name, bd.item_qty, wo.panel_qty
 ---
+场景：查询已绑定产品组装清单
+用户问题：查询产品料号为P005组装清单
+SQL：
+SELECT A
+	.ID,
+	A.item_seq AS assembly_item_seq,
+	A.item_name AS part_name,
+	b.part_no,
+	b.part_spec,
+	A.item_qty,
+	A.item_source,
+	A.component_type,
+	A.process_name,
+	C.group_name AS encode_rule_group_name,
+	d.group_name AS parse_rule_group_name,
+	A.is_change_sn,
+	A.prompt_info,
+	e.user_name AS create_user,
+	A.create_Time 
+FROM
+	T_BD_PART_PROCESS_COMPONENT
+	A LEFT JOIN t_bd_part b ON A.item_part_id = b.
+	ID LEFT JOIN t_bc_encode_rule_group C ON b.encode_rule_group_id = C.
+	ID LEFT JOIN t_lb_label_parse_rule_group d ON b.parse_rule_group_id = d.
+	ID LEFT JOIN t_basic_user e ON A.create_user_id = e.ID 
+WHERE
+	A.part_id = 'P005' 
+ORDER BY
+	A.item_seq
+---
 场景：设备维修统计
 用户问题：上月各设备的报修次数和平均维修时长
 SQL：
@@ -89,3 +119,24 @@ WHERE r.create_time >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
   AND r.create_time < DATE_TRUNC('month', CURRENT_DATE)
 GROUP BY e.equipment_code, e.equipment_name
 ORDER BY 报修次数 DESC;
+---
+场景：查询包装规则明细
+用户问题：查询包装规则为69b25737a059eeeb74c43b84明细
+SQL：
+SELECT
+	rd.container_level,
+	rd.container_name,
+	rd.container_capacity,
+	rd.count_type,
+	rd.check_type,
+	rd.weight_flag,
+	pc.chk_no_rule_id,
+	pc.label_from,
+	pc.label_file,
+	pc.container_type_code,
+	'' AS child_container_type_code 
+FROM
+	t_packing_rule_detail rd
+	LEFT JOIN t_packing_container pc ON rd.container_name = pc.container_name 
+WHERE
+	rd.rule_id = '69b25737a059eeeb74c43b84'

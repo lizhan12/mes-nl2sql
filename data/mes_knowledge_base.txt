@@ -1,1216 +1,898 @@
 表名：t_basic_user
 模块：基础配置
-业务含义：用户
+业务含义：用户基础信息表，存储系统用户的岗位、组织等基本信息，用于各种操作的创建人/更新人/送检人/检验人等人员关联
 关键字段：
-  id (varchar(40)) -- 用户Id
-  user_no (varchar(40)) -- 用户编号
-  user_name (varchar(40)) -- 用户姓名
-  user_password (varchar(40)) -- 用户密码
-  user_mail (varchar(40)) -- 用户邮箱
-  user_mobile (varchar(40)) -- 用户手机
-  user_wechat (varchar(40)) -- 用户微信
-  user_dingding (varchar(40)) -- 用户钉钉
-  salt (varchar(8)) -- 加盐
-  default_language_code (varchar(10)) -- 默认语言
-  timezone (varchar(40)) -- 时区
-  last_login_time (timestamp(0)) -- 最后一次登录时间
-  last_login_ip (varchar(40)) -- 最后一次登录IP
-  create_user (varchar(40)) -- 创建人姓名
-  create_time (timestamp(0)) -- 创建时间
-  update_user (varchar(40)) -- 更新人姓名
-  update_time (timestamp(0)) -- 更新时间
-  password_update_time (timestamp(0)) -- 密码修改时间
-  is_enabled (bpchar(1)) -- 是否启用 N--未启用;Y--启用
-  sex (numeric(38)) -- 性别 0--男;1--女
-  job_id (varchar(40)) -- 岗位ID
-关联关系：
-  JOIN t_bd_part_process_component ON t_basic_user.id = t_bd_part_process_component.create_user_id  -- 用户←组装清单(反向)
-  JOIN t_packing_container ON t_basic_user.id = t_packing_container.create_user_id  -- 用户←包装容器(反向)
-  JOIN t_packing_container ON t_basic_user.id = t_packing_container.update_user_id  -- 用户←包装容器(反向)
-  JOIN t_bd_substitute ON t_basic_user.id = t_bd_substitute.create_user_id  -- 用户←替代料(反向)
-  JOIN t_bd_substitute ON t_basic_user.id = t_bd_substitute.update_user_id  -- 用户←替代料(反向)
-  JOIN t_pd_sn_defect ON t_basic_user.id = t_pd_sn_defect.create_user_id  -- 用户←SN不良(反向)
-  JOIN t_pd_sn_travel ON t_basic_user.id = t_pd_sn_travel.create_user_id  -- 用户←SN履历(反向)
-  JOIN t_pd_sn_travel ON t_basic_user.id = t_pd_sn_travel.update_user_id  -- 用户←SN履历(反向)
-  JOIN t_ht_pd_wo_issue_material ON t_basic_user.id = t_ht_pd_wo_issue_material.create_user_id  -- 用户←历史备料(反向)
-  JOIN t_ht_pd_wo_issue_material ON t_basic_user.id = t_ht_pd_wo_issue_material.update_user_id  -- 用户←历史备料(反向)
-  JOIN t_pd_wo_issue_material ON t_basic_user.id = t_pd_wo_issue_material.create_user_id  -- 用户←发料(反向)
-  JOIN t_pd_wo_issue_material ON t_basic_user.id = t_pd_wo_issue_material.update_user_id  -- 用户←发料(反向)
-  JOIN t_pd_plan_need_material ON t_basic_user.id = t_pd_plan_need_material.create_user_id  -- 用户←用料需求(反向)
-  JOIN t_pd_plan_need_material ON t_basic_user.id = t_pd_plan_need_material.update_user_id  -- 用户←用料需求(反向)
-  JOIN t_qm_inspect_info ON t_basic_user.id = t_qm_inspect_info.create_user_id  -- 用户←检验单(反向)
-  JOIN t_qm_inspect_info ON t_basic_user.id = t_qm_inspect_info.update_user_id  -- 用户←检验单(反向)
-  JOIN t_qm_inspect_info ON t_basic_user.id = t_qm_inspect_info.send_user  -- 用户←检验单(反向)
-  JOIN t_qm_inspect_info ON t_basic_user.id = t_qm_inspect_info.test_user  -- 用户←检验单(反向)
-  JOIN t_qm_inspect_info ON t_basic_user.id = t_qm_inspect_info.audit_user  -- 用户←检验单(反向)
-  JOIN t_tool_no ON t_basic_user.id = t_tool_no.instock_emp  -- 用户←治具(反向)
-  JOIN t_tool_no ON t_basic_user.id = t_tool_no.use_empid  -- 用户←治具(反向)
-  JOIN t_tool_no ON t_basic_user.id = t_tool_no.return_emp_id  -- 用户←治具(反向)
-  JOIN t_tool_no ON t_basic_user.id = t_tool_no.test_user  -- 用户←治具(反向)
-  JOIN t_tool_model ON t_basic_user.id = t_tool_model.create_user_id  -- 用户←治具型号(反向)
-  JOIN t_tool_model ON t_basic_user.id = t_tool_model.update_user_id  -- 用户←治具型号(反向)
-适用场景：用户信息查询（创建人、更新人、送检人、检验人等）
+  id (character varying) -- 用户Id
+  user_no (character varying) -- 用户编号
+  user_name (character varying) -- 用户姓名
+  user_password (character varying) -- 用户密码
+  user_mail (character varying) -- 用户邮箱
+  user_mobile (character varying) -- 用户手机
+  user_wechat (character varying) -- 用户微信
+  user_dingding (character varying) -- 用户钉钉
+  salt (character varying) -- 加盐
+  default_language_code (character varying) -- 默认语言
+  timezone (character varying) -- 时区
+  last_login_time (timestamp without time zone) -- 最后一次登录时间
+  last_login_ip (character varying) -- 最后一次登录IP
+  create_user (character varying) -- 创建人姓名
+  create_time (timestamp without time zone) -- 创建时间
+  update_user (character varying) -- 更新人姓名
+  update_time (timestamp without time zone) -- 更新时间
+  password_update_time (timestamp without time zone) -- 密码修改时间
+  is_enabled (character) -- 是否启用 N--未启用;Y--启用
+  sex (numeric) -- 性别 0--男;1--女
+  job_id (character varying) -- 岗位ID
+适用场景：
+basicuser数据查询
 ---
 表名：t_bc_encode_rule
 模块：条码管理
-业务含义：（无注释）
+业务含义：编码规则定义，配置条码/序列号的生成规则，包括前缀、流水号、日期格式等编码模板
 关键字段：
-  id (varchar(40)) -- 主键ID
-  type_code (varchar(40)) -- 类型ID
-  rule_name (varchar(40)) -- 规则名称
-  rule_desc (varchar(200)) -- 规则描述
-  bind_type (varchar(40)) -- 绑定类型ID
-  reset_type (varchar(40)) -- 重置类型ID
-  generate_lenth (numeric(16, 10)) -- 新增栏位，用于卡控条码长度，因编码中可能存在位数不确定的值
-  bind_key (varchar(40)) -- 绑定键（用于特定功能绑定）
-  default_flag (varchar(1)) -- 是否默认
-关联关系：
-  JOIN t_packing_container ON t_bc_encode_rule.id = t_packing_container.chk_no_rule_id  -- 编码规则←包装容器(反向)
-适用场景：编码规则查询
+  id (character varying)
+  type_code (character varying) -- 类型ID
+  rule_name (character varying) -- 规则名称
+  rule_desc (character varying) -- 规则描述
+  bind_type (character varying) -- 绑定类型ID
+  reset_type (character varying) -- 重置类型ID
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  is_enabled (character varying)
+  generate_lenth (numeric) -- 新增栏位，用于卡控条码长度，因编码中可能存在位数不确定的值
+  bind_key (character varying) -- 绑定键（用于特定功能绑定）
+  default_flag (character varying) -- 是否默认
+适用场景：
+bcencode数据查询
 ---
 表名：t_bc_encode_rule_group
 模块：条码管理
-业务含义：（无注释）
+业务含义：编码规则组，将多个编码规则组合为规则组，供物料料号引用以确定其条码编码方式
 关键字段：
-  id (varchar(40)) -- 主键ID
-  group_name (varchar(40)) -- 规则集合名称
-  group_desc (varchar(40)) -- 规则集合描述
-关联关系：
-  JOIN t_bd_part ON t_bc_encode_rule_group.id = t_bd_part.encode_rule_group_id  -- 编码规则组←料号(反向)
-适用场景：编码规则组查询
----
-表名：t_lb_label_parse_rule_group
-模块：标签管理
-业务含义：（无注释）
-关键字段：
-  id (varchar(40)) -- 主键ID
-  group_name (varchar(40)) -- 规则集合名称
-  group_desc (varchar(40)) -- 规则集合描述
-关联关系：
-  JOIN t_bd_part ON t_lb_label_parse_rule_group.id = t_bd_part.parse_rule_group_id  -- 解析规则组←料号(反向)
-适用场景：标签解析规则组查询
+  id (character varying)
+  group_name (character varying) -- 规则集合名称
+  group_desc (character varying) -- 规则集合描述
+  is_enabled (character varying)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+适用场景：
+bcencode数据查询
 ---
 表名：t_bd_bom
 模块：基础数据
-业务含义：物料清单
+业务含义：物料清单(BOM)，定义产品的组件结构树，包含组件物料、用量、工序位置、替代关系等完整的产品组成信息
 关键字段：
-  id (varchar(40)) -- 主键ID
-  part_id (varchar(40)) -- 成品料号
-  bom_version (varchar(40)) -- BOM版本
-  remark (varchar(40)) -- 备注
-  current_status (int4) -- 当前状态(0,初始;1,提交;2,签核;3,驳回;4,废弃)
-关联关系：
-  JOIN t_bd_substitute ON t_bd_bom.part_id = t_bd_substitute.part_id AND t_bd_bom.bom_version = t_bd_substitute.bom_version  -- 物料清单←替代料(反向)
-适用场景：BOM查询、替代料查询
+  id (character varying)
+  part_id (character varying) -- 成品料号
+  bom_version (character varying) -- BOM版本
+  remark (character varying) -- 备注
+  current_status (integer) -- 当前状态(0,初始;1,提交;2,签核;3,驳回;4,废弃)
+  is_enabled (character varying)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+适用场景：
+bdbom数据查询
 ---
 表名：t_bd_customer
 模块：基础数据
-业务含义：（无注释）
+业务含义：客户档案表，记录客户基本信息（代码、名称、联系人等），用于检验单、库存等业务中的客户关联
 关键字段：
-  id (varchar(40)) -- 主键ID
-关联关系：
-  JOIN t_qm_inspect_info ON t_bd_customer.id = t_qm_inspect_info.cust_code  -- 客户←检验单(反向)
-  JOIN t_wms_stock ON t_bd_customer.id = t_wms_stock.customer_id  -- 客户←库存(反向)
-适用场景：客户信息查询
+  id (character varying)
+  customer_code (character varying)
+  customer_name (character varying)
+  customer_desc (character varying)
+  tel (character varying)
+  email (character varying)
+  fax (character varying)
+  contacts (character varying)
+  addr (character varying)
+  customer_short_name (character varying)
+  rule_set_name (character varying)
+  is_confirm_wo_need (character varying)
+  is_enabled (character varying)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+适用场景：
+bdcustomer数据查询
 ---
 表名：t_bd_file
 模块：基础数据
-业务含义：文件列表
+业务含义：文件管理表，存储与业务对象（料号/工单/治具/检验单等）关联的附件文件记录
 关键字段：
-  id (varchar(40)) -- 主键ID
-  file_type_code (varchar(40)) -- 文件类型，数据字典[LC-00-0029]
-  service_id (varchar(40)) -- 业务id
-  backet (varchar(40)) -- 桶
-  file_name (varchar(2000)) -- 文件名
-  file_extension (varchar(40)) -- 文件后缀
-  service_tag (varchar(200)) -- 业务信息
-  path (varchar(2000)) -- 文件路径
-关联关系：
-  JOIN t_tool_maintenance_info ON t_bd_file.service_id = t_tool_maintenance_info.id  -- 文件←治具维修(反向)
-适用场景：文件信息查询
+  id (character varying)
+  file_type_code (character varying) -- 文件类型，数据字典[LC-00-0029]
+  service_id (character varying) -- 业务id
+  backet (character varying) -- 桶
+  file_name (character varying) -- 文件名
+  file_extension (character varying) -- 文件后缀
+  service_tag (character varying) -- 业务信息
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  path (character varying) -- 文件路径
+适用场景：
+bdfile数据查询
 ---
 表名：t_bd_part
 模块：基础数据
-业务含义：（无注释）
+业务含义：物料/料号主数据表，记录产品物料的基本信息（编码、名称、规格）、编码规则、标签解析规则等核心物料属性
 关键字段：
-  id (varchar(40)) -- 主键ID
-  part_no (varchar(40)) -- 料号
-  part_name (varchar(2000)) -- 品名
-  part_spec (varchar(2000)) -- 规格
-  unit_id (varchar(40)) -- 单位
-  part_level (varchar(40)) -- 贵重等级
-  group_id (varchar(40)) -- 料号分组
-  limit_time_value (int4) -- 超期值(单位：天）
-  warm_time_value (int4) -- 预警值(单位：天）
-  pkg_size (int4) -- 包装厚度
-  is_rohs (varchar(1)) -- RoHS标志
-  default_warehouse (varchar(40)) -- 默认仓库
-  low_qty (int4) -- 最低安全库存量
-  high_qty (int4) -- 最高安全库存量
-  panel_qty (int4) -- 扣数比例(连板数量)
-  msd_level (varchar(40)) -- 湿敏等级(1,2,2a,3,4,5,5a,6)
-  stage_code (varchar(40)) -- 区段
-  data_from (varchar(40)) -- 来源
-  special_type (varchar(40)) -- 特殊类型
-  solder (varchar(200)) -- 产品使用的锡膏料号
-  process_level (int4) -- 加工等级(0,原材料;1,半成品;2,成品)
-  product_seq (int4) -- 0,B->T(先做B面);1,T->B(先做T面);2,W(单面板)
-  pkg_qty (int4) -- 最小包装量
-  pack_rule_id (varchar(40)) -- 包装规则ID
-  default_location (varchar(40)) -- 默认储位
-  encode_rule_group_id (varchar(40)) -- 编码规则集合
-  label_group_id (varchar(40)) -- 标签规则集合
-  is_enabled (varchar(1)) -- 是否可用
-  remark (varchar(2000)) -- 备注
-  is_batch_manager (varchar(1)) -- 启用批号管理
-  thickness (numeric(16, 10)) -- 厚度
-  stagnation_cycle (int4) -- 呆滞周期
-  parse_rule_group_id (varchar(40)) -- 物料条码解析规则集合
-关联关系：
-  JOIN t_bc_encode_rule_group ON t_bd_part.encode_rule_group_id = t_bc_encode_rule_group.id  -- 料号→编码规则组
-  JOIN t_lb_label_parse_rule_group ON t_bd_part.parse_rule_group_id = t_lb_label_parse_rule_group.id  -- 料号→解析规则组
-  JOIN t_bd_part_process_component ON t_bd_part.id = t_bd_part_process_component.item_part_id  -- 料号←组装清单(反向)
-  JOIN t_bd_part_process_component ON t_bd_part.id = t_bd_part_process_component.part_id  -- 料号←组装清单(反向)
-  JOIN t_bd_substitute ON t_bd_part.id = t_bd_substitute.sub_part_id  -- 料号←替代料(反向)
-  JOIN t_bd_substitute ON t_bd_part.id = t_bd_substitute.part_id  -- 料号←替代料(反向)
-  JOIN t_bd_substitute ON t_bd_part.id = t_bd_substitute.item_part_id  -- 料号←替代料(反向)
-  JOIN t_pd_sn_defect ON t_bd_part.part_no = t_pd_sn_defect.part_no  -- 料号←SN不良(反向)
-  JOIN t_pd_wo ON t_bd_part.id = t_pd_wo.part_id  -- 料号←工单(反向)
-  JOIN t_pd_wo_bom ON t_bd_part.id = t_pd_wo_bom.item_part_id  -- 料号←工单BOM(反向)
-  JOIN t_pd_plan_need_material ON t_bd_part.id = t_pd_plan_need_material.part_id  -- 料号←用料需求(反向)
-  JOIN t_qm_inspect_info ON t_bd_part.id = t_qm_inspect_info.part_id  -- 料号←检验单(反向)
-  JOIN t_wms_stock ON t_bd_part.id = t_wms_stock.part_id  -- 料号←库存(反向)
-  JOIN t_wms_doc_upn ON t_bd_part.part_no = t_wms_doc_upn.part_no  -- 料号←UPN(反向)
-  JOIN t_wms_wo_rb_detail ON t_bd_part.id = t_wms_wo_rb_detail.part_id  -- 料号←退料明细(反向)
-适用场景：料号查询、BOM查询、SN追溯、工单查询、库存查询、检验查询、替代料查询
+  id (character varying)
+  part_no (character varying) -- 料号
+  part_name (character varying) -- 品名
+  part_spec (character varying) -- 规格
+  unit_id (character varying) -- 单位
+  part_level (character varying) -- 贵重等级
+  group_id (character varying) -- 料号分组
+  limit_time_value (integer) -- 超期值(单位：天）
+  warm_time_value (integer) -- 预警值(单位：天）
+  pkg_size (integer) -- 包装厚度
+  is_rohs (character varying) -- RoHS标志
+  default_warehouse (character varying) -- 默认仓库
+  low_qty (integer) -- 最低安全库存量
+  high_qty (integer) -- 最高安全库存量
+  panel_qty (integer) -- 扣数比例(连板数量)
+  msd_level (character varying) -- 湿敏等级(1,2,2a,3,4,5,5a,6)
+  stage_code (character varying) -- 区段
+  data_from (character varying) -- 来源
+  special_type (character varying) -- 特殊类型
+  solder (character varying) -- 产品使用的锡膏料号
+  process_level (integer) -- 加工等级(0,原材料;1,半成品;2,成品)
+  product_seq (integer) -- 0,B->T(先做B面);1,T->B(先做T面);2,W(单面板)
+  pkg_qty (integer) -- 最小包装量
+  pack_rule_id (character varying) -- 包装规则ID
+  default_location (character varying) -- 默认储位
+  encode_rule_group_id (character varying) -- 编码规则集合
+  label_group_id (character varying) -- 标签规则集合
+  is_enabled (character varying) -- 是否可用
+  remark (character varying) -- 备注
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  is_batch_manager (character varying) -- 启用批号管理
+  thickness (numeric) -- 厚度
+  stagnation_cycle (integer) -- 呆滞周期
+  parse_rule_group_id (character varying) -- 物料条码解析规则集合
+适用场景：
+bdpart数据查询
 ---
 表名：t_bd_part_process_component
 模块：基础数据
-业务含义：产品组装清单
+业务含义：产品组装清单表，定义产品组装过程中所需的组件物料清单，包括组件料号、用量、工序、是否更换条码等信息
 关键字段：
-  id (varchar(40)) -- 主键ID
-  part_id (varchar(40)) -- 产品料号id
-  process_name (varchar(40)) -- 工序名称
-  item_part_id (varchar(40)) -- 组装料号id
-  item_qty (numeric(16, 10)) -- 单位用量
-  item_source (varchar(40)) -- 数据来源
-  component_type (varchar(40)) -- 组件类型
-  prompt_info (varchar(200)) -- 提示信息
-  is_change_sn (varchar(1)) -- 是否更换主条码
-  item_seq (int4) -- 序号
-  is_enabled (varchar(1)) -- 是否可用
-  item_name (varchar(2000)) -- 组件名称
-关联关系：
-  JOIN t_bd_part ON t_bd_part_process_component.item_part_id = t_bd_part.id  -- 组装清单→组件料号
-  JOIN t_bd_part ON t_bd_part_process_component.part_id = t_bd_part.id  -- 组装清单→主料号
-  JOIN t_basic_user ON t_bd_part_process_component.create_user_id = t_basic_user.id  -- 组装清单→创建人
-适用场景：产品组装清单查询
+  id (character varying)
+  part_id (character varying) -- 产品料号id
+  process_name (character varying) -- 工序名称
+  item_part_id (character varying) -- 组装料号id
+  item_qty (numeric) -- 单位用量
+  item_source (character varying) -- 数据来源
+  component_type (character varying) -- 组件类型
+  prompt_info (character varying) -- 提示信息
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  create_user_id (character varying)
+  is_change_sn (character varying) -- 是否更换主条码
+  item_seq (integer) -- 序号
+  is_enabled (character varying) -- 是否可用
+  item_name (character varying) -- 组件名称
+适用场景：
+bdparprocess数据查询
 ---
 表名：t_bd_pdline
 模块：基础数据
-业务含义：产线
+业务含义：产线定义表，记录生产线的代码、名称和基本配置信息，用于工单排产和料站管理
 关键字段：
-  id (varchar(40)) -- 主键ID
-  pdline_seq (int4) -- 线别序号
-  pdline_code (varchar(40)) -- 线别代码
-  pdline_name (varchar(40)) -- 线别名称
-  pdline_desc (varchar(40)) -- 线别描述
-  pdline_type (varchar(40)) -- 线别类型(0-通用线;1-手帖线)
-  workshop_id (varchar(40)) -- 车间ID
-  stage_code (varchar(40)) -- 区段
-  lineleaderid (varchar(40)) -- 线长
-  lane_type (int4) -- 轨道类型（0.单轨;1双轨）
-关联关系：
-  JOIN t_pd_wo_msl ON t_bd_pdline.pdline_code = t_pd_wo_msl.pdline_code  -- 产线←工单MSL(反向)
-适用场景：产线查询
+  id (character varying)
+  pdline_seq (integer) -- 线别序号
+  pdline_code (character varying) -- 线别代码
+  pdline_name (character varying) -- 线别名称
+  pdline_desc (character varying) -- 线别描述
+  pdline_type (character varying) -- 线别类型(0-通用线;1-手帖线)
+  workshop_id (character varying) -- 车间ID
+  stage_code (character varying) -- 区段
+  lineleaderid (character varying) -- 线长
+  is_enabled (character varying)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  lane_type (integer) -- 轨道类型（0.单轨;1双轨）
+适用场景：
+bdpdline数据查询
 ---
 表名：t_bd_route
 模块：基础数据
-业务含义：（无注释）
+业务含义：工艺路线表，定义产品的加工工序顺序和工艺要求，关联工序名称和操作步骤
 关键字段：
-  id (varchar(40)) -- 主键ID
+  id (character varying)
+  route_name (character varying)
+  route_desc (character varying)
+  stage_code (character varying)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  is_enabled (character varying)
   paint_json (text) -- 明细json（画布渲染用）
-  pass_type (int4) -- 过站类型(0-WIPSN-在制品¶1-SolderPaste-锡膏¶2-Tool-工装)
-关联关系：
-  JOIN t_tool_model ON t_bd_route.id = t_tool_model.route_id  -- 工艺路线←治具型号(反向)
-适用场景：工艺路线查询
+  pass_type (integer) -- 过站类型(0-WIPSN-在制品
+1-SolderPaste-锡膏
+2-Tool-工装)
+  1-SolderPaste-锡膏 ()
+  2-Tool-工装) ()
+  1-SolderPaste-锡膏 () ()
+  2-Tool-工装) () ()
+适用场景：
+
+bdroute数据查询
 ---
 表名：t_bd_substitute
 模块：基础数据
-业务含义：替代料
+业务含义：替代料关系表，定义物料的替代料号及生效BOM版本，用于生产缺料时的物料替代决策
 关键字段：
-  id (varchar(40)) -- 主键ID
-  item_part_id (varchar(40)) -- 主料料号
-  sub_part_id (varchar(40)) -- 替代料料号
-  sub_type (varchar(1)) -- 替代类型(0.全局1.产品2.工单)
-  work_order (varchar(40)) -- 工单号
-  part_id (varchar(40)) -- 产品料号
-  bom_version (varchar(40)) -- 产品版本
-  remark (varchar(200)) -- 备注
-  start_time (timestamp(6)) -- 开始时间
-  end_time (timestamp(6)) -- 结束时间
-  sub_seq (int4) -- 替代顺序
-关联关系：
-  JOIN t_bd_part ON t_bd_substitute.sub_part_id = t_bd_part.id  -- 替代料→替代料号
-  JOIN t_bd_part ON t_bd_substitute.part_id = t_bd_part.id  -- 替代料→主料号
-  JOIN t_bd_part ON t_bd_substitute.item_part_id = t_bd_part.id  -- 替代料→子件料号
-  JOIN t_basic_user ON t_bd_substitute.create_user_id = t_basic_user.id  -- 替代料→创建人
-  JOIN t_basic_user ON t_bd_substitute.update_user_id = t_basic_user.id  -- 替代料→更新人
-  JOIN t_bd_bom ON t_bd_substitute.part_id = t_bd_bom.part_id AND t_bd_substitute.bom_version = t_bd_bom.bom_version  -- 替代料→BOM
-适用场景：替代料查询
+  id (character varying)
+  item_part_id (character varying) -- 主料料号
+  sub_part_id (character varying) -- 替代料料号
+  sub_type (character varying) -- 替代类型(0.全局1.产品2.工单)
+  work_order (character varying) -- 工单号
+  part_id (character varying) -- 产品料号
+  bom_version (character varying) -- 产品版本
+  remark (character varying) -- 备注
+  start_time (timestamp without time zone) -- 开始时间
+  end_time (timestamp without time zone) -- 结束时间
+  sub_seq (integer) -- 替代顺序
+  is_enabled (character varying)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+适用场景：
+bdsubstitute数据查询
 ---
 表名：t_bd_supplier
 模块：基础数据
-业务含义：（无注释）
+业务含义：供应商档案表，记录供应商基本信息（代码、名称、联系人等），用于检验单、库存等业务中的供应商关联
 关键字段：
-  id (varchar(40)) -- 主键ID
-  supplier_code (varchar(200)) -- 供应商代码
-  supplier_name (varchar(200)) -- 供应商名称
-  supplier_desc (varchar(200)) -- 描述
-  tel (varchar(40)) -- 电话
-  email (varchar(40)) -- Email
-  fax (varchar(200)) -- 传真
-  supplier_type (varchar(40)) -- 供应商类型(1,原材料;2,锡膏)
-  addr (varchar(200)) -- 地址
-  contacts (varchar(40)) -- 联系人
-  short_name (varchar(200)) -- 供应商简称
-  parse_rule_id (varchar(40)) -- 解码规则名称
-关联关系：
-  JOIN t_qm_inspect_info ON t_bd_supplier.id = t_qm_inspect_info.supplier_code  -- 供应商←检验单(反向)
-  JOIN t_wms_stock ON t_bd_supplier.id = t_wms_stock.supplier_id  -- 供应商←库存(反向)
-适用场景：供应商信息查询
----
-表名：t_packing_container
-模块：包装管理
-业务含义：包装容器表
-关键字段：
-  id (varchar(40)) -- 主键ID
-  container_name (varchar(40)) -- 容器名称
-  container_desc (varchar(40)) -- 描述
-  container_capacity (numeric(16, 10)) -- 容量
-  container_type_code (varchar(40)) -- 容器类型
-  chk_no_rule_id (varchar(40)) -- 编号检查规则
-  label_from (int4) -- 标签来源(0,自己;1,外部)
-  label_file (varchar(40)) -- 标签文件名称
-  count_type (int4) -- 容量计算方式(0,计算子容器;1,计算SN)
-关联关系：
-  JOIN t_bc_encode_rule ON t_packing_container.chk_no_rule_id = t_bc_encode_rule.id  -- 包装容器→编码规则
-  JOIN t_basic_user ON t_packing_container.create_user_id = t_basic_user.id  -- 包装容器→创建人
-  JOIN t_basic_user ON t_packing_container.update_user_id = t_basic_user.id  -- 包装容器→更新人
-  JOIN t_packing_rule_detail ON t_packing_container.container_name = t_packing_rule_detail.container_name  -- 包装容器←包装规则明细(反向)
-适用场景：包装容器查询
----
-表名：t_packing_rule_detail
-模块：包装管理
-业务含义：包装规则明细表
-关键字段：
-  id (varchar(40)) -- 主键ID
-  rule_id (varchar(40)) -- 规则ID
-  container_name (varchar(40)) -- 包装容器
-  container_level (int4) -- 包装层级
-  container_capacity (numeric(16, 10)) -- 包装容量
-  count_type (int4) -- 计数类型(0-子容器;1-SN)
-  check_type (varchar(40)) -- 检查类型(不管控，同料号，同工单，同批次，同工单同批次，同料号同批次）
-  weight_flag (varchar(1)) -- 是否称重
-关联关系：
-  JOIN t_packing_container ON t_packing_rule_detail.container_name = t_packing_container.container_name  -- 包装规则明细→包装容器
-适用场景：包装规则明细查询
+  id (character varying)
+  supplier_code (character varying) -- 供应商代码
+  supplier_name (character varying) -- 供应商名称
+  supplier_desc (character varying) -- 描述
+  tel (character varying) -- 电话
+  email (character varying) -- Email
+  fax (character varying) -- 传真
+  supplier_type (character varying) -- 供应商类型(1,原材料;2,锡膏)
+  addr (character varying) -- 地址
+  contacts (character varying) -- 联系人
+  short_name (character varying) -- 供应商简称
+  parse_rule_id (character varying) -- 解码规则名称
+  is_enabled (character varying)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+适用场景：
+bdsupplier数据查询
 ---
 表名：t_ht_pd_wo_issue_material
 模块：生产历史
-业务含义：工单发料历史表
+业务含义：工单发料历史表，记录已结束工单的完整发料历史，包含物料从备料→产线接收→绑定载具→上线的全生命周期状态
 关键字段：
-  id (varchar(40)) -- 主键ID
-  doc_no (varchar(40)) -- 发料单据
-  upn (varchar(40)) -- 物料编号
-  current_status (int4) -- 物料当前状态(0,备料;1,产线接收;2,绑定载具;3,上线;4,下线;5,用必;6,待退;7,仓库待接收;8,已退;9,续料;)
-  from_warehouse_code (varchar(40)) -- 发料仓库
-  work_order (varchar(40)) -- 工单
-  pdline_code (varchar(40)) -- 产线
-  total_qty (numeric(32, 10)) -- 总量
-  current_qty (numeric(32, 10)) -- 当前量
-  machine_code (varchar(40)) -- 绑定编号(设备编号或工作站名称)
-  table_no (varchar(40)) -- 区域
-  slot_no (varchar(40)) -- 料站
-  track_no (varchar(40)) -- 通道
-  feeder_no (varchar(40)) -- 飞达(载具)编号
-  shelf_no (varchar(40)) -- 移动货架编号
-  eshelf_type (varchar(1)) -- 移动电子货架标志
-  location_no (varchar(40)) -- 移动货架储位号
-  location_addr (int4) -- 移动货架储位地址
-  location_id (varchar(40)) -- 移动货架储位ID
-  lcr_flag (varchar(40)) -- LRC测试标志(NG,没通过;PASS,通过;NA,没测试)
-  old_wo (varchar(40)) -- 原工单(转产前、退料前、借料前)
-  remark (varchar(2000)) -- 备注
-  customer_code (varchar(40)) -- 客户代码
-  rd_flag (varchar(1)) -- 研发物料
-  date_code (varchar(40)) -- 日期码
-  lot_no (varchar(40)) -- 批号
-  ma_code (varchar(40)) -- 制造商代码
-  part_name (varchar(200)) -- 品名
-  part_spec (varchar(2000)) -- 规格
-  origin_place (varchar(40)) -- 原产地
-  vendor_barcode (varchar(200)) -- 供应商条码
-  msl_no (varchar(40)) -- 料站表号
-  tray_flag (varchar(1)) -- 是否Tray盘
-  supplier_code (varchar(40)) -- 供应商代码
-  item_part_no (varchar(40)) -- 料号
+  id (varchar(40))
+  doc_no (varchar(40))
+  upn (varchar(40))
+  current_status (int4)
+  from_warehouse_code (varchar(40))
+  work_order (varchar(40))
+  pdline_code (varchar(40))
+  total_qty (numeric(32)
+  current_qty (numeric(32)
+  machine_code (varchar(40))
+  table_no (varchar(40))
+  slot_no (varchar(40))
+  track_no (varchar(40))
+  feeder_no (varchar(40))
+  shelf_no (varchar(40))
+  eshelf_type (varchar(1))
+  location_no (varchar(40))
+  location_addr (int4)
+  location_id (varchar(40))
+  lcr_flag (varchar(40))
+  old_wo (varchar(40))
+  remark (varchar(2000))
+  customer_code (varchar(40))
+  rd_flag (varchar(1))
+  date_code (varchar(40))
+  lot_no (varchar(40))
+  ma_code (varchar(40))
+  part_name (varchar(200))
+  part_spec (varchar(2000))
+  origin_place (varchar(40))
+  vendor_barcode (varchar(200))
+  msl_no (varchar(40))
+  tray_flag (varchar(1))
+  create_user_id (varchar(40))
+  create_time (timestamp(6))
+  update_user_id (varchar(40))
+  update_time (timestamp(6))
+  supplier_code (varchar(40))
+  item_part_no (varchar(40))
 关联关系：
   JOIN t_pd_wo ON t_ht_pd_wo_issue_material.work_order = t_pd_wo.work_order  -- 历史备料→工单
   JOIN t_basic_user ON t_ht_pd_wo_issue_material.create_user_id = t_basic_user.id  -- 历史备料→创建人
-  JOIN t_basic_user ON t_ht_pd_wo_issue_material.update_user_id = t_basic_user.id  -- 历史备料→更新人
-适用场景：历史备料查询
+适用场景：hpdwo数据查询
+---
+表名：t_lb_label_parse_rule_group
+模块：标签管理
+业务含义：标签解析规则组，定义从产线设备获取的标签数据的解析规则，将原始标签解析为可识别的物料信息
+关键字段：
+  id (character varying)
+  group_name (character varying) -- 规则集合名称
+  group_desc (character varying) -- 规则集合描述
+  is_enabled (character varying)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+适用场景：
+lblabel数据查询
+---
+表名：t_packing_container
+模块：包装管理
+业务含义：包装容器定义表，记录容器的名称、容量、类型、标签来源（自产/外部）等属性，是包装规则的基础数据
+关键字段：
+  id (character varying)
+  container_name (character varying) -- 容器名称
+  container_desc (character varying) -- 描述
+  container_capacity (numeric) -- 容量
+  container_type_code (character varying) -- 容器类型
+  chk_no_rule_id (character varying) -- 编号检查规则
+  label_from (integer) -- 标签来源(0,自己;1,外部)
+  label_file (character varying) -- 标签文件名称
+  is_enabled (character varying)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  count_type (integer) -- 容量计算方式(0,计算子容器;1,计算SN)
+适用场景：
+packingcontainer数据查询
+---
+表名：t_packing_rule
+模块：包装管理
+业务含义：包装规则配置表，用于定义产品或订单的包装规范，关联包装层级和容器信息
+关键字段：
+  id (varchar(40))
+  rule_name (varchar(40))
+  rule_desc (varchar(40))
+  is_enabled (varchar(1))
+  create_user_id (varchar(40))
+  create_time (timestamp(6))
+  update_user_id (varchar(40))
+  update_time (timestamp(6))
+关联关系：
+  （无关联关系）
+适用场景：packingrule查询
+---
+表名：t_packing_rule_detail
+模块：包装管理
+业务含义：包装规则明细表，定义各包装层级的容器、容量、检查类型（不管控/同料号/同工单/同批次等）、是否称重等详细规范
+关键字段：
+  id (varchar(40))
+  rule_id (varchar(40))
+  container_name (varchar(40))
+  container_level (int4)
+  container_capacity (numeric(16)
+  count_type (int4)
+  check_type (varchar(40))
+  weight_flag (varchar(1))
+  create_user_id (varchar(40))
+  create_time (timestamp(6))
+  update_user_id (varchar(40))
+  update_time (timestamp(6))
+关联关系：
+  JOIN t_packing_container ON t_packing_rule_detail.container_name = t_packing_container.container_name  -- 包装规则明细→包装容器
+适用场景：packingrule明细数据查询
 ---
 表名：t_pd_plan_need_material
 模块：生产执行
-业务含义：生产计划用料需求
+业务含义：生产计划用料需求表，记录生产计划中每个工单所需的物料及其计划用量，用于物料齐套检查
 关键字段：
-  id (varchar(40)) -- 主键ID
-  plan_detail_id (varchar(40)) -- 生产计划子项ID
-  part_id (varchar(40)) -- 料号ID
-  unit_id (varchar(40)) -- 单位
-  total_qty (numeric(16, 10)) -- 总需求数量
-  out_qty (numeric(16, 10)) -- 已发量
-  return_qty (numeric(16, 10)) -- 退回数量
-  item_qty (numeric(16, 10)) -- 单位用量
-  item_seq (int4) -- 行项次
-  stage_code (varchar(40)) -- 区段
-  fentryid (varchar(40)) -- 用料清单行id
-  fid (varchar(40)) -- 用料清单表头id
-  points (varchar(200)) -- 点位
-  attrition_rate (numeric(16, 10)) -- 损耗率
-关联关系：
-  JOIN t_bd_part ON t_pd_plan_need_material.part_id = t_bd_part.id  -- 用料需求→料号
-  JOIN t_basic_user ON t_pd_plan_need_material.create_user_id = t_basic_user.id  -- 用料需求→创建人
-  JOIN t_basic_user ON t_pd_plan_need_material.update_user_id = t_basic_user.id  -- 用料需求→更新人
-适用场景：生产计划用料需求查询
+  id (character varying)
+  plan_detail_id (character varying) -- 生产计划子项ID
+  part_id (character varying) -- 料号ID
+  unit_id (character varying) -- 单位
+  total_qty (numeric) -- 总需求数量
+  out_qty (numeric) -- 已发量
+  return_qty (numeric) -- 退回数量
+  item_qty (numeric) -- 单位用量
+  item_seq (integer) -- 行项次
+  stage_code (character varying) -- 区段
+  fentryid (character varying) -- 用料清单行id
+  fid (character varying) -- 用料清单表头id
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  points (character varying) -- 点位
+  attrition_rate (numeric) -- 损耗率
+适用场景：
+pdplan数据查询
 ---
 表名：t_pd_sn_defect
 模块：生产执行
-业务含义：SN不良表
+业务含义：SN不良记录表，记录产品序列号在生产过程中产生的不良缺陷信息，包括缺陷代码、位置、责任人等质量追溯数据
 关键字段：
-  id (varchar(40)) -- 主键ID
-  sn (varchar(40)) -- 不良条码
-  terminal_name (varchar(40)) -- 工作站
-  work_order (varchar(40)) -- 工单
-  part_no (varchar(40)) -- 料号
-  pdline_code (varchar(40)) -- 产线
-  process_name (varchar(40)) -- 工序名称
-  repair_flag (varchar(1)) -- 是否已维修完成
+  id (varchar(40))
+  sn (varchar(40))
+  terminal_name (varchar(40))
+  work_order (varchar(40))
+  part_no (varchar(40))
+  pdline_code (varchar(40))
+  process_name (varchar(40))
+  repair_flag (varchar(1))
+  create_user_id (varchar(40))
+  create_time (timestamp(6))
+  update_user_id (varchar(40))
+  update_time (timestamp(6))
 关联关系：
   JOIN t_bd_part ON t_pd_sn_defect.part_no = t_bd_part.part_no  -- SN不良→料号
   JOIN t_basic_user ON t_pd_sn_defect.create_user_id = t_basic_user.id  -- SN不良→创建人
-适用场景：SN不良查询、维修查询
+适用场景：pdsn数据查询
 ---
 表名：t_pd_sn_travel
 模块：生产执行
-业务含义：SN履历表
+业务含义：SN履历追溯表，记录产品序列号在生产过程中的完整流转记录，包括工序、操作人、时间、设备等全链路追溯信息
 关键字段：
-  id (varchar(40)) -- 主键ID
-  sn (varchar(200)) -- 主条码
-  csn (varchar(200)) -- 客户条码
-  work_order (varchar(40)) -- 工单
-  part_no (varchar(200)) -- 料号
-  old_sn (varchar(40)) -- 转标签前的SN
-  pdline_code (varchar(40)) -- 产线
-  terminal_name (varchar(40)) -- 工作站
-  stage_code (varchar(40)) -- 区段ID
-  node_id (varchar(40)) -- 当前节点ID
-  process_name (varchar(40)) -- 当前制程
-  current_phase (int4) -- 当前阶段(0,未投入;1,投入;2.产出)
-  current_status (int4) -- 当前状态(0,良;1,不良;2,报废;)
-  current_qty (int4) -- 当前数量
-  in_pdline_time (timestamp(6)) -- 进线时间
-  out_pdline_time (timestamp(6)) -- 出线时间
-  panel_no (varchar(40)) -- 连扳号
-  inner_box_no (varchar(40)) -- 内袋号
-  box_no (varchar(40)) -- 彩盒号
-  carton_no (varchar(40)) -- 外箱号
-  pallet_no (varchar(40)) -- 栈板号
-  container_no (varchar(40)) -- 集装箱
-  qc_no (varchar(40)) -- QC批号
-  qc_result (int4) -- QC结果检验结果(-1,未检;0,OK;1,NG)
-  route_end (varchar(1)) -- 流程结束标志
-  remark (varchar(200)) -- 操作备注
-  panel_seq (int4) -- 连板序号
-  lot_no (varchar(40)) -- 批次号
-  carrier_no (varchar(40)) -- 载具号
-  advance_plan_no (varchar(40)) -- 前置计划号(Bin使用)
-  rework_no (varchar(40)) -- 重工单号
-  hold_flag (int4) -- 是否锁定（0,不锁定;1,锁定）
+  id (varchar(40))
+  sn (varchar(200))
+  csn (varchar(200))
+  work_order (varchar(40))
+  part_no (varchar(200))
+  old_sn (varchar(40))
+  pdline_code (varchar(40))
+  terminal_name (varchar(40))
+  stage_code (varchar(40))
+  node_id (varchar(40))
+  process_name (varchar(40))
+  current_phase (int4)
+  current_status (int4)
+  current_qty (int4)
+  in_pdline_time (timestamp(6))
+  out_pdline_time (timestamp(6))
+  panel_no (varchar(40))
+  inner_box_no (varchar(40))
+  box_no (varchar(40))
+  carton_no (varchar(40))
+  pallet_no (varchar(40))
+  container_no (varchar(40))
+  qc_no (varchar(40))
+  qc_result (int4)
+  route_end (varchar(1))
+  remark (varchar(200))
+  panel_seq (int4)
+  lot_no (varchar(40))
+  carrier_no (varchar(40))
+  advance_plan_no (varchar(40))
+  create_user_id (varchar(40))
+  create_time (timestamp(6))
+  update_user_id (varchar(40))
+  update_time (timestamp(6))
+  rework_no (varchar(40))
+  hold_flag (int4)
 关联关系：
   JOIN t_basic_user ON t_pd_sn_travel.create_user_id = t_basic_user.id  -- SN履历→创建人
-  JOIN t_basic_user ON t_pd_sn_travel.update_user_id = t_basic_user.id  -- SN履历→更新人
-适用场景：SN过站查询、SN追溯
+适用场景：pdsn数据查询
 ---
 表名：t_pd_wo
 模块：生产执行
-业务含义：工单
+业务含义：工单主表，记录生产工单的核心信息（料号、数量、状态、计划时间、产线等），是生产执行的核心驱动表
 关键字段：
-  id (varchar(40)) -- 主键ID
-  work_order (varchar(40)) -- 工单号(订单号)
-  wo_type (varchar) -- 工单类型(0,正常;1,重工;2,委外;3,研发)
-  wo_side (varchar) -- 工单面别(0,正面;1,反面;2,整体)
-  priority_level (int4) -- 工单优先级(0,正常;1,紧急;2,延后)
-  material_prepare_status (int4) -- 备料状态(0,初始状态;1,首套备料中;2,备料中(低位预警发料);3,备料完成)
-  part_id (varchar(40)) -- 料号
-  stage_code (varchar(40)) -- 区段
-  plan_detail_id (varchar(40)) -- 分段计划
-  pdline_code (varchar(40)) -- 产线CODE
-  part_route_id (varchar(2000)) -- 工艺流程
-  encode_group_id (varchar(40)) -- 编码规则集合
-  label_group_id (varchar(40)) -- 标签集合
-  pack_rule_id (varchar(40)) -- 包装规则ID
-  target_qty (int4) -- 目标量
-  release_qty (int4) -- 展开数量
-  input_qty (int4) -- 投入数量
-  scrap_qty (int4) -- 报废数量
-  output_qty (int4) -- 产出数量
-  schedule_start_date (timestamp(6)) -- 预计开始时间
-  schedule_end_date (timestamp(6)) -- 预计结束时间
-  start_date (timestamp(6)) -- 开始时间
-  end_date (timestamp(6)) -- 结束时间
-  wo_status (int4) -- 当前状态(-1,初始(ERP转入);0,排队(Queue);1,投入(WIP);2,暂停(HOLD);3,取消(Cancel);4,清尾(Clear);5,完成(Complete))
-  remark (varchar(2000)) -- 备注
-  wo_from (varchar) -- 工单来源(0,手动建立;1,ERP转入)
-  bom_version (varchar(40)) -- BOM版本
-  panel_qty (int4) -- 连扳数
-  wo_group (varchar(40)) -- 工单组
-  inventory_type (int4) -- 库存种类(0,共享;1,客户专用;2,产品专用;3,工单专用)
-  customer_code (varchar(40)) -- 客户代码
-  pre_wo (varchar(40)) -- 上阶工单
-  split_qty (int4) -- 分批发料数量
+  id (varchar(40))
+  work_order (varchar(40))
+  wo_type (varchar)
+  wo_side (varchar)
+  priority_level (int4)
+  material_prepare_status (int4)
+  part_id (varchar(40))
+  stage_code (varchar(40))
+  plan_detail_id (varchar(40))
+  pdline_code (varchar(40))
+  part_route_id (varchar(2000))
+  encode_group_id (varchar(40))
+  label_group_id (varchar(40))
+  pack_rule_id (varchar(40))
+  target_qty (int4)
+  release_qty (int4)
+  input_qty (int4)
+  scrap_qty (int4)
+  output_qty (int4)
+  schedule_start_date (timestamp(6))
+  schedule_end_date (timestamp(6))
+  start_date (timestamp(6))
+  end_date (timestamp(6))
+  wo_status (int4)
+  remark (varchar(2000))
+  wo_from (varchar)
+  bom_version (varchar(40))
+  panel_qty (int4)
+  wo_group (varchar(40))
+  inventory_type (int4)
+  customer_code (varchar(40))
+  pre_wo (varchar(40))
+  split_qty (int4)
+  create_user_id (varchar(40))
+  create_time (timestamp(6))
+  update_user_id (varchar(40))
+  update_time (timestamp(6))
+  paint_json (text)
 关联关系：
   JOIN t_bd_part ON t_pd_wo.part_id = t_bd_part.id  -- 工单→料号
-  JOIN t_pd_wo_bom ON t_pd_wo.work_order = t_pd_wo_bom.work_order  -- 工单←工单BOM(反向)
-  JOIN t_ht_pd_wo_issue_material ON t_pd_wo.work_order = t_ht_pd_wo_issue_material.work_order  -- 工单←历史备料(反向)
-  JOIN t_pd_wo_issue_material ON t_pd_wo.work_order = t_pd_wo_issue_material.work_order  -- 工单←发料(反向)
-  JOIN t_wms_wo_rb ON t_pd_wo.work_order = t_wms_wo_rb.work_order  -- 工单←退料单(反向)
-  JOIN t_wms_wo_material_bill ON t_pd_wo.work_order = t_wms_wo_material_bill.work_order  -- 工单←领料单(反向)
-适用场景：工单查询
+  JOIN t_pd_wo_bom ON t_pd_wo.work_order = t_pd_wo_bom.work_order  -- 工单BOM→工单(反向)
+  JOIN t_ht_pd_wo_issue_material ON t_pd_wo.work_order = t_ht_pd_wo_issue_material.work_order  -- 历史备料→工单(反向)
+  JOIN t_pd_wo_issue_material ON t_pd_wo.work_order = t_pd_wo_issue_material.work_order  -- 发料→工单(反向)
+  JOIN t_wms_wo_material_bill ON t_pd_wo.work_order = t_wms_wo_material_bill.work_order  -- 领料单→工单(反向)
+  JOIN t_wms_wo_rb ON t_pd_wo.work_order = t_wms_wo_rb.work_order  -- 退料单→工单(反向)
+适用场景：pdwo数据查询
 ---
 表名：t_pd_wo_bom
 模块：生产执行
-业务含义：工单bom表
+业务含义：工单BOM表，记录每个工单实际使用的组件物料清单，包括物料需求数量和实际消耗
 关键字段：
-  id (varchar(40)) -- 主键ID
-  work_order (varchar(40)) -- 工单
-  part_id (varchar(40)) -- 主料料号
-  item_part_id (varchar(40)) -- 子料
-  item_qty (numeric(16, 10)) -- 单位用量
-  points (varchar(200)) -- 点位
-  unit_code (varchar(40)) -- 单位
-  attrition_rate (numeric(16, 10)) -- 损耗率
-  fentryid (varchar(200)) -- 用料清单行id
-  fid (varchar(200)) -- 用料清单表头id
+  id (varchar(40))
+  work_order (varchar(40))
+  part_id (varchar(40))
+  item_part_id (varchar(40))
+  item_qty (numeric(16)
+  points (varchar(200))
+  unit_code (varchar(40))
+  attrition_rate (numeric(16)
+  fentryid (varchar(200))
+  fid (varchar(200))
+  create_user_id (varchar(40))
+  create_time (timestamp(6))
+  update_user_id (varchar(40))
+  update_time (timestamp(6))
 关联关系：
   JOIN t_bd_part ON t_pd_wo_bom.item_part_id = t_bd_part.id  -- 工单BOM→料号
   JOIN t_pd_wo ON t_pd_wo_bom.work_order = t_pd_wo.work_order  -- 工单BOM→工单
   JOIN t_wms_stock ON t_pd_wo_bom.item_part_id = t_wms_stock.part_id  -- 工单BOM→库存
-适用场景：工单BOM查询
+适用场景：pdwo数据查询
 ---
 表名：t_pd_wo_issue_material
 模块：生产执行
-业务含义：工单发料表
+业务含义：工单发料表，记录工单发料的物料信息（物料编号、UPN、数量、状态等），跟踪备料到产线的物料流转
 关键字段：
-  id (varchar(40)) -- 主键ID
-  doc_no (varchar(40)) -- 发料单据
-  upn (varchar(40)) -- 物料编号
-  current_status (int4) -- 物料当前状态(0,备料;1,产线接收;2,绑定载具;3,上线;4,下线;5,用必;6,待退;7,仓库待接收;8,已退;9,续料;)
-  from_warehouse_code (varchar(40)) -- 发料仓库
-  work_order (varchar(40)) -- 工单
-  pdline_code (varchar(40)) -- 产线
-  total_qty (numeric(32, 10)) -- 总量
-  current_qty (numeric(32, 10)) -- 当前量
-  machine_code (varchar(40)) -- 绑定编号(设备编号或工作站名称)
-  table_no (varchar(40)) -- 区域
-  slot_no (varchar(40)) -- 料站
-  track_no (varchar(40)) -- 通道
-  feeder_no (varchar(40)) -- 飞达(载具)编号
-  shelf_no (varchar(40)) -- 移动货架编号
-  eshelf_type (varchar(1)) -- 移动电子货架标志
-  location_no (varchar(40)) -- 移动货架储位号
-  location_addr (int4) -- 移动货架储位地址
-  location_id (varchar(40)) -- 移动货架储位ID
-  lcr_flag (varchar(40)) -- LRC测试标志(NG,没通过;PASS,通过;NA,没测试)
-  old_wo (varchar(40)) -- 原工单(转产前、退料前、借料前)
-  remark (varchar(2000)) -- 备注
-  customer_code (varchar(40)) -- 客户代码
-  rd_flag (varchar(1)) -- 研发物料
-  date_code (varchar(40)) -- 日期码
-  lot_no (varchar(40)) -- 批号
-  ma_code (varchar(40)) -- 制造商代码
-  part_name (varchar(200)) -- 品名
-  part_spec (varchar(2000)) -- 规格
-  origin_place (varchar(40)) -- 原产地
-  vendor_barcode (varchar(200)) -- 供应商条码
-  msl_no (varchar(40)) -- 料站表号
-  tray_flag (varchar(1)) -- 是否Tray盘
-  supplier_code (varchar(40)) -- 供应商代码
-  item_part_no (varchar(200)) -- 料号
+  id (varchar(40))
+  doc_no (varchar(40))
+  upn (varchar(40))
+  current_status (int4)
+  from_warehouse_code (varchar(40))
+  work_order (varchar(40))
+  pdline_code (varchar(40))
+  total_qty (numeric(32)
+  current_qty (numeric(32)
+  machine_code (varchar(40))
+  table_no (varchar(40))
+  slot_no (varchar(40))
+  track_no (varchar(40))
+  feeder_no (varchar(40))
+  shelf_no (varchar(40))
+  eshelf_type (varchar(1))
+  location_no (varchar(40))
+  location_addr (int4)
+  location_id (varchar(40))
+  lcr_flag (varchar(40))
+  old_wo (varchar(40))
+  remark (varchar(2000))
+  customer_code (varchar(40))
+  rd_flag (varchar(1))
+  date_code (varchar(40))
+  lot_no (varchar(40))
+  ma_code (varchar(40))
+  part_name (varchar(200))
+  part_spec (varchar(2000))
+  origin_place (varchar(40))
+  vendor_barcode (varchar(200))
+  msl_no (varchar(40))
+  tray_flag (varchar(1))
+  create_user_id (varchar(40))
+  create_time (timestamp(6))
+  update_user_id (varchar(40))
+  update_time (timestamp(6))
+  supplier_code (varchar(40))
+  item_part_no (varchar(200))
 关联关系：
   JOIN t_pd_wo ON t_pd_wo_issue_material.work_order = t_pd_wo.work_order  -- 发料→工单
   JOIN t_basic_user ON t_pd_wo_issue_material.create_user_id = t_basic_user.id  -- 发料→创建人
-  JOIN t_basic_user ON t_pd_wo_issue_material.update_user_id = t_basic_user.id  -- 发料→更新人
-适用场景：发料信息查询
+适用场景：pdwo数据查询
 ---
 表名：t_pd_wo_load_material
 模块：生产执行
-业务含义：工单上料表
+业务含义：工单上料表，记录产线料站的实际上料信息（设备、料站、物料、上料时间、轨道消耗统计等），用于产线物料管理和上料追溯
 关键字段：
-  id (varchar(40)) -- 主键ID
-  work_order (varchar(40)) -- 工单
-  machine_code (varchar(40)) -- 设备号
-  table_no (varchar(40)) -- 区域
-  track_no (varchar(40)) -- 通道
-  item_part_no (varchar(40)) -- 子件料号
-  upn (varchar(40)) -- 物料编号
-  total_qty (numeric(16, 10)) -- 总量
-  current_qty (numeric(16, 10)) -- 当前数量
-  pdline_id (varchar(40)) -- 产线代号
-  check_flag (varchar(1)) -- 对料标志(只有为Y才可使用)
-  item_part_no2 (varchar(40)) -- 续料的料号
-  upn2 (varchar(40)) -- 续料的UPN
-  current_qty2 (numeric(16, 10)) -- 续料的UPN数量
-  hold_flag (varchar(1)) -- 是否冻结
-  check_user_id (varchar(40)) -- 对料人员
-  check_time (timestamp(6)) -- 对料时间
-  offline_check_flag (varchar(1)) -- 离线对料标志
-  offline_check_id (varchar(40)) -- 离线对料人员
-  offline_check_time (timestamp(6)) -- 离线对料时间
-  tray_flag (varchar(1)) -- 是否托盘
-  hand_flag (varchar(1)) -- 是否手摆
-  lane1 (varchar(1)) -- 轨道1
-  use_level1 (numeric(16, 10)) -- 轨道1用量
-  position1 (varchar(2000)) -- 轨道1点位
-  total_consumption_qty1 (numeric(16, 10)) -- 轨道1总消耗：PLACED_QTY1 +TOTAL_ERROR_QTY1
-  placed_qty1 (numeric(16, 10)) -- 轨道1贴装数量
-  total_error_qty1 (numeric(16, 10)) -- 轨道1错误总数量PICK_ERROR_QTY1 +IDENT_ERROR_QTY1 +OTHER_ERROR_QTY1
-  pick_error_qty1 (numeric(16, 10)) -- 轨道1拾取错误
-  ident_error_qty1 (numeric(16, 10)) -- 轨道1影像识别错误
-  other_error_qty1 (numeric(16, 10)) -- 轨道1其他错误
-  lane2 (varchar(1)) -- 轨道2
-  use_level2 (numeric(16, 10)) -- 轨道2用量
-  position2 (varchar(2000)) -- 轨道2点位
-  total_consumption_qty2 (numeric(16, 10)) -- 轨道2总消耗：PLACED_QTY2 +TOTAL_ERROR_QTY2
-  placed_qty2 (numeric(16, 10)) -- 轨道2贴装数量
-  total_error_qty2 (numeric(16, 10)) -- 轨道2错误总数量：PICK_ERROR_QTY2 +IDENT_ERROR_QTY2 +OTHER_ERROR_QTY2
-  pick_error_qty2 (numeric(16, 10)) -- 轨道2拾取错误
-  ident_error_qty2 (numeric(16, 10)) -- 轨道2影像识别错误
-  other_error_qty2 (numeric(16, 10)) -- 轨道2其他错误
-  table_car_no (varchar(40)) -- 台车编号
-  item_change_time (timestamp(6)) -- 料盘切换时间
-  current_status (int4) -- 物料状态：0.未扫描；1.已扫描；2.扫描错误；
-  slot_no (int4) -- 站位
-  feeder_no (varchar(40)) -- 飞达编号
+  id (varchar(40))
+  work_order (varchar(40))
+  machine_code (varchar(40))
+  table_no (varchar(40))
+  track_no (varchar(40))
+  item_part_no (varchar(40))
+  upn (varchar(40))
+  total_qty (numeric(16)
+  current_qty (numeric(16)
+  pdline_id (varchar(40))
+  check_flag (varchar(1))
+  item_part_no2 (varchar(40))
+  upn2 (varchar(40))
+  current_qty2 (numeric(16)
+  hold_flag (varchar(1))
+  check_user_id (varchar(40))
+  check_time (timestamp(6))
+  offline_check_flag (varchar(1))
+  offline_check_id (varchar(40))
+  offline_check_time (timestamp(6))
+  tray_flag (varchar(1))
+  hand_flag (varchar(1))
+  lane1 (varchar(1))
+  use_level1 (numeric(16)
+  position1 (varchar(2000))
+  total_consumption_qty1 (numeric(16)
+  placed_qty1 (numeric(16)
+  total_error_qty1 (numeric(16)
+  pick_error_qty1 (numeric(16)
+  ident_error_qty1 (numeric(16)
+  other_error_qty1 (numeric(16)
+  lane2 (varchar(1))
+  use_level2 (numeric(16)
+  position2 (varchar(2000))
+  total_consumption_qty2 (numeric(16)
+  placed_qty2 (numeric(16)
+  total_error_qty2 (numeric(16)
+  pick_error_qty2 (numeric(16)
+  ident_error_qty2 (numeric(16)
+  other_error_qty2 (numeric(16)
+  table_car_no (varchar(40))
+  item_change_time (timestamp(6))
+  current_status (int4)
+  create_user_id (varchar(40))
+  create_time (timestamp(6))
+  update_user_id (varchar(40))
+  update_time (timestamp(6))
+  slot_no (int4)
+  feeder_no (varchar(40))
 关联关系：
-  JOIN t_pd_wo_msl ON t_pd_wo_load_material.work_order = t_pd_wo_msl.work_order  -- 上料←工单MSL(反向)
-适用场景：工单在线料况查询
+  JOIN t_pd_wo_msl ON t_pd_wo_load_material.work_order = t_pd_wo_msl.work_order  -- 工单MSL→上料(含多字段关联)(反向)
+适用场景：pdwo数据查询
 ---
 表名：t_pd_wo_msl
 模块：生产执行
-业务含义：工单料站用料需求表
+业务含义：工单料站用料需求表(Material Station List)，定义工单在各产线的料站物料需求，是产线上料指导的核心数据
 关键字段：
-  id (varchar(40)) -- 主键ID
-  msl_no (varchar(40)) -- 料站表号
-  msl_version (varchar(40)) -- 版本
-  pcb_side (int4) -- (0,Top;1,Bottom;2,All)
-  current_status (int4) -- 当前状态(0,建立;1.开始备料;2,备料完成)
-  work_order (varchar(40)) -- 工单
-  part_no (varchar(40)) -- 产品料号
-  pdline_code (varchar(40)) -- 产线
+  id (varchar(40))
+  msl_no (varchar(40))
+  msl_version (varchar(40))
+  pcb_side (int4)
+  current_status (int4)
+  work_order (varchar(40))
+  part_no (varchar(40))
+  pdline_code (varchar(40))
+  create_user_id (varchar(40))
+  create_time (timestamp(6))
+  update_user_id (varchar(40))
+  update_time (timestamp(6))
 关联关系：
   JOIN t_bd_pdline ON t_pd_wo_msl.pdline_code = t_bd_pdline.pdline_code  -- 工单MSL→产线
   JOIN t_pd_wo_msl_detail ON t_pd_wo_msl.id = t_pd_wo_msl_detail.msl_id  -- 工单MSL→MSL明细
-  JOIN t_pd_wo_load_material ON t_pd_wo_msl.work_order = t_pd_wo_load_material.work_order  -- 工单MSL→上料(含多字段关联: pdline_code, machine_code, table_no, slot_no, track_no)
-适用场景：工单在线料况查询
+  JOIN t_pd_wo_load_material ON t_pd_wo_msl.work_order = t_pd_wo_load_material.work_order  -- 工单MSL→上料(含多字段关联)
+适用场景：pdwo数据查询
 ---
 表名：t_pd_wo_msl_detail
 模块：生产执行
-业务含义：工单料站表细项
+业务含义：工单料站用料明细表，记录MSL中每个料站的具体物料清单、轨道点位和需求数量
 关键字段：
-  id (varchar(40)) -- 主键ID
-  msl_id (varchar(40)) -- 工单料站表ID
-  item_seq (int4) -- 站位序号
-  machine_code (varchar(40)) -- 设备号
-  table_no (varchar(40)) -- 区域号
-  slot_no (int4) -- 站位
-  track_no (varchar(40)) -- 通道
-  upn (varchar(40)) -- 物料编号
-  qty (int4) -- 数量
-  feeder_no (varchar(40)) -- 飞达编号
-  item_part_no (varchar(40)) -- 料号
-  feeder_type (varchar(40)) -- 飞达类型
-  current_status (int4) -- 当前状态(0,未扫;1,已扫;)
-  tray_flag (varchar(1)) -- 是否TRAY盘
-  hand_flag (varchar(1)) -- 手摆料标志
-  lane1_pcb_side (int4) -- 轨道1面别(0,T正面;1,B反面;2,W整体)
-  lane1_item_qty (int4) -- 轨道1需求量
-  lane1_points (varchar(2000)) -- 轨道1点位
-  lane2_pcb_side (int4) -- 轨道2面别(0,T正面;1,B反面;2,W整体)
-  lane2_item_qty (int4) -- 轨道2需求量
-  lane2_points (varchar(2000)) -- 轨道2点位
-关联关系：
-  JOIN t_pd_wo_msl ON t_pd_wo_msl_detail.msl_id = t_pd_wo_msl.id  -- MSL明细←工单MSL(反向)
-适用场景：工单在线料况查询
+  id (character varying)
+  msl_id (character varying) -- 工单料站表ID
+  item_seq (integer) -- 站位序号
+  machine_code (character varying) -- 设备号
+  table_no (character varying) -- 区域号
+  slot_no (integer) -- 站位
+  track_no (character varying) -- 通道
+  upn (character varying) -- 物料编号
+  qty (integer) -- 数量
+  feeder_no (character varying) -- 飞达编号
+  item_part_no (character varying) -- 料号
+  feeder_type (character varying) -- 飞达类型
+  current_status (integer) -- 当前状态(0,未扫;1,已扫;)
+  tray_flag (character varying) -- 是否TRAY盘
+  hand_flag (character varying) -- 手摆料标志
+  lane1_pcb_side (integer) -- 轨道1面别(0,T正面;1,B反面;2,W整体)
+  lane1_item_qty (integer) -- 轨道1需求量
+  lane1_points (character varying) -- 轨道1点位
+  lane2_pcb_side (integer) -- 轨道2面别(0,T正面;1,B反面;2,W整体)
+  lane2_item_qty (integer) -- 轨道2需求量
+  lane2_points (character varying) -- 轨道2点位
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+适用场景：
+pdwo明细数据查询
 ---
 表名：t_qm_inspect_info
 模块：质量管理
-业务含义：检验单信息
+业务含义：检验单主表，记录质量检验单据的基本信息（检验类型、抽样方案、判定结果、送检人/检验人/审核人等）
 关键字段：
-  id (varchar(40)) -- 主键ID
-  doc_no (varchar(40)) -- 检验单号
-  test_step (varchar(2)) -- 检验阶别
-  is_urgent (varchar(1)) -- 是否加急
-  plan_id (varchar(40)) -- 抽样方案ID
-  send_dept (varchar(40)) -- 送检部门
-  cust_code (varchar(40)) -- 客户编码
-  supplier_code (varchar(40)) -- 供应商编码
-  re_group_code (varchar(40)) -- 抽检工序
-  status (varchar(1)) -- 单据状态
-  send_qty (int4) -- 送检数量
-  plan_qty (int4) -- 应抽数量
-  real_qty (int4) -- 实抽数量
-  error_qty (int4) -- 不良数量
-  pressure (numeric(16, 10)) -- 大气压 kPa
-  temperature (numeric(16, 10)) -- 温度℃
-  humidity (numeric(16, 10)) -- 湿度%RH
-  test_result (int4) -- 检验结果
-  test_start_time (timestamp(6)) -- 检验开始时间
-  test_end_time (timestamp(6)) -- 检验完成时间
-  send_user (varchar(40)) -- 送检完成人
-  send_end_time (timestamp(6)) -- 送检完成时间
-  config_id (varchar(40)) -- 检验规则
-  review_result (varchar(1)) -- 评审结果
-  doc_source (varchar(40)) -- 单据来源
-  connect_doc (varchar(200)) -- 关联单号
-  audit_user (varchar(40)) -- 审核人
-  audit_time (timestamp(6)) -- 审核时间
-  cancel_user (varchar(40)) -- 撤销人
-  cancel_time (timestamp(6)) -- 撤销时间
-  file_name (varchar(200)) -- 附件名称
-  file_path (varchar(200)) -- 附件路径
-  file_display_name (varchar(200)) -- 附件显示名称
-  remark (varchar(2000)) -- 备注
-  doc_type (varchar(40)) -- 单据类型
-  area_sn (varchar(200)) -- 区域
-  type_setting_id (varchar(40)) -- 设置主表ID
-  test_user (varchar(40)) -- 检验人
-  is_review (varchar(1)) -- 是否生成评审单
-  doc_item_seq (int4) -- 单据行号
-  is_sync_scm (varchar(1)) -- 退料回传SCM
-  is_sift (varchar(1)) -- 是否筛选
-  is_extended (int4) -- 是否延保
-  is_sync_srm (varchar(1)) -- 上传SRM标识
-  sampling_level (varchar(40)) -- 抽样等级
-  part_id (varchar(40)) -- 料号id
-关联关系：
-  JOIN t_qm_inspect_item_info ON t_qm_inspect_info.doc_no = t_qm_inspect_item_info.doc_no  -- 检验单→检验项目
-  JOIN t_bd_part ON t_qm_inspect_info.part_id = t_bd_part.id  -- 检验单→料号
-  JOIN t_qm_sample_config ON t_qm_inspect_info.config_id = t_qm_sample_config.id  -- 检验单→抽样配置
-  JOIN t_qm_sample_type_setting ON t_qm_inspect_info.type_setting_id = t_qm_sample_type_setting.id  -- 检验单→抽样类型设置
-  JOIN t_basic_user ON t_qm_inspect_info.create_user_id = t_basic_user.id  -- 检验单→创建人
-  JOIN t_basic_user ON t_qm_inspect_info.update_user_id = t_basic_user.id  -- 检验单→更新人
-  JOIN t_bd_customer ON t_qm_inspect_info.cust_code = t_bd_customer.id  -- 检验单→客户
-  JOIN t_bd_supplier ON t_qm_inspect_info.supplier_code = t_bd_supplier.id  -- 检验单→供应商
-  JOIN t_basic_user ON t_qm_inspect_info.send_user = t_basic_user.id  -- 检验单→送检人
-  JOIN t_basic_user ON t_qm_inspect_info.test_user = t_basic_user.id  -- 检验单→检验人
-  JOIN t_basic_user ON t_qm_inspect_info.audit_user = t_basic_user.id  -- 检验单→审核人
-  JOIN t_qm_inspect_parent_info ON t_qm_inspect_info.doc_no = t_qm_inspect_parent_info.doc_no  -- 检验单→检验父单
-适用场景：检验单查询
+  id (character varying)
+  doc_no (character varying) -- 检验单号
+  test_step (character varying) -- 检验阶别
+  is_urgent (character varying) -- 是否加急
+  plan_id (character varying) -- 抽样方案ID
+  send_dept (character varying) -- 送检部门
+  cust_code (character varying) -- 客户编码
+  supplier_code (character varying) -- 供应商编码
+  re_group_code (character varying) -- 抽检工序
+  status (character varying) -- 单据状态
+  send_qty (integer) -- 送检数量
+  plan_qty (integer) -- 应抽数量
+  real_qty (integer) -- 实抽数量
+  error_qty (integer) -- 不良数量
+  pressure (numeric) -- 大气压 kPa
+  temperature (numeric) -- 温度℃
+  humidity (numeric) -- 湿度%RH
+  test_result (integer) -- 检验结果
+  test_start_time (timestamp without time zone) -- 检验开始时间
+  test_end_time (timestamp without time zone) -- 检验完成时间
+  send_user (character varying) -- 送检完成人
+  send_end_time (timestamp without time zone) -- 送检完成时间
+  config_id (character varying) -- 检验规则
+  review_result (character varying) -- 评审结果
+  doc_source (character varying) -- 单据来源
+  connect_doc (character varying) -- 关联单号
+  audit_user (character varying) -- 审核人
+  audit_time (timestamp without time zone) -- 审核时间
+  cancel_user (character varying) -- 撤销人
+  cancel_time (timestamp without time zone) -- 撤销时间
+  file_name (character varying) -- 附件名称
+  file_path (character varying) -- 附件路径
+  file_display_name (character varying) -- 附件显示名称
+  remark (character varying) -- 备注
+  doc_type (character varying) -- 单据类型
+  area_sn (character varying) -- 区域
+  type_setting_id (character varying) -- 设置主表ID
+  test_user (character varying) -- 检验人
+  is_review (character varying) -- 是否生成评审单
+  doc_item_seq (integer) -- 单据行号
+  is_sync_scm (character varying) -- 退料回传SCM
+  is_sift (character varying) -- 是否筛选
+  is_extended (integer) -- 是否延保
+  is_sync_srm (character varying) -- 上传SRM标识
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  sampling_level (character varying) -- 抽样等级
+  part_id (character varying) -- 料号id
+适用场景：
+qminspecinfo信息查询
 ---
 表名：t_qm_inspect_item_info
 模块：质量管理
-业务含义：检验项目结果信息
+业务含义：检验项目结果表，记录检验单中各检验项目的具体检测结果、检验值和不良代码
 关键字段：
-  id (varchar(40)) -- 主键ID
-  test_content (varchar(200)) -- 检验内容
-  test_result (varchar(200)) -- 检验结果
-  test_value (varchar(200)) -- 测试值
-  error_code (varchar(40)) -- 不良代码
-  remark (varchar(200)) -- 备注
-  doc_no (varchar(40)) -- 检验单号
-  item_sn (varchar(40)) -- 物料SN
-  item_sub_sn (varchar(40)) -- 样本子集SN
-  test_user (varchar(40)) -- 检验人
-  test_time (timestamp(6)) -- 检验时间
-  test_item_sn (varchar(40)) -- 检验项目代码
-  test_item_name (varchar(40)) -- 检验项目名称
-  test_item_type (varchar(40)) -- 检验项目类型
-  max_value (varchar(40)) -- 上限值固定值
-  min_value (numeric(16, 10)) -- 下限值
-  test_unit (varchar(40)) -- 单位
-  test_device (varchar(200)) -- 检验设备
-  test_order (int4) -- 检验顺序
-  test_way (varchar(40)) -- 检验方法
-  error_qty (int4) -- 不良数量
-  test_range (int4) -- 值域
-关联关系：
-  JOIN t_qm_inspect_info ON t_qm_inspect_item_info.doc_no = t_qm_inspect_info.doc_no  -- 检验项目←检验单(反向)
-适用场景：检验项目查询
+  id (character varying)
+  test_content (character varying) -- 检验内容
+  test_result (character varying) -- 检验结果
+  test_value (character varying) -- 测试值
+  error_code (character varying) -- 不良代码
+  remark (character varying) -- 备注
+  doc_no (character varying) -- 检验单号
+  item_sn (character varying) -- 物料SN
+  item_sub_sn (character varying) -- 样本子集SN
+  test_user (character varying) -- 检验人
+  test_time (timestamp without time zone) -- 检验时间
+  test_item_sn (character varying) -- 检验项目代码
+  test_item_name (character varying) -- 检验项目名称
+  test_item_type (character varying) -- 检验项目类型
+  max_value (character varying) -- 上限值固定值
+  min_value (numeric) -- 下限值
+  test_unit (character varying) -- 单位
+  test_device (character varying) -- 检验设备
+  test_order (integer) -- 检验顺序
+  test_way (character varying) -- 检验方法
+  error_qty (integer) -- 不良数量
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  test_range (integer) -- 值域
+适用场景：
+qminspecitem信息查询
 ---
 表名：t_qm_inspect_parent_info
 模块：质量管理
-业务含义：检验母本信息
+业务含义：检验母本/批次信息表，记录检验批次的母本信息（批次号、母本数量、抽样/还样记录等），用于批次质量追溯
 关键字段：
-  id (varchar(40)) -- 主键ID
-  loss_qty (int4) -- 损耗数量
-  test_user_id (varchar(40)) -- 检验人
-  test_time (timestamp(6)) -- 检验时间
-  handle (varchar(1)) -- 处理方式1接收⒉退料
-  sampling_qty (int4) -- 抽样数量
-  sampling_flag (varchar(1)) -- 抽样标识Y/N
-  sampling_user_id (varchar(40)) -- 抽样人
-  sampling_time (timestamp(6)) -- 抽样时间
-  return_user_id (varchar(40)) -- 还样人
-  return_ho_user_id (varchar(40)) -- 还样交接人
-  return_time (timestamp(6)) -- 还样时间
-  test_qty (int4) -- 检验数量
-  remark (varchar(200)) -- 备注
-  doc_no (varchar(40)) -- 检验单号
-  upn (varchar(40)) -- 物料SN
-  test_result (int4) -- 检验结果
-  item_qty (int4) -- 物料数量
-  error_qty (int4) -- 不良数量
-  sampling_ho_user_id (varchar(40)) -- 抽样交接人
-  pass_qty (int4) -- 合格数量
-关联关系：
-  JOIN t_qm_inspect_info ON t_qm_inspect_parent_info.doc_no = t_qm_inspect_info.doc_no  -- 检验父单←检验单(反向)
-适用场景：检验父单查询
+  id (character varying)
+  loss_qty (integer) -- 损耗数量
+  test_user_id (character varying) -- 检验人
+  test_time (timestamp without time zone) -- 检验时间
+  handle (character varying) -- 处理方式1接收⒉退料
+  sampling_qty (integer) -- 抽样数量
+  sampling_flag (character varying) -- 抽样标识Y/N
+  sampling_user_id (character varying) -- 抽样人
+  sampling_time (timestamp without time zone) -- 抽样时间
+  return_user_id (character varying) -- 还样人
+  return_ho_user_id (character varying) -- 还样交接人
+  return_time (timestamp without time zone) -- 还样时间
+  test_qty (integer) -- 检验数量
+  remark (character varying) -- 备注
+  doc_no (character varying) -- 检验单号
+  upn (character varying) -- 物料SN
+  test_result (integer) -- 检验结果
+  item_qty (integer) -- 物料数量
+  error_qty (integer) -- 不良数量
+  sampling_ho_user_id (character varying) -- 抽样交接人
+  pass_qty (integer) -- 合格数量
+适用场景：
+qminspecpareninfo信息查询
 ---
 表名：t_qm_sample_config
 模块：质量管理
-业务含义：检验规则配置表
+业务含义：检验规则/抽样方案配置表，定义AQL抽样检验方案（检验水平、样本量、接收/拒收标准、等级转换等）
 关键字段：
-  id (varchar(40)) -- 主键ID
-  config_name (varchar(200)) -- 规则名称
-  normal_relax (int4) -- 正常-放宽
-  relax_normal (int4) -- 放宽-正常
-  strict_err_qty (int4) -- 加严不合格批正常-加严
-  strict_lot_qty (int4) -- 加严计算批次正常-加严
-  judge_mode (varchar(1)) -- 判定方式
-  mrb_gen_type (varchar(1)) -- MRB评审单生成方式
-  pricess_mode (varchar(1)) -- 不良品处理方式
-  init_level (varchar(1)) -- 初始等级
-  is_auto_audit (varchar(1)) -- 自动审核Y/N
-  is_level_change (varchar(1)) -- 等级转换Y/N
-  strict_normal (int4) -- 加严-正常
-  test_step (varchar(2)) -- 检验阶别
-关联关系：
-  JOIN t_qm_inspect_info ON t_qm_sample_config.id = t_qm_inspect_info.config_id  -- 抽样配置←检验单(反向)
-适用场景：抽样配置查询
+  id (character varying)
+  config_name (character varying) -- 规则名称
+  normal_relax (integer) -- 正常-放宽
+  relax_normal (integer) -- 放宽-正常
+  strict_err_qty (integer) -- 加严不合格批正常-加严
+  strict_lot_qty (integer) -- 加严计算批次正常-加严
+  judge_mode (character varying) -- 判定方式
+  mrb_gen_type (character varying) -- MRB评审单生成方式
+  pricess_mode (character varying) -- 不良品处理方式
+  init_level (character varying) -- 初始等级
+  is_auto_audit (character varying) -- 自动审核Y/N
+  is_level_change (character varying) -- 等级转换Y/N
+  strict_normal (integer) -- 加严-正常
+  test_step (character varying) -- 检验阶别
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+适用场景：
+qmsample数据查询
 ---
 表名：t_qm_sample_type_setting
 模块：质量管理
-业务含义：检验项目类型设置表-与料号等关联
+业务含义：检验项目类型设置表，定义检验项目类型与料号/客户/供应商/物料分组的关联配置，控制检验执行范围
 关键字段：
-  id (varchar(40)) -- 主键ID
-  setting_name (varchar(40)) -- 设置名称
-  setting_type (int4) -- 设置类型（物料、物料分组、供应商物料、供应商分组、产品、产品客户）数据字典：LC-04-0010
-  test_step (varchar(2)) -- 检验阶别（IQC.FQC.FAI.OQC）数据字典：LC-04-0003
-  part_id (varchar(40)) -- 物料料号
-  part_group (varchar(40)) -- 物料分组
-  is_default (varchar(1)) -- 是否默认
-  customer_id (varchar(40)) -- 客户
-  supplier_id (varchar(40)) -- 供应商
-关联关系：
-  JOIN t_qm_inspect_info ON t_qm_sample_type_setting.id = t_qm_inspect_info.type_setting_id  -- 抽样类型设置←检验单(反向)
-适用场景：抽样类型设置查询
----
-表名：t_tool_maintenance_info
-模块：工装管理
-业务含义：工装治具维保信息表
-关键字段：
-  id (varchar(40)) -- 主键ID
-  repair_result (varchar(40)) -- 维修结果
-  sure_result (varchar(40)) -- 确认结果
-  is_repair (varchar(40)) -- 是否维修（Y：是，N:否）
-  tool_model (varchar(40)) -- 治具型号
-  tool_no (varchar(40)) -- 治具编号
-  report_user (varchar(40)) -- 报修人
-  report_reason (varchar(200)) -- 报修原因
-  report_time (timestamp(6)) -- 报修时间
-  repair_user (varchar(40)) -- 维修人
-  repair_time (timestamp(6)) -- 维修时间
-  defect_code (varchar(40)) -- 不良代码
-  repair_method (varchar(200)) -- 维修方法
-  defect_resaon (varchar(200)) -- 故障原因
-  file_info (varchar(200)) -- 相关文件
-  image_info (varchar(200)) -- 相关图片
-  remark (varchar(200)) -- 备注
-  check_user (varchar(40)) -- 确认人
-关联关系：
-  JOIN t_basic_user ON t_tool_maintenance_info.report_user = t_basic_user.id  -- 治具维修→报修人
-  JOIN t_basic_user ON t_tool_maintenance_info.repair_user = t_basic_user.id  -- 治具维修→维修人
-  JOIN t_bd_file ON t_tool_maintenance_info.id = t_bd_file.service_id  -- 治具维修→文件
-适用场景：治具维修查询
----
-表名：t_tool_model
-模块：工装管理
-业务含义：工装治具型号
-关键字段：
-  id (varchar(40)) -- 主键ID
-  tool_model (varchar(40)) -- 治具型号
-  max_use_count (int4) -- 最大使用次数
-  max_use_cycle (int4) -- 使用周期上限(天)
-  maintain_count (int4) -- 保养次数
-  maintain_cycle (int4) -- 保养周期(天)
-  remind_count (int4) -- 保养提醒次数
-  scrap_remind_count (int4) -- 报废提醒次数
-  remind_day (int4) -- 保养提醒天数( 天)
-  scrap_remind_days (int4) -- 报废提醒提天数
-  is_in_qc (varchar(1)) -- 入库检验管控 Y/N
-  tool_name (varchar(40)) -- 治具名称
-  tool_spec (varchar(40)) -- 规格
-  route_id (varchar(40)) -- 工艺编码
-  feeder_track (varchar(40)) -- Feeder通道(1:单，2：双，3：三)
-  scraper_position (varchar(40)) -- 刮刀位置（1.前刮刀、2.后刮刀）
-  group_type (int4) -- 类型分组
-  process_face (varchar(40)) -- 加工面（0：单面，1正面，2反面，3阴阳面)
-  tool_type_id (varchar(40)) -- 治具类型
-关联关系：
-  JOIN t_tool_type ON t_tool_model.tool_type_id = t_tool_type.id  -- 治具型号→类型
-  JOIN t_bd_route ON t_tool_model.route_id = t_bd_route.id  -- 治具型号→工艺路线
-  JOIN t_basic_user ON t_tool_model.create_user_id = t_basic_user.id  -- 治具型号→创建人
-  JOIN t_basic_user ON t_tool_model.update_user_id = t_basic_user.id  -- 治具型号→更新人
-  JOIN t_tool_no ON t_tool_model.id = t_tool_no.model_id  -- 治具型号←治具(反向)
-适用场景：治具型号查询
----
-表名：t_tool_no
-模块：工装管理
-业务含义：工装治具库存
-关键字段：
-  id (varchar(40)) -- 主键ID
-  model_id (varchar(40)) -- 治具型号
-  tool_no (varchar(40)) -- 治具编号
-  current_status (int4) -- 治具库存状态
-  supplier_code (varchar(40)) -- 供应商编码
-  instock_time (timestamp(6)) -- 入库时间
-  instock_emp (varchar(40)) -- 入库操作人
-  product_date (varchar(40)) -- 生产日期
-  flatness (varchar(40)) -- 平整度 μm
-  tinckness (varchar(40)) -- 厚度 μm
-  maintain_time (timestamp(6)) -- 保养时间
-  maintain_user (varchar(40)) -- 保养操作人
-  use_count (int4) -- 当前使用次数
-  total_use_count (int4) -- 累计使用次数
-  label_id (varchar(40)) -- 标签模板
-  is_in_qc (varchar(1)) -- 入库检验管控 Y/N
-  in_online_qc (varchar(1)) -- 上线前QC检验管控 Y/N
-  remark (varchar(200)) -- 备注
-  po_doc (varchar(40)) -- 采购单
-  use_empid (varchar(40)) -- 领用人
-  use_time (timestamp(6)) -- 领用时间
-  return_time (timestamp(6)) -- 归还时间
-  test_status (int4) -- 检验状态
-  location_no (varchar(40)) -- 库位
-  sd_face (varchar(40)) -- 单双面
-  is_print (varchar(1)) -- 是否打印
-  maintain_status (int4) -- 保养状态
-  repair_status (int4) -- 维修状态
-  work_order (varchar(200)) -- 工单号
-  pdline_code (varchar(40)) -- 产线代码
-  test_result (varchar(40)) -- 检验结果
-  detect_result (varchar(40)) -- 检测结果
-  test_user (varchar(40)) -- 检验人
-  test_time (timestamp(6)) -- 检验时间
-  type_group_id (varchar(40)) -- 治具类型
-  return_emp_id (varchar(40)) -- 归还人
-  node_id (varchar(40)) -- 节点id
-  process_name (varchar(40)) -- 制程名称
-  tool_status (varchar(40)) -- 治具状态(工艺路线修改使用)
-关联关系：
-  JOIN t_tool_model ON t_tool_no.model_id = t_tool_model.id  -- 治具→型号
-  JOIN t_basic_user ON t_tool_no.instock_emp = t_basic_user.id  -- 治具→入库人
-  JOIN t_basic_user ON t_tool_no.use_empid = t_basic_user.id  -- 治具→使用人
-  JOIN t_basic_user ON t_tool_no.return_emp_id = t_basic_user.id  -- 治具→退回人
-  JOIN t_basic_user ON t_tool_no.test_user = t_basic_user.id  -- 治具→测试人
-  JOIN t_tool_no_attr_travel ON t_tool_no.tool_no = t_tool_no_attr_travel.tool_no  -- 治具←治具保养(反向)
-适用场景：治具库存查询
----
-表名：t_tool_no_attr_travel
-模块：工装管理
-业务含义：工装治具编号检测履历属性值
-关键字段：
-  id (varchar(40)) -- 主键ID
-  test_name (varchar(40)) -- 属性名称
-  type_group (varchar(40)) -- 治具类型
-  min_content (numeric(16, 10)) -- 属性区间最小值
-  max_content (numeric(16, 10)) -- 属性区间最大值
-  tool_no (varchar(40)) -- 治具编号
-  pro_content (numeric(16, 10)) -- 属性值
-  feeder_track (int4) -- Feeder通道(1:单，2：双，3：三)
-  item_attribute (varchar(40)) -- 类型
-  fixed_value (varchar(40)) -- 固定值
-  attr_item_id (varchar(40)) -- 制具属性表ID
-  test_method (varchar(40)) -- 方法
-  test_content (varchar(40)) -- 内容
-  item_range (int4) -- 值域
-关联关系：
-  JOIN t_basic_user ON t_tool_no_attr_travel.create_user_id = t_basic_user.id  -- 治具保养→创建人
-  JOIN t_basic_user ON t_tool_no_attr_travel.update_user_id = t_basic_user.id  -- 治具保养→更新人
-  JOIN t_tool_no ON t_tool_no_attr_travel.tool_no = t_tool_no.tool_no  -- 治具保养→治具
-适用场景：治具保养查询
----
-表名：t_tool_type
-模块：工装管理
-业务含义：工装治具类型
-关键字段：
-  id (varchar(40)) -- 主键ID
-  type_group (int4) -- 治具类型（钢网、刮刀、飞达、工装）
-  type_name (varchar(40)) -- 类型分类名称
-  type_desc (varchar(40)) -- 类型分类描述
-  max_use_count (int4) -- 最大使用次数
-  max_use_cycle (int4) -- 使用周期上线
-  maintain_count (int4) -- 保养次数
-  maintain_cycle (int4) -- 保养周期（天）
-  remind_count (int4) -- 保养提醒次数
-  scrap_remind_count (int4) -- 报废提醒次数
-  remind_day (int4) -- 保养提醒天数(天)
-  scrap_remind_days (int4) -- 报废提醒天数
-  label_id (varchar(40)) -- 标签模板
-  rule_id (varchar(40)) -- 编码生成规则
-  is_in_qc (varchar(1)) -- 入库检验管控
-关联关系：
-  JOIN t_tool_model ON t_tool_type.id = t_tool_model.tool_type_id  -- 治具类型←治具型号(反向)
-适用场景：治具类型查询
----
-表名：t_wms_doc_upn
-模块：仓库管理
-业务含义：（无注释）
-关键字段：
-  id (varchar(40)) -- 主键ID
-  doc_id (varchar(40)) -- 细项ID
-  item_id (varchar(40)) -- 细项ID
-  upn (varchar(40)) -- 唯一码
-  part_no (varchar(40)) -- 物料编码
-  part_name (varchar(200)) -- 物料名称
-  part_spec (varchar(200)) -- 物料描述
-  qty (int4) -- 数量
-  lot_no (varchar(40)) -- 批次
-  date_code (varchar(40)) -- 生产日期
-  bin_code (varchar(40)) -- bin值代码
-  supplier_code (varchar(40)) -- 供应商代码
-  supplier_name (varchar(40)) -- 供应商名称
-  customer_code (varchar(40)) -- 客户编码
-  customer_name (varchar(40)) -- 客户名称
-  handover_flag (varchar(1)) -- 交接标识
-  warehouse_code (varchar(40)) -- 仓库代码
-  inner_box_no (varchar(100)) -- 内袋号
-  box_no (varchar(100)) -- 彩盒
-  carton_no (varchar(100)) -- 外箱
-  pallet_no (varchar(100)) -- 栈板
-  container_no (varchar(100)) -- 集装箱
-  doc_no (varchar(40)) -- 单据号
-  doc_category_code (varchar(40)) -- 单据类别
-关联关系：
-  JOIN t_bd_part ON t_wms_doc_upn.part_no = t_bd_part.part_no  -- UPN→料号
-  JOIN t_wms_wo_material_bill ON t_wms_doc_upn.doc_id = t_wms_wo_material_bill.id  -- UPN←领料单(反向)
-适用场景：工单需求UPN查询
----
-表名：t_wms_location
-模块：仓库管理
-业务含义：（无注释）
-关键字段：
-  id (varchar(40)) -- 主键ID
-  location_no (varchar(40)) -- 储位编号
-  location_desc (varchar(40)) -- 描述
-  warehouse_id (varchar(40)) -- 仓库
-  shelf_id (varchar(40)) -- 货架
-  location_addr (int4) -- 储位地址
-  location_capacity (int4) -- 储位容量(0,不管;>0,按实际数值)
-  shelf_side (varchar(1)) -- 储位所处货架的面(A,B)
-  current_status (int4) -- 当前状态(0,空闲或未装满;1,使用或已装满;)
-关联关系：
-  JOIN t_wms_warehouse ON t_wms_location.warehouse_id = t_wms_warehouse.id  -- 储位→仓库
-  JOIN t_wms_shelf ON t_wms_location.shelf_id = t_wms_shelf.id  -- 储位→货架
-  JOIN t_wms_stock ON t_wms_location.location_no = t_wms_stock.location_no  -- 储位←库存(反向)
-适用场景：储位查询
----
-表名：t_wms_shelf
-模块：仓库管理
-业务含义：（无注释）
-关键字段：
-  id (varchar(40)) -- 主键ID
-  shelf_no (varchar(40)) -- 货架编码
-  shelf_desc (varchar(40)) -- 描述
-  warehouse_id (varchar(40)) -- 仓库
-  shelf_type (int4) -- 货架类型(0,普通货架;1,电子货架;2,感应货架;3,料塔;4,改造货架)
-  ip (varchar(40)) -- IP
-  port (int4) -- Port
-  mac (varchar(40)) -- MAC地址
-  dns (varchar(40)) -- DNS
-关联关系：
-  JOIN t_wms_location ON t_wms_shelf.id = t_wms_location.shelf_id  -- 货架←储位(反向)
-适用场景：货架查询
----
-表名：t_wms_stock
-模块：仓库管理
-业务含义：物料信息表
-关键字段：
-  id (varchar(40)) -- 主键ID
-  upn (varchar(40)) -- 物料编号（最小包装号）
-  receive_qty (numeric(16, 10)) -- 接收数量（第一次入库）
-  qty (numeric(16, 10)) -- 当前数量
-  supplier_id (varchar(40)) -- 供应商代码
-  customer_id (varchar(40)) -- 客户代码
-  date_code (varchar(40)) -- 生产日期
-  lot_no (varchar(40)) -- 批次
-  work_order (varchar(40)) -- 工单
-  qc_result (int4) -- QC结果
-  current_status (int4) -- 当前状态（0,正常;1,不良;2,报废;）
-  location_no (varchar(40)) -- 储位
-  stock_status (int4) -- 库存状态(0,收料;1,在库;2,不在库;3,待交接)
-  pick_doc (varchar(40)) -- 拣料单号
-  pick_lock (varchar(1)) -- 拣料锁定 :Y-锁定；N-未锁定
-  take_stock_status (int4) -- 盘点状态(0-未盘点;1-动态盘点(可以发料,出库需要删除盘点UPN);2-静态盘点)
-  warehouse_code (varchar(40)) -- 仓库
-  check_time (timestamp(6)) -- 超期复检日期
-  limit_day (int4) -- 检验周期-有效期限(当超期复检不为空，则查询此期限)
-  inventory_type (int4) -- 库存种类
-  lcr_flag (varchar(40)) -- LRC测试标志
-  vendor_barcode (varchar) -- 供应商条码
-  expire_flag (varchar(1)) -- 超期标志
-  bin_code (varchar(40)) -- bin值代码
-  origin_lot (varchar(40)) -- 原厂批号
-  origin_date_code (varchar(40)) -- 原厂D/C 日期码
-  brand_code (varchar(40)) -- 品牌代码
-  hold_flag (varchar(1)) -- 是否锁定
-  inner_box_no (varchar(40)) -- 内袋号
-  box_no (varchar(40)) -- 彩盒号
-  carton_no (varchar(40)) -- 外箱号
-  pallet_no (varchar(40)) -- 栈板号
-  remark (varchar(200)) -- 备注
-  part_id (varchar(40)) -- 料号
-关联关系：
-  JOIN t_bd_supplier ON t_wms_stock.supplier_id = t_bd_supplier.id  -- 库存→供应商
-  JOIN t_bd_customer ON t_wms_stock.customer_id = t_bd_customer.id  -- 库存→客户
-  JOIN t_wms_warehouse ON t_wms_stock.warehouse_code = t_wms_warehouse.warehouse_code  -- 库存→仓库
-  JOIN t_wms_location ON t_wms_stock.location_no = t_wms_location.location_no  -- 库存→储位
-  JOIN t_bd_part ON t_wms_stock.part_id = t_bd_part.id  -- 库存→料号
-  JOIN t_pd_wo_bom ON t_wms_stock.part_id = t_pd_wo_bom.item_part_id  -- 库存←工单BOM(反向)
-适用场景：库存查询
----
-表名：t_wms_warehouse
-模块：仓库管理
-业务含义：仓库
-关键字段：
-  id (varchar(40)) -- 主键ID
-  order_show (int4) -- 排序显示
-  process_level (int4) -- 加工等级
-  fifo_flag (varchar(1)) -- 先进先出管控标志
-关联关系：
-  JOIN t_wms_stock ON t_wms_warehouse.warehouse_code = t_wms_stock.warehouse_code  -- 仓库←库存(反向)
-  JOIN t_wms_location ON t_wms_warehouse.id = t_wms_location.warehouse_id  -- 仓库←储位(反向)
-适用场景：仓库查询
----
-表名：t_wms_wo_material_bill
-模块：仓库管理
-业务含义：（无注释）
-关键字段：
-  id (varchar(40)) -- 主键ID
-  doc_no (varchar(40)) -- 单据号
-  work_order (varchar(40)) -- 工单
-  doc_type_id (varchar(40)) -- 单据类型
-  current_status (int4) -- 当前状态
-  merge_flag (varchar(1)) -- 是否合并
-  upload_time (timestamp(6)) -- ERP上传时间
-  fid (varchar(40)) -- ERP主表ID
-  remark (varchar(200)) -- 备注
-  doc_from (varchar(40)) -- 单据来源
-  upload_flag (varchar(1)) -- 上传ERP
-  upload_result (varchar(200)) -- 上传结果
-  upload_user_id (varchar(40)) -- 上传人员
-  prep_type (varchar(40)) -- 备料类型;数据字典[LC-01-0067]
-  req_dept_id (varchar(40)) -- 领料部门id
-  is_rush (varchar(1)) -- 加急标识
-  plan_out_time (timestamp(6)) -- 计划出库时间
-关联关系：
-  JOIN t_wms_doc_upn ON t_wms_wo_material_bill.id = t_wms_doc_upn.doc_id  -- 领料单→UPN
-  JOIN t_wms_wo_rb ON t_wms_wo_material_bill.work_order = t_wms_wo_rb.work_order  -- 领料单→退料单
-  JOIN t_wms_wo_material_bill_detail ON t_wms_wo_material_bill.id = t_wms_wo_material_bill_detail.doc_id  -- 领料单→领料明细
-  JOIN t_pd_wo ON t_wms_wo_material_bill.work_order = t_pd_wo.work_order  -- 领料单→工单
-适用场景：工单用料查询
----
-表名：t_wms_wo_material_bill_detail
-模块：仓库管理
-业务含义：（无注释）
-关键字段：
-  id (varchar(40)) -- 主键ID
-  doc_id (varchar(40)) -- 单据ID
-  item_seq (int4) -- 序号
-  part_id (varchar(40)) -- 物料编码
-  unit_id (varchar(40)) -- 单位
-  current_status (int4) -- 当前状态(0,创建;1,开始;2,完结)
-  warehouse_id (varchar(40)) -- 出仓编码
-  need_fid (varchar(40)) -- 用料清单ID
-  need_frowid (varchar(40)) -- 用料清单行ID
-  lot_no (varchar(40)) -- 批次
-  supplier_id (varchar(40)) -- 供应商
-  bin_code (varchar(40)) -- BIN值
-  upload_time (timestamp(6)) -- 上传时间
-  upload_userid (varchar(40)) -- 上传人员
-  upload_result (varchar(1)) -- 上传结果
-  total_qty (numeric(16, 10)) -- 总数
-  out_qty (numeric(16, 10)) -- 已出数量
-  handover_qty (numeric(16, 10)) -- 交接数量
-  upload_qty (numeric(16, 10)) -- 上传数量
-  work_order (varchar(40)) -- 工单
-关联关系：
-  JOIN t_wms_wo_material_bill ON t_wms_wo_material_bill_detail.doc_id = t_wms_wo_material_bill.id  -- 领料明细←领料单(反向)
-适用场景：工单用料明细查询
----
-表名：t_wms_wo_rb
-模块：仓库管理
-业务含义：生产退料单
-关键字段：
-  id (varchar(40)) -- 主键ID
-  doc_no (varchar(40)) -- 单据
-  doc_type_id (varchar(40)) -- 单据类型
-  current_status (int4) -- 当前状态(0,创建;1,开始;2,完结;3,删除)
-  upload_flag (varchar(1)) -- 上传ERP
-  upload_time (timestamp(6)) -- ERP上传时间
-  upload_user_id (varchar(40)) -- ERP上传人员
-  work_order (varchar(40)) -- 工单
-  upload_result (varchar(2000)) -- ERP返回结果
-  fid (varchar(40)) -- ERP主表ID
-  doc_from (varchar(40)) -- 单据来源
-  remark (varchar(2000)) -- 备注
-关联关系：
-  JOIN t_wms_wo_rb_detail ON t_wms_wo_rb.id = t_wms_wo_rb_detail.doc_id  -- 退料单→退料明细
-  JOIN t_pd_wo ON t_wms_wo_rb.work_order = t_pd_wo.work_order  -- 退料单→工单
-  JOIN t_wms_wo_material_bill ON t_wms_wo_rb.work_order = t_wms_wo_material_bill.work_order  -- 退料单←领料单(反向)
-适用场景：生产退料查询
----
-表名：t_wms_wo_rb_detail
-模块：仓库管理
-业务含义：生产退料单细项
-关键字段：
-  id (varchar(40)) -- 主键ID
-  doc_id (varchar(40)) -- 单据ID
-  item_seq (int4) -- 项次
-  part_id (varchar(40)) -- 料号
-  total_qty (int4) -- 总量(退料数量)
-  unit_id (varchar(40)) -- 单位
-  warehouse_id (varchar(40)) -- 退料仓库
-  in_qty (int4) -- 已退数量
-  current_status (int4) -- 当前状态(0,创建;1,开始;2,完结;3,删除)
-  upload_qty (int4) -- 上传数量
-  upload_time (timestamp(6)) -- 上传时间
-  fid (varchar(2000)) -- ERP主表ID
-  fentry_id (varchar(200)) -- ERP子表ID
-  remark (varchar(2000)) -- 备注
-  handover_qty (int4) -- 交接数量
-  upload_user_id (varchar(40)) -- 上传人员
-  upload_result (varchar(200)) -- 上传结果
-关联关系：
-  JOIN t_wms_wo_rb ON t_wms_wo_rb_detail.doc_id = t_wms_wo_rb.id  -- 退料明细←退料单(反向)
-  JOIN t_bd_part ON t_wms_wo_rb_detail.part_id = t_bd_part.id  -- 退料明细→料号
-适用场景：生产退料明细查询
+  id (character varying)
+  setting_name (character varying) -- 设置名称
+  setting_type (integer) -- 设置类型（物料、物料分组、供应商物料、供应商分组、产品、产品客户）数据字典：LC-04-0010
+  test_step (character varying) -- 检验阶别（IQC.FQC.FAI.OQC）数据字典：LC-04-0003
+  part_id (character varying) -- 物料料号
+  part_group (character varying) -- 物料分组
+  is_default (character varying) -- 是否默认
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  customer_id (character varying) -- 客户
+  supplier_id (character varying) -- 供应商
+适用场景：
+qmsample数据查询
 ---
 表名：t_test
 模块：????
-业务含义：??????,???????ID????????
+业务含义：这是一个测试表
 关键字段：
   id (varchar(40)) -- ??id
   create_user (varchar(40)) -- ?????
@@ -1218,9 +900,430 @@
   update_user (varchar(40)) -- ?????
 ---
 表名：t_test_info
-模块：????
-业务含义：?????????,???????????
+模块：仓库管理
+业务含义：这是一个测试表的信息
 关键字段：
   id (varchar(40)) -- ????id
   info (varchar(400)) -- ??????
   test_id (varchar(40)) -- ??id
+---
+表名：t_tool_maintenance_info
+模块：工装管理
+业务含义：工装治具维保记录表，记录治具的报修、维修、保养等维保事件，包含报修人/维修人、不良代码、维修方法及相关文件
+关键字段：
+  id (character varying)
+  repair_result (character varying) -- 维修结果
+  sure_result (character varying) -- 确认结果
+  is_repair (character varying) -- 是否维修（Y：是，N:否）
+  tool_model (character varying) -- 治具型号
+  tool_no (character varying) -- 治具编号
+  report_user (character varying) -- 报修人id
+  report_reason (character varying) -- 报修原因
+  report_time (timestamp without time zone) -- 报修时间
+  repair_user (character varying) -- 维修人id
+  repair_time (timestamp without time zone) -- 维修时间
+  defect_code (character varying) -- 不良代码
+  repair_method (character varying) -- 维修方法
+  defect_resaon (character varying) -- 故障原因
+  file_info (character varying) -- 相关文件
+  image_info (character varying) -- 相关图片
+  remark (character varying) -- 备注
+  check_user (character varying) -- 确认人
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+适用场景：
+
+toolmaintenance信息查询
+---
+表名：t_tool_model
+模块：工装管理
+业务含义：工装治具型号表，记录治具型号的基本信息（名称、规格、使用次数/周期、保养配置）、关联的工艺路线和治具类型
+关键字段：
+  id (character varying)
+  tool_model (character varying) -- 治具型号
+  max_use_count (integer) -- 最大使用次数
+  max_use_cycle (integer) -- 使用周期上限(天)
+  maintain_count (integer) -- 保养次数
+  maintain_cycle (integer) -- 保养周期(天)
+  remind_count (integer) -- 保养提醒次数
+  scrap_remind_count (integer) -- 报废提醒次数
+  remind_day (integer) -- 保养提醒天数( 天)
+  scrap_remind_days (integer) -- 报废提醒提天数
+  is_in_qc (character varying) -- 入库检验管控 Y/N
+  tool_name (character varying) -- 治具名称
+  tool_spec (character varying) -- 规格
+  route_id (character varying) -- 工艺编码
+  feeder_track (character varying) -- Feeder通道(1:单，2：双，3：三)
+  scraper_position (character varying) -- 刮刀位置（1.前刮刀、2.后刮刀）
+  group_type (integer) -- 类型分组
+  process_face (character varying) -- 加工面（0：单面，1正面，2反面，3阴阳面)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  tool_type_id (character varying) -- 治具类型
+适用场景：
+toolmodel数据查询
+---
+表名：t_tool_no
+模块：工装管理
+业务含义：工装治具库存表，记录每个治具编号的库存状态（在库/使用中/维修中等）、领用人、保养/维修状态、检验检测等信息
+关键字段：
+  id (character varying)
+  model_id (character varying) -- 治具型号
+  tool_no (character varying) -- 治具编号
+  current_status (integer) -- 治具库存状态
+  supplier_code (character varying) -- 供应商编码
+  instock_time (timestamp without time zone) -- 入库时间
+  instock_emp (character varying) -- 入库操作人
+  product_date (character varying) -- 生产日期
+  flatness (character varying) -- 平整度 μm
+  tinckness (character varying) -- 厚度 μm
+  maintain_time (timestamp without time zone) -- 保养时间
+  maintain_user (character varying) -- 保养操作人
+  use_count (integer) -- 当前使用次数
+  total_use_count (integer) -- 累计使用次数
+  label_id (character varying) -- 标签模板
+  is_in_qc (character varying) -- 入库检验管控 Y/N
+  in_online_qc (character varying) -- 上线前QC检验管控 Y/N
+  remark (character varying) -- 备注
+  po_doc (character varying) -- 采购单
+  use_empid (character varying) -- 领用人
+  use_time (timestamp without time zone) -- 领用时间
+  return_time (timestamp without time zone) -- 归还时间
+  test_status (integer) -- 检验状态
+  location_no (character varying) -- 库位
+  sd_face (character varying) -- 单双面
+  is_print (character varying) -- 是否打印
+  maintain_status (integer) -- 保养状态
+  repair_status (integer) -- 维修状态
+  work_order (character varying) -- 工单号
+  pdline_code (character varying) -- 产线代码
+  test_result (character varying) -- 检验结果
+  detect_result (character varying) -- 检测结果
+  test_user (character varying) -- 检验人
+  test_time (timestamp without time zone) -- 检验时间
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  type_group_id (character varying) -- 治具类型
+  return_emp_id (character varying) -- 归还人
+  node_id (character varying) -- 节点id
+  process_name (character varying) -- 制程名称
+  tool_status (character varying) -- 治具状态(工艺路线修改使用)
+适用场景：
+toolno数据查询
+---
+表名：t_tool_no_attr_travel
+模块：工装管理
+业务含义：治具属性变更履历表，记录治具生命周期中的属性变化、检测记录和保养履历
+关键字段：
+  id (character varying)
+  test_name (character varying) -- 属性名称
+  type_group (character varying) -- 治具类型
+  min_content (numeric) -- 属性区间最小值
+  max_content (numeric) -- 属性区间最大值
+  tool_no (character varying) -- 治具编号
+  pro_content (numeric) -- 属性值
+  feeder_track (integer) -- Feeder通道(1:单，2：双，3：三)
+  item_attribute (character varying) -- 类型
+  fixed_value (character varying) -- 固定值
+  attr_item_id (character varying) -- 制具属性表ID
+  test_method (character varying) -- 方法
+  test_content (character varying) -- 内容
+  is_enabled (character varying)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  item_range (integer) -- 值域
+适用场景：
+toolno数据查询
+---
+表名：t_tool_type
+模块：工装管理
+业务含义：工装治具类型表，定义治具的分类类型（钢网/刮刀/飞达/工装等），包含使用周期、保养周期等维保参数
+关键字段：
+  id (character varying)
+  type_group (integer) -- 治具类型（钢网、刮刀、飞达、工装）
+  type_name (character varying) -- 类型分类名称
+  type_desc (character varying) -- 类型分类描述
+  max_use_count (integer) -- 最大使用次数
+  max_use_cycle (integer) -- 使用周期上线
+  maintain_count (integer) -- 保养次数
+  maintain_cycle (integer) -- 保养周期（天）
+  remind_count (integer) -- 保养提醒次数
+  scrap_remind_count (integer) -- 报废提醒次数
+  remind_day (integer) -- 保养提醒天数(天)
+  scrap_remind_days (integer) -- 报废提醒天数
+  label_id (character varying) -- 标签模板
+  rule_id (character varying) -- 编码生成规则
+  is_in_qc (character varying) -- 入库检验管控
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+适用场景：
+tooltype数据查询
+---
+表名：t_wms_doc_upn
+模块：仓库管理
+业务含义：UPN单据关联表，记录仓库单据与物料唯一编号(UPN)的关联关系，实现物料精确追溯
+关键字段：
+  id (character varying)
+  doc_id (character varying) -- 细项ID
+  item_id (character varying) -- 细项ID
+  upn (character varying) -- 唯一码
+  part_no (character varying) -- 物料编码
+  part_name (character varying) -- 物料名称
+  part_spec (character varying) -- 物料描述
+  qty (integer) -- 数量
+  lot_no (character varying) -- 批次
+  date_code (character varying) -- 生产日期
+  bin_code (character varying) -- bin值代码
+  supplier_code (character varying) -- 供应商代码
+  supplier_name (character varying) -- 供应商名称
+  customer_code (character varying) -- 客户编码
+  customer_name (character varying) -- 客户名称
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  handover_flag (character varying) -- 交接标识
+  warehouse_code (character varying) -- 仓库代码
+  inner_box_no (character varying) -- 内袋号
+  box_no (character varying) -- 彩盒
+  carton_no (character varying) -- 外箱
+  pallet_no (character varying) -- 栈板
+  container_no (character varying) -- 集装箱
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  doc_no (character varying) -- 单据号
+  doc_category_code (character varying) -- 单据类别
+适用场景：
+wmsdoc数据查询
+---
+表名：t_wms_location
+模块：仓库管理
+业务含义：储位定义表，记录仓库储位的编号、类型、坐标和所属仓库/货架信息，是库存定位的基础数据
+关键字段：
+  id (character varying)
+  location_no (character varying) -- 储位编号
+  location_desc (character varying) -- 描述
+  warehouse_id (character varying) -- 仓库
+  shelf_id (character varying) -- 货架
+  location_addr (integer) -- 储位地址
+  location_capacity (integer) -- 储位容量(0,不管;>0,按实际数值)
+  shelf_side (character varying) -- 储位所处货架的面(A,B)
+  current_status (integer) -- 当前状态(0,空闲或未装满;1,使用或已装满;)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  is_enabled (character varying)
+适用场景：
+wmslocation数据查询
+---
+表名：t_wms_shelf
+模块：仓库管理
+业务含义：货架定义表，记录仓库货架的编号、类型（普通/电子/感应/料塔）、网络配置和所属仓库信息
+关键字段：
+  id (character varying)
+  shelf_no (character varying) -- 货架编码
+  shelf_desc (character varying) -- 描述
+  warehouse_id (character varying) -- 仓库
+  shelf_type (integer) -- 货架类型(0,普通货架;1,电子货架;2,感应货架;3,料塔;4,改造货架)
+  ip (character varying) -- IP
+  port (integer) -- Port
+  mac (character varying) -- MAC地址
+  dns (character varying) -- DNS
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  is_enabled (character varying)
+适用场景：
+wmsshelf数据查询
+---
+表名：t_wms_stock
+模块：仓库管理
+业务含义：库存主表，记录物料的库存信息（仓库、储位、批次、数量、供应商、客户、状态等），是仓储管理的核心数据表
+关键字段：
+  id (varchar(40))
+  upn (varchar(40))
+  receive_qty (numeric(16)
+  qty (numeric(16)
+  supplier_id (varchar(40))
+  customer_id (varchar(40))
+  date_code (varchar(40))
+  lot_no (varchar(40))
+  work_order (varchar(40))
+  qc_result (int4)
+  current_status (int4)
+  location_no (varchar(40))
+  stock_status (int4)
+  pick_doc (varchar(40))
+  pick_lock (varchar(1))
+  take_stock_status (int4)
+  warehouse_code (varchar(40))
+  check_time (timestamp(6))
+  limit_day (int4)
+  inventory_type (int4)
+  lcr_flag (varchar(40))
+  vendor_barcode (varchar)
+  expire_flag (varchar(1))
+  bin_code (varchar(40))
+  origin_lot (varchar(40))
+  origin_date_code (varchar(40))
+  brand_code (varchar(40))
+  hold_flag (varchar(1))
+  inner_box_no (varchar(40))
+  box_no (varchar(40))
+  carton_no (varchar(40))
+  pallet_no (varchar(40))
+  remark (varchar(200))
+  create_user_id (varchar(40))
+  create_time (timestamp(6))
+  update_user_id (varchar(40))
+  update_time (timestamp(6))
+  part_id (varchar(40))
+关联关系：
+  JOIN t_pd_wo_bom ON t_wms_stock.part_id = t_pd_wo_bom.item_part_id  -- 工单BOM→库存(反向)
+  JOIN t_bd_supplier ON t_wms_stock.supplier_id = t_bd_supplier.id  -- 库存→供应商
+  JOIN t_bd_customer ON t_wms_stock.customer_id = t_bd_customer.id  -- 库存→客户
+  JOIN t_wms_warehouse ON t_wms_stock.warehouse_code = t_wms_warehouse.warehouse_code  -- 库存→仓库
+  JOIN t_wms_location ON t_wms_stock.location_no = t_wms_location.location_no  -- 库存→储位
+  JOIN t_bd_part ON t_wms_stock.part_id = t_bd_part.id  -- 库存→料号
+适用场景：wmsstock数据查询
+---
+表名：t_wms_warehouse
+模块：仓库管理
+业务含义：仓库定义表，记录仓库的基本信息（代码、名称、类型、先进先出管控等），是仓储管理的基础组织单位
+关键字段：
+  id (character varying)
+  warehouse_code (character varying)
+  warehouse_name (character varying)
+  warehouse_desc (character varying)
+  warehouse_type (character varying)
+  remark (character varying)
+  create_time (timestamp without time zone)
+  update_time (timestamp without time zone)
+  order_show (integer) -- 排序显示
+  process_level (integer) -- 加工等级
+  fifo_flag (character varying) -- 先进先出管控标志
+  create_user_id (character varying)
+  update_user_id (character varying)
+  is_enabled (character varying)
+适用场景：
+wmswarehouse数据查询
+---
+表名：t_wms_wo_material_bill
+模块：仓库管理
+业务含义：生产领料单主表，记录工单领料的单据信息（工单、领用仓库、单据状态、ERP交互状态等），驱动工单物料出库
+关键字段：
+  id (character varying)
+  doc_no (character varying) -- 单据号
+  work_order (character varying) -- 工单
+  doc_type_id (character varying) -- 单据类型
+  current_status (integer) -- 当前状态
+  merge_flag (character varying) -- 是否合并
+  upload_time (timestamp without time zone) -- ERP上传时间
+  fid (character varying) -- ERP主表ID
+  remark (character varying) -- 备注
+  doc_from (character varying) -- 单据来源
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  upload_flag (character varying) -- 上传ERP
+  upload_result (character varying) -- 上传结果
+  upload_user_id (character varying) -- 上传人员
+  prep_type (character varying) -- 备料类型;数据字典[LC-01-0067]
+  req_dept_id (character varying) -- 领料部门id
+  is_rush (character varying) -- 加急标识
+  plan_out_time (timestamp without time zone) -- 计划出库时间
+适用场景：
+wmswo数据查询
+---
+表名：t_wms_wo_material_bill_detail
+模块：仓库管理
+业务含义：生产领料单明细表，记录领料单中具体物料的领用数量、已出数量、交接数量等行项目
+关键字段：
+  id (character varying)
+  doc_id (character varying) -- 单据ID
+  item_seq (integer) -- 序号
+  part_id (character varying) -- 物料编码
+  unit_id (character varying) -- 单位
+  current_status (integer) -- 当前状态(0,创建;1,开始;2,完结)
+  warehouse_id (character varying) -- 出仓编码
+  need_fid (character varying) -- 用料清单ID
+  need_frowid (character varying) -- 用料清单行ID
+  lot_no (character varying) -- 批次
+  supplier_id (character varying) -- 供应商
+  bin_code (character varying) -- BIN值
+  upload_time (timestamp without time zone) -- 上传时间
+  upload_userid (character varying) -- 上传人员
+  upload_result (character varying) -- 上传结果
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  total_qty (numeric) -- 总数
+  out_qty (numeric) -- 已出数量
+  handover_qty (numeric) -- 交接数量
+  upload_qty (numeric) -- 上传数量
+  work_order (character varying) -- 工单
+适用场景：
+wmswo明细数据查询
+---
+表名：t_wms_wo_rb
+模块：仓库管理
+业务含义：生产退料单主表，记录工单退料的单据信息（工单、单据状态、ERP上传状态等），用于管理产线多余物料的退回入库
+关键字段：
+  id (character varying)
+  doc_no (character varying) -- 单据
+  doc_type_id (character varying) -- 单据类型
+  current_status (integer) -- 当前状态(0,创建;1,开始;2,完结;3,删除)
+  upload_flag (character varying) -- 上传ERP
+  upload_time (timestamp without time zone) -- ERP上传时间
+  upload_user_id (character varying) -- ERP上传人员
+  work_order (character varying) -- 工单
+  upload_result (character varying) -- ERP返回结果
+  fid (character varying) -- ERP主表ID
+  doc_from (character varying) -- 单据来源
+  remark (character varying) -- 备注
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+适用场景：
+wmswo数据查询
+---
+表名：t_wms_wo_rb_detail
+模块：仓库管理
+业务含义：生产退料单明细表，记录退料单中具体物料的退料数量、已退数量、交接数量等行项目
+关键字段：
+  id (character varying)
+  doc_id (character varying) -- 单据ID
+  item_seq (integer) -- 项次
+  part_id (character varying) -- 料号
+  total_qty (integer) -- 总量(退料数量)
+  unit_id (character varying) -- 单位
+  warehouse_id (character varying) -- 退料仓库
+  in_qty (integer) -- 已退数量
+  current_status (integer) -- 当前状态(0,创建;1,开始;2,完结;3,删除)
+  upload_qty (integer) -- 上传数量
+  upload_time (timestamp without time zone) -- 上传时间
+  fid (character varying) -- ERP主表ID
+  fentry_id (character varying) -- ERP子表ID
+  remark (character varying) -- 备注
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  handover_qty (integer) -- 交接数量
+  upload_user_id (character varying) -- 上传人员
+  upload_result (character varying) -- 上传结果
+适用场景：
+wmswo明细数据查询

@@ -1,399 +1,5 @@
 {
-  "t_basic_user": [
-    {
-      "to": "t_bd_part_process_component",
-      "from_field": "id",
-      "to_field": "create_user_id",
-      "join": "t_bd_part_process_component.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "组装清单→创建人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_packing_container",
-      "from_field": "id",
-      "to_field": "create_user_id",
-      "join": "t_packing_container.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "包装容器→创建人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_packing_container",
-      "from_field": "id",
-      "to_field": "update_user_id",
-      "join": "t_packing_container.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "包装容器→更新人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_bd_substitute",
-      "from_field": "id",
-      "to_field": "create_user_id",
-      "join": "t_bd_substitute.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "替代料→创建人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_bd_substitute",
-      "from_field": "id",
-      "to_field": "update_user_id",
-      "join": "t_bd_substitute.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "替代料→更新人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_sn_defect",
-      "from_field": "id",
-      "to_field": "create_user_id",
-      "join": "t_pd_sn_defect.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "SN不良→创建人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_sn_travel",
-      "from_field": "id",
-      "to_field": "create_user_id",
-      "join": "t_pd_sn_travel.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "SN履历→创建人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_sn_travel",
-      "from_field": "id",
-      "to_field": "update_user_id",
-      "join": "t_pd_sn_travel.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "SN履历→更新人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_ht_pd_wo_issue_material",
-      "from_field": "id",
-      "to_field": "create_user_id",
-      "join": "t_ht_pd_wo_issue_material.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "历史备料→创建人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_ht_pd_wo_issue_material",
-      "from_field": "id",
-      "to_field": "update_user_id",
-      "join": "t_ht_pd_wo_issue_material.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "历史备料→更新人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_wo_issue_material",
-      "from_field": "id",
-      "to_field": "create_user_id",
-      "join": "t_pd_wo_issue_material.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "发料→创建人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_wo_issue_material",
-      "from_field": "id",
-      "to_field": "update_user_id",
-      "join": "t_pd_wo_issue_material.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "发料→更新人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_plan_need_material",
-      "from_field": "id",
-      "to_field": "create_user_id",
-      "join": "t_pd_plan_need_material.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "用料需求→创建人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_plan_need_material",
-      "from_field": "id",
-      "to_field": "update_user_id",
-      "join": "t_pd_plan_need_material.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "用料需求→更新人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_qm_inspect_info",
-      "from_field": "id",
-      "to_field": "create_user_id",
-      "join": "t_qm_inspect_info.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→创建人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_qm_inspect_info",
-      "from_field": "id",
-      "to_field": "update_user_id",
-      "join": "t_qm_inspect_info.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→更新人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_qm_inspect_info",
-      "from_field": "id",
-      "to_field": "send_user",
-      "join": "t_qm_inspect_info.send_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→送检人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_qm_inspect_info",
-      "from_field": "id",
-      "to_field": "test_user",
-      "join": "t_qm_inspect_info.test_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→检验人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_qm_inspect_info",
-      "from_field": "id",
-      "to_field": "audit_user",
-      "join": "t_qm_inspect_info.audit_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→审核人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_tool_maintenance_info",
-      "from_field": "id",
-      "to_field": "report_user",
-      "join": "t_tool_maintenance_info.report_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具维修→报修人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_tool_maintenance_info",
-      "from_field": "id",
-      "to_field": "repair_user",
-      "join": "t_tool_maintenance_info.repair_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具维修→维修人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_tool_no_attr_travel",
-      "from_field": "id",
-      "to_field": "create_user_id",
-      "join": "t_tool_no_attr_travel.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具保养→创建人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_tool_no_attr_travel",
-      "from_field": "id",
-      "to_field": "update_user_id",
-      "join": "t_tool_no_attr_travel.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具保养→更新人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_tool_no",
-      "from_field": "id",
-      "to_field": "instock_emp",
-      "join": "t_tool_no.instock_emp = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具→入库人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_tool_no",
-      "from_field": "id",
-      "to_field": "use_empid",
-      "join": "t_tool_no.use_empid = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具→使用人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_tool_no",
-      "from_field": "id",
-      "to_field": "return_emp_id",
-      "join": "t_tool_no.return_emp_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具→退回人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_tool_no",
-      "from_field": "id",
-      "to_field": "test_user",
-      "join": "t_tool_no.test_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具→测试人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_tool_model",
-      "from_field": "id",
-      "to_field": "create_user_id",
-      "join": "t_tool_model.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具型号→创建人(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_tool_model",
-      "from_field": "id",
-      "to_field": "update_user_id",
-      "join": "t_tool_model.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具型号→更新人(反向)",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_bc_encode_rule": [
-    {
-      "to": "t_packing_container",
-      "from_field": "id",
-      "to_field": "chk_no_rule_id",
-      "join": "t_packing_container.chk_no_rule_id = t_bc_encode_rule.id",
-      "join_type": "LEFT JOIN",
-      "desc": "包装容器→编码规则(反向)",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_bc_encode_rule_group": [
-    {
-      "to": "t_bd_part",
-      "from_field": "id",
-      "to_field": "encode_rule_group_id",
-      "join": "t_bd_part.encode_rule_group_id = t_bc_encode_rule_group.id",
-      "join_type": "LEFT JOIN",
-      "desc": "料号→编码规则组(反向)",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_lb_label_parse_rule_group": [
-    {
-      "to": "t_bd_part",
-      "from_field": "id",
-      "to_field": "parse_rule_group_id",
-      "join": "t_bd_part.parse_rule_group_id = t_lb_label_parse_rule_group.id",
-      "join_type": "LEFT JOIN",
-      "desc": "料号→解析规则组(反向)",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_bd_bom": [
-    {
-      "to": "t_bd_substitute",
-      "from_field": "part_id+bom_version",
-      "to_field": "part_id+bom_version",
-      "join": "t_bd_substitute.part_id = t_bd_bom.part_id AND t_bd_substitute.bom_version = t_bd_bom.bom_version",
-      "join_type": "LEFT JOIN",
-      "desc": "替代料→BOM(反向)",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_bd_customer": [
-    {
-      "to": "t_qm_inspect_info",
-      "from_field": "id",
-      "to_field": "cust_code",
-      "join": "t_qm_inspect_info.cust_code = t_bd_customer.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→客户(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_wms_stock",
-      "from_field": "id",
-      "to_field": "customer_id",
-      "join": "t_wms_stock.customer_id = t_bd_customer.id",
-      "join_type": "LEFT JOIN",
-      "desc": "库存→客户(反向)",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_bd_file": [
-    {
-      "to": "t_tool_maintenance_info",
-      "from_field": "service_id",
-      "to_field": "id",
-      "join": "t_tool_maintenance_info.id = t_bd_file.service_id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具维修→文件(反向)",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
   "t_bd_part": [
-    {
-      "to": "t_bd_part_process_component",
-      "from_field": "id",
-      "to_field": "item_part_id",
-      "join": "t_bd_part_process_component.item_part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "组装清单→组件料号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_bd_part_process_component",
-      "from_field": "id",
-      "to_field": "part_id",
-      "join": "t_bd_part_process_component.part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "组装清单→主料号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
     {
       "to": "t_bc_encode_rule_group",
       "from_field": "encode_rule_group_id",
@@ -413,126 +19,16 @@
       "desc": "料号→解析规则组",
       "confidence": "high",
       "note": ""
-    },
-    {
-      "to": "t_bd_substitute",
-      "from_field": "id",
-      "to_field": "sub_part_id",
-      "join": "t_bd_substitute.sub_part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "替代料→替代料号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_bd_substitute",
-      "from_field": "id",
-      "to_field": "part_id",
-      "join": "t_bd_substitute.part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "替代料→主料号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_bd_substitute",
-      "from_field": "id",
-      "to_field": "item_part_id",
-      "join": "t_bd_substitute.item_part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "替代料→子件料号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_sn_defect",
-      "from_field": "part_no",
-      "to_field": "part_no",
-      "join": "t_pd_sn_defect.part_no = t_bd_part.part_no",
-      "join_type": "LEFT JOIN",
-      "desc": "SN不良→料号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_wo",
-      "from_field": "id",
-      "to_field": "part_id",
-      "join": "t_pd_wo.part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "工单→料号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_wo_bom",
-      "from_field": "id",
-      "to_field": "item_part_id",
-      "join": "t_pd_wo_bom.item_part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "工单BOM→料号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_plan_need_material",
-      "from_field": "id",
-      "to_field": "part_id",
-      "join": "t_pd_plan_need_material.part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "用料需求→料号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_qm_inspect_info",
-      "from_field": "id",
-      "to_field": "part_id",
-      "join": "t_qm_inspect_info.part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→料号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_wms_stock",
-      "from_field": "id",
-      "to_field": "part_id",
-      "join": "t_wms_stock.part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "库存→料号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_wms_wo_rb_detail",
-      "from_field": "id",
-      "to_field": "part_id",
-      "join": "t_wms_wo_rb_detail.part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "退料明细→料号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_wms_doc_upn",
-      "from_field": "part_no",
-      "to_field": "part_no",
-      "join": "t_wms_doc_upn.part_no = t_bd_part.part_no",
-      "join_type": "LEFT JOIN",
-      "desc": "UPN→料号(反向)",
-      "confidence": "high",
-      "note": ""
     }
   ],
   "t_bd_part_process_component": [
     {
-      "to": "t_bd_part",
-      "from_field": "item_part_id",
+      "to": "t_basic_user",
+      "from_field": "create_user_id",
       "to_field": "id",
-      "join": "t_bd_part_process_component.item_part_id = t_bd_part.id",
+      "join": "t_bd_part_process_component.create_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "组装清单→组件料号",
+      "desc": "组装清单→创建人",
       "confidence": "high",
       "note": ""
     },
@@ -547,48 +43,54 @@
       "note": ""
     },
     {
-      "to": "t_basic_user",
-      "from_field": "create_user_id",
+      "to": "t_bd_part",
+      "from_field": "item_part_id",
       "to_field": "id",
-      "join": "t_bd_part_process_component.create_user_id = t_basic_user.id",
+      "join": "t_bd_part_process_component.item_part_id = t_bd_part.id",
       "join_type": "LEFT JOIN",
-      "desc": "组装清单→创建人",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_bd_pdline": [
-    {
-      "to": "t_pd_wo_msl",
-      "from_field": "pdline_code",
-      "to_field": "pdline_code",
-      "join": "t_pd_wo_msl.pdline_code = t_bd_pdline.pdline_code",
-      "join_type": "LEFT JOIN",
-      "desc": "工单MSL→产线(反向)",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_bd_route": [
-    {
-      "to": "t_tool_model",
-      "from_field": "id",
-      "to_field": "route_id",
-      "join": "t_tool_model.route_id = t_bd_route.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具型号→工艺路线(反向)",
+      "desc": "组装清单→组件料号",
       "confidence": "high",
       "note": ""
     }
   ],
   "t_bd_substitute": [
     {
-      "to": "t_bd_part",
-      "from_field": "sub_part_id",
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
       "to_field": "id",
-      "join": "t_bd_substitute.sub_part_id = t_bd_part.id",
+      "join": "t_bd_substitute.update_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "替代料→替代料号",
+      "desc": "替代料→更新人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "create_user_id",
+      "to_field": "id",
+      "join": "t_bd_substitute.create_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "替代料→创建人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_bd_bom",
+      "from_field": "part_id+bom_version",
+      "to_field": "part_id+bom_version",
+      "join": "t_bd_substitute.part_id = t_bd_bom.part_id AND t_bd_substitute.bom_version = t_bd_bom.bom_version",
+      "join_type": "LEFT JOIN",
+      "desc": "替代料→BOM",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_bd_part",
+      "from_field": "item_part_id",
+      "to_field": "id",
+      "join": "t_bd_substitute.item_part_id = t_bd_part.id",
+      "join_type": "LEFT JOIN",
+      "desc": "替代料→子件料号",
       "confidence": "high",
       "note": ""
     },
@@ -604,11 +106,23 @@
     },
     {
       "to": "t_bd_part",
-      "from_field": "item_part_id",
+      "from_field": "sub_part_id",
       "to_field": "id",
-      "join": "t_bd_substitute.item_part_id = t_bd_part.id",
+      "join": "t_bd_substitute.sub_part_id = t_bd_part.id",
       "join_type": "LEFT JOIN",
-      "desc": "替代料→子件料号",
+      "desc": "替代料→替代料号",
+      "confidence": "high",
+      "note": ""
+    }
+  ],
+  "t_ht_pd_wo_issue_material": [
+    {
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
+      "to_field": "id",
+      "join": "t_ht_pd_wo_issue_material.update_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "历史备料→更新人",
       "confidence": "high",
       "note": ""
     },
@@ -616,73 +130,31 @@
       "to": "t_basic_user",
       "from_field": "create_user_id",
       "to_field": "id",
-      "join": "t_bd_substitute.create_user_id = t_basic_user.id",
+      "join": "t_ht_pd_wo_issue_material.create_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "替代料→创建人",
+      "desc": "历史备料→创建人",
       "confidence": "high",
       "note": ""
     },
     {
-      "to": "t_basic_user",
-      "from_field": "update_user_id",
-      "to_field": "id",
-      "join": "t_bd_substitute.update_user_id = t_basic_user.id",
+      "to": "t_pd_wo",
+      "from_field": "work_order",
+      "to_field": "work_order",
+      "join": "t_ht_pd_wo_issue_material.work_order = t_pd_wo.work_order",
       "join_type": "LEFT JOIN",
-      "desc": "替代料→更新人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_bd_bom",
-      "from_field": "part_id+bom_version",
-      "to_field": "part_id+bom_version",
-      "join": "t_bd_substitute.part_id = t_bd_bom.part_id AND t_bd_substitute.bom_version = t_bd_bom.bom_version",
-      "join_type": "LEFT JOIN",
-      "desc": "替代料→BOM",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_bd_supplier": [
-    {
-      "to": "t_qm_inspect_info",
-      "from_field": "id",
-      "to_field": "supplier_code",
-      "join": "t_qm_inspect_info.supplier_code = t_bd_supplier.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→供应商(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_wms_stock",
-      "from_field": "id",
-      "to_field": "supplier_id",
-      "join": "t_wms_stock.supplier_id = t_bd_supplier.id",
-      "join_type": "LEFT JOIN",
-      "desc": "库存→供应商(反向)",
+      "desc": "历史备料→工单",
       "confidence": "high",
       "note": ""
     }
   ],
   "t_packing_container": [
     {
-      "to": "t_packing_rule_detail",
-      "from_field": "container_name",
-      "to_field": "container_name",
-      "join": "t_packing_rule_detail.container_name = t_packing_container.container_name",
-      "join_type": "LEFT JOIN",
-      "desc": "包装规则明细→包装容器(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_bc_encode_rule",
-      "from_field": "chk_no_rule_id",
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
       "to_field": "id",
-      "join": "t_packing_container.chk_no_rule_id = t_bc_encode_rule.id",
+      "join": "t_packing_container.update_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "包装容器→编码规则",
+      "desc": "包装容器→更新人",
       "confidence": "high",
       "note": ""
     },
@@ -697,12 +169,24 @@
       "note": ""
     },
     {
-      "to": "t_basic_user",
-      "from_field": "update_user_id",
+      "to": "t_bc_encode_rule",
+      "from_field": "chk_no_rule_id",
       "to_field": "id",
-      "join": "t_packing_container.update_user_id = t_basic_user.id",
+      "join": "t_packing_container.chk_no_rule_id = t_bc_encode_rule.id",
       "join_type": "LEFT JOIN",
-      "desc": "包装容器→更新人",
+      "desc": "包装容器→编码规则",
+      "confidence": "high",
+      "note": ""
+    }
+  ],
+  "t_packing_rule": [
+    {
+      "to": "t_packing_rule_detail",
+      "from_field": "id",
+      "to_field": "rule_id",
+      "join": "t_packing_rule.id=t_packing_rule_detail.rule_id",
+      "join_type": "LEFT",
+      "desc": "包装规则->包装规则明细",
       "confidence": "high",
       "note": ""
     }
@@ -719,46 +203,14 @@
       "note": ""
     }
   ],
-  "t_ht_pd_wo_issue_material": [
-    {
-      "to": "t_pd_wo",
-      "from_field": "work_order",
-      "to_field": "work_order",
-      "join": "t_ht_pd_wo_issue_material.work_order = t_pd_wo.work_order",
-      "join_type": "LEFT JOIN",
-      "desc": "历史备料→工单",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
-      "from_field": "create_user_id",
-      "to_field": "id",
-      "join": "t_ht_pd_wo_issue_material.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "历史备料→创建人",
-      "confidence": "high",
-      "note": ""
-    },
+  "t_pd_plan_need_material": [
     {
       "to": "t_basic_user",
       "from_field": "update_user_id",
       "to_field": "id",
-      "join": "t_ht_pd_wo_issue_material.update_user_id = t_basic_user.id",
+      "join": "t_pd_plan_need_material.update_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "历史备料→更新人",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_pd_plan_need_material": [
-    {
-      "to": "t_bd_part",
-      "from_field": "part_id",
-      "to_field": "id",
-      "join": "t_pd_plan_need_material.part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "用料需求→料号",
+      "desc": "用料需求→更新人",
       "confidence": "high",
       "note": ""
     },
@@ -773,27 +225,17 @@
       "note": ""
     },
     {
-      "to": "t_basic_user",
-      "from_field": "update_user_id",
+      "to": "t_bd_part",
+      "from_field": "part_id",
       "to_field": "id",
-      "join": "t_pd_plan_need_material.update_user_id = t_basic_user.id",
+      "join": "t_pd_plan_need_material.part_id = t_bd_part.id",
       "join_type": "LEFT JOIN",
-      "desc": "用料需求→更新人",
+      "desc": "用料需求→料号",
       "confidence": "high",
       "note": ""
     }
   ],
   "t_pd_sn_defect": [
-    {
-      "to": "t_bd_part",
-      "from_field": "part_no",
-      "to_field": "part_no",
-      "join": "t_pd_sn_defect.part_no = t_bd_part.part_no",
-      "join_type": "LEFT JOIN",
-      "desc": "SN不良→料号",
-      "confidence": "high",
-      "note": ""
-    },
     {
       "to": "t_basic_user",
       "from_field": "create_user_id",
@@ -803,19 +245,19 @@
       "desc": "SN不良→创建人",
       "confidence": "high",
       "note": ""
+    },
+    {
+      "to": "t_bd_part",
+      "from_field": "part_no",
+      "to_field": "part_no",
+      "join": "t_pd_sn_defect.part_no = t_bd_part.part_no",
+      "join_type": "LEFT JOIN",
+      "desc": "SN不良→料号",
+      "confidence": "high",
+      "note": ""
     }
   ],
   "t_pd_sn_travel": [
-    {
-      "to": "t_basic_user",
-      "from_field": "create_user_id",
-      "to_field": "id",
-      "join": "t_pd_sn_travel.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "SN履历→创建人",
-      "confidence": "high",
-      "note": ""
-    },
     {
       "to": "t_basic_user",
       "from_field": "update_user_id",
@@ -823,6 +265,16 @@
       "join": "t_pd_sn_travel.update_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
       "desc": "SN履历→更新人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "create_user_id",
+      "to_field": "id",
+      "join": "t_pd_sn_travel.create_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "SN履历→创建人",
       "confidence": "high",
       "note": ""
     }
@@ -835,56 +287,6 @@
       "join": "t_pd_wo.part_id = t_bd_part.id",
       "join_type": "LEFT JOIN",
       "desc": "工单→料号",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_wo_bom",
-      "from_field": "work_order",
-      "to_field": "work_order",
-      "join": "t_pd_wo_bom.work_order = t_pd_wo.work_order",
-      "join_type": "LEFT JOIN",
-      "desc": "工单BOM→工单(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_ht_pd_wo_issue_material",
-      "from_field": "work_order",
-      "to_field": "work_order",
-      "join": "t_ht_pd_wo_issue_material.work_order = t_pd_wo.work_order",
-      "join_type": "LEFT JOIN",
-      "desc": "历史备料→工单(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_pd_wo_issue_material",
-      "from_field": "work_order",
-      "to_field": "work_order",
-      "join": "t_pd_wo_issue_material.work_order = t_pd_wo.work_order",
-      "join_type": "LEFT JOIN",
-      "desc": "发料→工单(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_wms_wo_material_bill",
-      "from_field": "work_order",
-      "to_field": "work_order",
-      "join": "t_wms_wo_material_bill.work_order = t_pd_wo.work_order",
-      "join_type": "LEFT JOIN",
-      "desc": "领料单→工单(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_wms_wo_rb",
-      "from_field": "work_order",
-      "to_field": "work_order",
-      "join": "t_wms_wo_rb.work_order = t_pd_wo.work_order",
-      "join_type": "LEFT JOIN",
-      "desc": "退料单→工单(反向)",
       "confidence": "high",
       "note": ""
     }
@@ -923,12 +325,12 @@
   ],
   "t_pd_wo_issue_material": [
     {
-      "to": "t_pd_wo",
-      "from_field": "work_order",
-      "to_field": "work_order",
-      "join": "t_pd_wo_issue_material.work_order = t_pd_wo.work_order",
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
+      "to_field": "id",
+      "join": "t_pd_wo_issue_material.update_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "发料→工单",
+      "desc": "发料→更新人",
       "confidence": "high",
       "note": ""
     },
@@ -943,24 +345,12 @@
       "note": ""
     },
     {
-      "to": "t_basic_user",
-      "from_field": "update_user_id",
-      "to_field": "id",
-      "join": "t_pd_wo_issue_material.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "发料→更新人",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_pd_wo_load_material": [
-    {
-      "to": "t_pd_wo_msl",
+      "to": "t_pd_wo",
       "from_field": "work_order",
       "to_field": "work_order",
-      "join": "t_pd_wo_msl.work_order = t_pd_wo_load_material.work_order",
+      "join": "t_pd_wo_issue_material.work_order = t_pd_wo.work_order",
       "join_type": "LEFT JOIN",
-      "desc": "工单MSL→上料(含多字段关联)(反向)",
+      "desc": "发料→工单",
       "confidence": "high",
       "note": ""
     }
@@ -977,16 +367,6 @@
       "note": ""
     },
     {
-      "to": "t_pd_wo_msl_detail",
-      "from_field": "id",
-      "to_field": "msl_id",
-      "join": "t_pd_wo_msl.id = t_pd_wo_msl_detail.msl_id",
-      "join_type": "LEFT JOIN",
-      "desc": "工单MSL→MSL明细",
-      "confidence": "high",
-      "note": ""
-    },
-    {
       "to": "t_pd_wo_load_material",
       "from_field": "work_order",
       "to_field": "work_order",
@@ -995,21 +375,99 @@
       "desc": "工单MSL→上料(含多字段关联)",
       "confidence": "high",
       "note": ""
-    }
-  ],
-  "t_pd_wo_msl_detail": [
+    },
     {
-      "to": "t_pd_wo_msl",
-      "from_field": "msl_id",
-      "to_field": "id",
+      "to": "t_pd_wo_msl_detail",
+      "from_field": "id",
+      "to_field": "msl_id",
       "join": "t_pd_wo_msl.id = t_pd_wo_msl_detail.msl_id",
       "join_type": "LEFT JOIN",
-      "desc": "工单MSL→MSL明细(反向)",
+      "desc": "工单MSL→MSL明细",
       "confidence": "high",
       "note": ""
     }
   ],
   "t_qm_inspect_info": [
+    {
+      "to": "t_basic_user",
+      "from_field": "audit_user",
+      "to_field": "id",
+      "join": "t_qm_inspect_info.audit_user = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "检验单→审核人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "test_user",
+      "to_field": "id",
+      "join": "t_qm_inspect_info.test_user = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "检验单→检验人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "send_user",
+      "to_field": "id",
+      "join": "t_qm_inspect_info.send_user = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "检验单→送检人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
+      "to_field": "id",
+      "join": "t_qm_inspect_info.update_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "检验单→更新人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "create_user_id",
+      "to_field": "id",
+      "join": "t_qm_inspect_info.create_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "检验单→创建人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_bd_customer",
+      "from_field": "cust_code",
+      "to_field": "id",
+      "join": "t_qm_inspect_info.cust_code = t_bd_customer.id",
+      "join_type": "LEFT JOIN",
+      "desc": "检验单→客户",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_bd_part",
+      "from_field": "part_id",
+      "to_field": "id",
+      "join": "t_qm_inspect_info.part_id = t_bd_part.id",
+      "join_type": "LEFT JOIN",
+      "desc": "检验单→料号",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_bd_supplier",
+      "from_field": "supplier_code",
+      "to_field": "id",
+      "join": "t_qm_inspect_info.supplier_code = t_bd_supplier.id",
+      "join_type": "LEFT JOIN",
+      "desc": "检验单→供应商",
+      "confidence": "high",
+      "note": ""
+    },
     {
       "to": "t_qm_inspect_item_info",
       "from_field": "doc_no",
@@ -1021,12 +479,12 @@
       "note": ""
     },
     {
-      "to": "t_bd_part",
-      "from_field": "part_id",
-      "to_field": "id",
-      "join": "t_qm_inspect_info.part_id = t_bd_part.id",
+      "to": "t_qm_inspect_parent_info",
+      "from_field": "doc_no",
+      "to_field": "doc_no",
+      "join": "t_qm_inspect_info.doc_no = t_qm_inspect_parent_info.doc_no",
       "join_type": "LEFT JOIN",
-      "desc": "检验单→料号",
+      "desc": "检验单→检验父单",
       "confidence": "high",
       "note": ""
     },
@@ -1049,154 +507,16 @@
       "desc": "检验单→抽样类型设置",
       "confidence": "high",
       "note": ""
-    },
-    {
-      "to": "t_basic_user",
-      "from_field": "create_user_id",
-      "to_field": "id",
-      "join": "t_qm_inspect_info.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→创建人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
-      "from_field": "update_user_id",
-      "to_field": "id",
-      "join": "t_qm_inspect_info.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→更新人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_bd_customer",
-      "from_field": "cust_code",
-      "to_field": "id",
-      "join": "t_qm_inspect_info.cust_code = t_bd_customer.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→客户",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_bd_supplier",
-      "from_field": "supplier_code",
-      "to_field": "id",
-      "join": "t_qm_inspect_info.supplier_code = t_bd_supplier.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→供应商",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
-      "from_field": "send_user",
-      "to_field": "id",
-      "join": "t_qm_inspect_info.send_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→送检人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
-      "from_field": "test_user",
-      "to_field": "id",
-      "join": "t_qm_inspect_info.test_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→检验人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
-      "from_field": "audit_user",
-      "to_field": "id",
-      "join": "t_qm_inspect_info.audit_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→审核人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_qm_inspect_parent_info",
-      "from_field": "doc_no",
-      "to_field": "doc_no",
-      "join": "t_qm_inspect_info.doc_no = t_qm_inspect_parent_info.doc_no",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→检验父单",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_qm_inspect_item_info": [
-    {
-      "to": "t_qm_inspect_info",
-      "from_field": "doc_no",
-      "to_field": "doc_no",
-      "join": "t_qm_inspect_info.doc_no = t_qm_inspect_item_info.doc_no",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→检验项目(反向)",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_qm_inspect_parent_info": [
-    {
-      "to": "t_qm_inspect_info",
-      "from_field": "doc_no",
-      "to_field": "doc_no",
-      "join": "t_qm_inspect_info.doc_no = t_qm_inspect_parent_info.doc_no",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→检验父单(反向)",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_qm_sample_config": [
-    {
-      "to": "t_qm_inspect_info",
-      "from_field": "id",
-      "to_field": "config_id",
-      "join": "t_qm_inspect_info.config_id = t_qm_sample_config.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→抽样配置(反向)",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_qm_sample_type_setting": [
-    {
-      "to": "t_qm_inspect_info",
-      "from_field": "id",
-      "to_field": "type_setting_id",
-      "join": "t_qm_inspect_info.type_setting_id = t_qm_sample_type_setting.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→抽样类型设置(反向)",
-      "confidence": "high",
-      "note": ""
     }
   ],
   "t_tool_maintenance_info": [
     {
       "to": "t_basic_user",
-      "from_field": "report_user",
-      "to_field": "id",
-      "join": "t_tool_maintenance_info.report_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具维修→报修人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
       "from_field": "repair_user",
       "to_field": "id",
-      "join": "t_tool_maintenance_info.repair_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具维修→维修人",
+      "join": "t_tool_maintenance_info.repair_user=t_basic_user.id",
+      "join_type": "LEFT",
+      "desc": "维修记录表->维修人信息",
       "confidence": "high",
       "note": ""
     },
@@ -1213,32 +533,12 @@
   ],
   "t_tool_model": [
     {
-      "to": "t_tool_no",
-      "from_field": "id",
-      "to_field": "model_id",
-      "join": "t_tool_no.model_id = t_tool_model.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具→型号(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_tool_type",
-      "from_field": "tool_type_id",
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
       "to_field": "id",
-      "join": "t_tool_model.tool_type_id = t_tool_type.id",
+      "join": "t_tool_model.update_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "治具型号→类型",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_bd_route",
-      "from_field": "route_id",
-      "to_field": "id",
-      "join": "t_tool_model.route_id = t_bd_route.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具型号→工艺路线",
+      "desc": "治具型号→更新人",
       "confidence": "high",
       "note": ""
     },
@@ -1253,54 +553,34 @@
       "note": ""
     },
     {
-      "to": "t_basic_user",
-      "from_field": "update_user_id",
+      "to": "t_bd_route",
+      "from_field": "route_id",
       "to_field": "id",
-      "join": "t_tool_model.update_user_id = t_basic_user.id",
+      "join": "t_tool_model.route_id = t_bd_route.id",
       "join_type": "LEFT JOIN",
-      "desc": "治具型号→更新人",
+      "desc": "治具型号→工艺路线",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_tool_type",
+      "from_field": "tool_type_id",
+      "to_field": "id",
+      "join": "t_tool_model.tool_type_id = t_tool_type.id",
+      "join_type": "LEFT JOIN",
+      "desc": "治具型号→类型",
       "confidence": "high",
       "note": ""
     }
   ],
   "t_tool_no": [
     {
-      "to": "t_tool_no_attr_travel",
-      "from_field": "tool_no",
-      "to_field": "tool_no",
-      "join": "t_tool_no_attr_travel.tool_no = t_tool_no.tool_no",
-      "join_type": "LEFT JOIN",
-      "desc": "治具保养→治具(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_tool_model",
-      "from_field": "model_id",
-      "to_field": "id",
-      "join": "t_tool_no.model_id = t_tool_model.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具→型号",
-      "confidence": "high",
-      "note": ""
-    },
-    {
       "to": "t_basic_user",
-      "from_field": "instock_emp",
+      "from_field": "test_user",
       "to_field": "id",
-      "join": "t_tool_no.instock_emp = t_basic_user.id",
+      "join": "t_tool_no.test_user = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "治具→入库人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
-      "from_field": "use_empid",
-      "to_field": "id",
-      "join": "t_tool_no.use_empid = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具→使用人",
+      "desc": "治具→测试人",
       "confidence": "high",
       "note": ""
     },
@@ -1316,11 +596,31 @@
     },
     {
       "to": "t_basic_user",
-      "from_field": "test_user",
+      "from_field": "use_empid",
       "to_field": "id",
-      "join": "t_tool_no.test_user = t_basic_user.id",
+      "join": "t_tool_no.use_empid = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "治具→测试人",
+      "desc": "治具→使用人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "instock_emp",
+      "to_field": "id",
+      "join": "t_tool_no.instock_emp = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "治具→入库人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_tool_model",
+      "from_field": "model_id",
+      "to_field": "id",
+      "join": "t_tool_no.model_id = t_tool_model.id",
+      "join_type": "LEFT JOIN",
+      "desc": "治具→型号",
       "confidence": "high",
       "note": ""
     }
@@ -1328,21 +628,21 @@
   "t_tool_no_attr_travel": [
     {
       "to": "t_basic_user",
-      "from_field": "create_user_id",
-      "to_field": "id",
-      "join": "t_tool_no_attr_travel.create_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具保养→创建人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
       "from_field": "update_user_id",
       "to_field": "id",
       "join": "t_tool_no_attr_travel.update_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
       "desc": "治具保养→更新人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "create_user_id",
+      "to_field": "id",
+      "join": "t_tool_no_attr_travel.create_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "治具保养→创建人",
       "confidence": "high",
       "note": ""
     },
@@ -1357,29 +657,7 @@
       "note": ""
     }
   ],
-  "t_tool_type": [
-    {
-      "to": "t_tool_model",
-      "from_field": "id",
-      "to_field": "tool_type_id",
-      "join": "t_tool_model.tool_type_id = t_tool_type.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具型号→类型(反向)",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
   "t_wms_doc_upn": [
-    {
-      "to": "t_wms_wo_material_bill",
-      "from_field": "doc_id",
-      "to_field": "id",
-      "join": "t_wms_wo_material_bill.id = t_wms_doc_upn.doc_id",
-      "join_type": "LEFT JOIN",
-      "desc": "领料单→UPN(反向)",
-      "confidence": "high",
-      "note": ""
-    },
     {
       "to": "t_bd_part",
       "from_field": "part_no",
@@ -1393,12 +671,12 @@
   ],
   "t_wms_location": [
     {
-      "to": "t_wms_stock",
-      "from_field": "location_no",
-      "to_field": "location_no",
-      "join": "t_wms_stock.location_no = t_wms_location.location_no",
+      "to": "t_wms_shelf",
+      "from_field": "shelf_id",
+      "to_field": "id",
+      "join": "t_wms_location.shelf_id = t_wms_shelf.id",
       "join_type": "LEFT JOIN",
-      "desc": "库存→储位(反向)",
+      "desc": "储位→货架",
       "confidence": "high",
       "note": ""
     },
@@ -1411,38 +689,26 @@
       "desc": "储位→仓库",
       "confidence": "high",
       "note": ""
-    },
-    {
-      "to": "t_wms_shelf",
-      "from_field": "shelf_id",
-      "to_field": "id",
-      "join": "t_wms_location.shelf_id = t_wms_shelf.id",
-      "join_type": "LEFT JOIN",
-      "desc": "储位→货架",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_wms_shelf": [
-    {
-      "to": "t_wms_location",
-      "from_field": "id",
-      "to_field": "shelf_id",
-      "join": "t_wms_location.shelf_id = t_wms_shelf.id",
-      "join_type": "LEFT JOIN",
-      "desc": "储位→货架(反向)",
-      "confidence": "high",
-      "note": ""
     }
   ],
   "t_wms_stock": [
     {
-      "to": "t_pd_wo_bom",
-      "from_field": "part_id",
-      "to_field": "item_part_id",
-      "join": "t_pd_wo_bom.item_part_id = t_wms_stock.part_id",
+      "to": "t_bd_customer",
+      "from_field": "customer_id",
+      "to_field": "id",
+      "join": "t_wms_stock.customer_id = t_bd_customer.id",
       "join_type": "LEFT JOIN",
-      "desc": "工单BOM→库存(反向)",
+      "desc": "库存→客户",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_bd_part",
+      "from_field": "part_id",
+      "to_field": "id",
+      "join": "t_wms_stock.part_id = t_bd_part.id",
+      "join_type": "LEFT JOIN",
+      "desc": "库存→料号",
       "confidence": "high",
       "note": ""
     },
@@ -1457,12 +723,12 @@
       "note": ""
     },
     {
-      "to": "t_bd_customer",
-      "from_field": "customer_id",
-      "to_field": "id",
-      "join": "t_wms_stock.customer_id = t_bd_customer.id",
+      "to": "t_wms_location",
+      "from_field": "location_no",
+      "to_field": "location_no",
+      "join": "t_wms_stock.location_no = t_wms_location.location_no",
       "join_type": "LEFT JOIN",
-      "desc": "库存→客户",
+      "desc": "库存→储位",
       "confidence": "high",
       "note": ""
     },
@@ -1475,51 +741,19 @@
       "desc": "库存→仓库",
       "confidence": "high",
       "note": ""
-    },
-    {
-      "to": "t_wms_location",
-      "from_field": "location_no",
-      "to_field": "location_no",
-      "join": "t_wms_stock.location_no = t_wms_location.location_no",
-      "join_type": "LEFT JOIN",
-      "desc": "库存→储位",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_bd_part",
-      "from_field": "part_id",
-      "to_field": "id",
-      "join": "t_wms_stock.part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "库存→料号",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_wms_warehouse": [
-    {
-      "to": "t_wms_stock",
-      "from_field": "warehouse_code",
-      "to_field": "warehouse_code",
-      "join": "t_wms_stock.warehouse_code = t_wms_warehouse.warehouse_code",
-      "join_type": "LEFT JOIN",
-      "desc": "库存→仓库(反向)",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_wms_location",
-      "from_field": "id",
-      "to_field": "warehouse_id",
-      "join": "t_wms_location.warehouse_id = t_wms_warehouse.id",
-      "join_type": "LEFT JOIN",
-      "desc": "储位→仓库(反向)",
-      "confidence": "high",
-      "note": ""
     }
   ],
   "t_wms_wo_material_bill": [
+    {
+      "to": "t_pd_wo",
+      "from_field": "work_order",
+      "to_field": "work_order",
+      "join": "t_wms_wo_material_bill.work_order = t_pd_wo.work_order",
+      "join_type": "LEFT JOIN",
+      "desc": "领料单→工单",
+      "confidence": "high",
+      "note": ""
+    },
     {
       "to": "t_wms_doc_upn",
       "from_field": "id",
@@ -1527,16 +761,6 @@
       "join": "t_wms_wo_material_bill.id = t_wms_doc_upn.doc_id",
       "join_type": "LEFT JOIN",
       "desc": "领料单→UPN",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_wms_wo_rb",
-      "from_field": "work_order",
-      "to_field": "work_order",
-      "join": "t_wms_wo_material_bill.work_order = t_wms_wo_rb.work_order",
-      "join_type": "LEFT JOIN",
-      "desc": "领料单→退料单",
       "confidence": "high",
       "note": ""
     },
@@ -1551,36 +775,24 @@
       "note": ""
     },
     {
-      "to": "t_pd_wo",
+      "to": "t_wms_wo_rb",
       "from_field": "work_order",
       "to_field": "work_order",
-      "join": "t_wms_wo_material_bill.work_order = t_pd_wo.work_order",
+      "join": "t_wms_wo_material_bill.work_order = t_wms_wo_rb.work_order",
       "join_type": "LEFT JOIN",
-      "desc": "领料单→工单",
-      "confidence": "high",
-      "note": ""
-    }
-  ],
-  "t_wms_wo_material_bill_detail": [
-    {
-      "to": "t_wms_wo_material_bill",
-      "from_field": "doc_id",
-      "to_field": "id",
-      "join": "t_wms_wo_material_bill.id = t_wms_wo_material_bill_detail.doc_id",
-      "join_type": "LEFT JOIN",
-      "desc": "领料单→领料明细(反向)",
+      "desc": "领料单→退料单",
       "confidence": "high",
       "note": ""
     }
   ],
   "t_wms_wo_rb": [
     {
-      "to": "t_wms_wo_material_bill",
+      "to": "t_pd_wo",
       "from_field": "work_order",
       "to_field": "work_order",
-      "join": "t_wms_wo_material_bill.work_order = t_wms_wo_rb.work_order",
+      "join": "t_wms_wo_rb.work_order = t_pd_wo.work_order",
       "join_type": "LEFT JOIN",
-      "desc": "领料单→退料单(反向)",
+      "desc": "退料单→工单",
       "confidence": "high",
       "note": ""
     },
@@ -1593,29 +805,9 @@
       "desc": "退料单→退料明细",
       "confidence": "high",
       "note": ""
-    },
-    {
-      "to": "t_pd_wo",
-      "from_field": "work_order",
-      "to_field": "work_order",
-      "join": "t_wms_wo_rb.work_order = t_pd_wo.work_order",
-      "join_type": "LEFT JOIN",
-      "desc": "退料单→工单",
-      "confidence": "high",
-      "note": ""
     }
   ],
   "t_wms_wo_rb_detail": [
-    {
-      "to": "t_wms_wo_rb",
-      "from_field": "doc_id",
-      "to_field": "id",
-      "join": "t_wms_wo_rb.id = t_wms_wo_rb_detail.doc_id",
-      "join_type": "LEFT JOIN",
-      "desc": "退料单→退料明细(反向)",
-      "confidence": "high",
-      "note": ""
-    },
     {
       "to": "t_bd_part",
       "from_field": "part_id",

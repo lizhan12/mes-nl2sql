@@ -324,11 +324,13 @@ class OnlineHarnessRepository:
         return [dict(row) for row in rows]
 
     def fetch_open_failure_cases(self, limit: int = 200) -> list[dict[str, Any]]:
+        """获取 open 状态且未被人工标注的失败案例。"""
         query = """
-        SELECT *
-        FROM nl2sql_failure_case
-        WHERE status = 'open'
-        ORDER BY created_at ASC
+        SELECT fc.*
+        FROM nl2sql_failure_case fc
+        LEFT JOIN nl2sql_failure_label fl ON fl.failure_case_id = fc.id
+        WHERE fc.status = 'open' AND fl.id IS NULL
+        ORDER BY fc.created_at ASC
         LIMIT %(limit)s
         """
         with app_connection() as conn, conn.cursor() as cur:
@@ -337,12 +339,13 @@ class OnlineHarnessRepository:
         return [dict(row) for row in rows]
 
     def fetch_unlabeled_failure_cases(self, limit: int = 200) -> list[dict[str, Any]]:
-        """获取未标注的失败案例（open 或 analyzed 状态），供 LLM 自动标注使用。"""
+        """获取未被标注的失败案例（open 或 analyzed 状态且无 label），供 LLM 自动标注使用。"""
         query = """
-        SELECT *
-        FROM nl2sql_failure_case
-        WHERE status IN ('open', 'analyzed')
-        ORDER BY created_at ASC
+        SELECT fc.*
+        FROM nl2sql_failure_case fc
+        LEFT JOIN nl2sql_failure_label fl ON fl.failure_case_id = fc.id
+        WHERE fc.status IN ('open', 'analyzed') AND fl.id IS NULL
+        ORDER BY fc.created_at ASC
         LIMIT %(limit)s
         """
         with app_connection() as conn, conn.cursor() as cur:
@@ -351,13 +354,15 @@ class OnlineHarnessRepository:
         return [dict(row) for row in rows]
 
     def fetch_unlabeled_failure_cases_by_type(self, failure_types: list[str], limit: int = 200) -> list[dict[str, Any]]:
-        """获取指定 failure_type 的未标注失败案例。"""
+        """获取指定 failure_type 且未被标注的失败案例。"""
         query = """
-        SELECT *
-        FROM nl2sql_failure_case
-        WHERE status IN ('open', 'analyzed')
-          AND failure_type = ANY(%(types)s)
-        ORDER BY created_at ASC
+        SELECT fc.*
+        FROM nl2sql_failure_case fc
+        LEFT JOIN nl2sql_failure_label fl ON fl.failure_case_id = fc.id
+        WHERE fc.status IN ('open', 'analyzed')
+          AND fc.failure_type = ANY(%(types)s)
+          AND fl.id IS NULL
+        ORDER BY fc.created_at ASC
         LIMIT %(limit)s
         """
         with app_connection() as conn, conn.cursor() as cur:
@@ -395,11 +400,13 @@ class OnlineHarnessRepository:
         return [dict(row) for row in rows]
 
     def fetch_labeled_failure_cases(self, limit: int = 200) -> list[dict[str, Any]]:
+        """获取已人工标注的失败案例（label_type = 'correct_sql'）。"""
         query = """
         SELECT fc.*, fl.id AS label_id, fl.label_type, fl.correct_sql, fl.note AS label_note
         FROM nl2sql_failure_case fc
         JOIN nl2sql_failure_label fl ON fl.failure_case_id = fc.id
         WHERE fc.status IN ('labeled', 'open')
+          AND fl.label_type = 'correct_sql'
         ORDER BY fc.created_at ASC
         LIMIT %(limit)s
         """
@@ -472,7 +479,7 @@ class OnlineHarnessRepository:
                         row = cur2.fetchone()
                 conn.commit()
             cur.execute(
-                "UPDATE nl2sql_failure_case SET status = 'labeled' WHERE id = %(failure_case_id)s",
+                "UPDATE nl2sql_failure_case SET status = 'open' WHERE id = %(failure_case_id)s",
                 {"failure_case_id": failure_case_id},
             )
             conn.commit()
@@ -782,6 +789,21 @@ class OnlineHarnessRepository:
             rows = cur.fetchall()
         return [dict(row) for row in rows]
 
+    def fetch_candidates_by_ids(self, candidate_ids: list[int]) -> list[dict[str, Any]]:
+        """按 ID 列表查询候选规则（仅返回 approved 状态）。"""
+        if not candidate_ids:
+            return []
+        query = """
+        SELECT *
+        FROM nl2sql_rule_candidate
+        WHERE id = ANY(%(ids)s) AND status = 'approved'
+        ORDER BY created_at ASC
+        """
+        with app_connection() as conn, conn.cursor() as cur:
+            cur.execute(query, {"ids": candidate_ids})
+            rows = cur.fetchall()
+        return [dict(row) for row in rows]
+
     def mark_candidates_published(self, candidate_ids: list[int], version: str) -> None:
         if not candidate_ids:
             return
@@ -805,6 +827,62 @@ class OnlineHarnessRepository:
                 {"status": status, "ids": failure_case_ids},
             )
             conn.commit()
+
+    def delete_rule_candidate(self, candidate_id: int) -> bool:
+        """删除指定候选规则。返回是否成功删除。"""
+        with app_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM nl2sql_rule_candidate WHERE id = %(id)s",
+                {"id": candidate_id},
+            )
+            deleted = cur.rowcount > 0
+            conn.commit()
+        return deleted
+
+    def delete_failure_case(self, failure_case_id: int) -> bool:
+        """删除指定失败案例（级联删除关联的 label）。返回是否成功删除。"""
+        with app_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM nl2sql_failure_case WHERE id = %(id)s",
+                {"id": failure_case_id},
+            )
+            deleted = cur.rowcount > 0
+            conn.commit()
+        return deleted
+
+    def candidate_exists_by_key(self, candidate_key: str) -> bool:
+        """检查指定 candidate_key 的候选规则是否已存在。"""
+        with app_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM nl2sql_rule_candidate WHERE candidate_key = %(key)s LIMIT 1",
+                {"key": candidate_key},
+            )
+            return cur.fetchone() is not None
+
+    def delete_candidates_by_failure_case_ids(self, failure_case_ids: list[int]) -> int:
+        """删除 source_failure_case_ids 包含指定失败案例 ID 的候选规则。返回删除数量。"""
+        if not failure_case_ids:
+            return 0
+        import json
+        with app_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM nl2sql_rule_candidate WHERE source_failure_case_ids_json @> %(ids)s::jsonb",
+                {"ids": json.dumps(failure_case_ids)},
+            )
+            deleted = cur.rowcount
+            conn.commit()
+        return deleted
+
+    def delete_candidate_by_key(self, candidate_key: str) -> bool:
+        """按 candidate_key 删除候选规则。返回是否成功删除。"""
+        with app_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM nl2sql_rule_candidate WHERE candidate_key = %(key)s",
+                {"key": candidate_key},
+            )
+            deleted = cur.rowcount > 0
+            conn.commit()
+        return deleted
 
 
 _repository: OnlineHarnessRepository | None = None

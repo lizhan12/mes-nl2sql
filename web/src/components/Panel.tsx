@@ -1,30 +1,44 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
+
+import { cn } from "@/lib/utils";
 
 interface PanelProps {
   title: string;
-  children: ReactNode;
-  defaultOpen?: boolean;
+  subtitle?: string;
   action?: ReactNode;
+  children: ReactNode;
+  className?: string;
 }
 
-export function Panel({ title, children, defaultOpen = true, action }: PanelProps) {
-  const [open, setOpen] = useState(defaultOpen);
-
+export function Panel({ title, subtitle, action, children, className }: PanelProps) {
   return (
-    <div className="mb-1 overflow-hidden rounded border border-[var(--border-default)] bg-[var(--bg-default)]">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-3 py-1.5 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]"
-      >
-        <span>{title}</span>
-        <div className="flex items-center gap-2">
-          {action}
-          {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+    <section
+      className={cn(
+        "relative rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-5",
+        className,
+      )}
+    >
+      {/* Corner accent line */}
+      <div
+        className="pointer-events-none absolute inset-0 rounded-lg opacity-[0.06]"
+        style={{
+          border: "1px solid transparent",
+          borderImage: `linear-gradient(135deg, var(--accent) 0%, transparent 40%, transparent 60%, var(--accent) 100%) 1`,
+        }}
+      />
+
+      <div className="relative z-10 mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="font-display text-sm font-semibold uppercase tracking-[0.06em] text-[var(--text-primary)]">
+            {title}
+          </h2>
+          {subtitle ? (
+            <p className="mt-1 text-[12px] leading-relaxed text-[var(--text-tertiary)]">{subtitle}</p>
+          ) : null}
         </div>
-      </button>
-      {open && <div className="border-t border-[var(--border-default)] px-3 py-2">{children}</div>}
-    </div>
+        {action}
+      </div>
+      <div className="relative z-10">{children}</div>
+    </section>
   );
 }

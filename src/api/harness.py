@@ -8,6 +8,8 @@ from src.core.config import settings
 from src.harness.online_service import (
     analyze_failures_online_service,
     auto_label_failures_online_service,
+    delete_candidate_service,
+    delete_failure_case_service,
     evolve_online_service,
     label_failure_case_service,
     list_candidates_service,
@@ -62,6 +64,17 @@ async def label_harness_failure_case(failure_case_id: int, request: HarnessFailu
     return result
 
 
+@router.delete("/failure-cases/{failure_case_id}")
+async def delete_harness_failure_case(failure_case_id: int):
+    """删除失败案例。"""
+    if not settings.enable_online_harness:
+        return {"error": "线上 Harness 未启用"}
+    result = await asyncio.to_thread(delete_failure_case_service, failure_case_id)
+    if not result.get("deleted"):
+        raise HTTPException(status_code=404, detail=f"失败案例 {failure_case_id} 不存在")
+    return result
+
+
 @router.post("/analyze-failures")
 async def analyze_harness_failures(limit: int = 200, sync_failures: bool = True):
     """分析失败案例并生成候选规则。"""
@@ -97,7 +110,7 @@ async def evolve_harness_online(limit: int = 200, sync_failures: bool = True, in
     """从线上数据库日志生成并发布运行时知识。"""
     if not settings.enable_online_harness:
         return {"error": "线上 Harness 未启用"}
-    result = await asyncio.to_thread(evolve_online_service, limit, sync_failures, include_liked)
+    result = await evolve_online_service(limit, sync_failures, include_liked)
     return result
 
 
@@ -119,6 +132,17 @@ async def review_harness_candidate(candidate_id: int, request: HarnessCandidateR
     return result
 
 
+@router.delete("/candidates/{candidate_id}")
+async def delete_harness_candidate(candidate_id: int):
+    """删除候选规则。"""
+    if not settings.enable_online_harness:
+        return {"error": "线上 Harness 未启用"}
+    result = await asyncio.to_thread(delete_candidate_service, candidate_id)
+    if not result.get("deleted"):
+        raise HTTPException(status_code=404, detail=f"候选规则 {candidate_id} 不存在")
+    return result
+
+
 @router.post("/pre-publish-check")
 async def pre_publish_check_api():
     """发布前去重检查：检查所有 approved 候选是否与已有知识库重复。"""
@@ -126,7 +150,7 @@ async def pre_publish_check_api():
         return {"error": "线上 Harness 未启用"}
     from src.harness.online_service import pre_publish_check_service
 
-    result = await asyncio.to_thread(pre_publish_check_service)
+    result = await pre_publish_check_service()
     return result
 
 
@@ -135,7 +159,7 @@ async def publish_harness_candidates(request: HarnessPublishRequest):
     """发布已审核通过的候选规则。"""
     if not settings.enable_online_harness:
         return {"error": "线上 Harness 未启用"}
-    result = await asyncio.to_thread(publish_approved_service, request.version or None)
+    result = await publish_approved_service(request.version or None, request.candidate_ids)
     return result
 
 

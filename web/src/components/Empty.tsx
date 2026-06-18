@@ -1,14 +1,18 @@
-import { Search } from "lucide-react";
+import { Database } from "lucide-react";
 
 interface EmptyProps {
-  message: string;
+  message?: string;
 }
 
-export default function Empty({ message }: EmptyProps) {
+export default function Empty({ message = "暂无数据" }: EmptyProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-[var(--text-tertiary)]">
-      <Search className="mb-3 h-8 w-8 opacity-30" />
-      <span className="text-sm">{message}</span>
+    <div className="flex flex-col items-center justify-center gap-3 py-16">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[var(--border-default)] bg-[var(--bg-subtle)]">
+        <Database className="h-5 w-5 text-[var(--text-tertiary)]" />
+      </div>
+      <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
+        {message}
+      </p>
     </div>
   );
 }

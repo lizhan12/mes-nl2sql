@@ -97,6 +97,7 @@ class Neo4jVectorStore:
                     """
                     MATCH (f:FewShot)
                     WHERE f.question_embedding IS NOT NULL
+                      AND COALESCE(f.enabled, true) = true
                     WITH f, vector.similarity.cosine(f.question_embedding, $query_vec) AS score
                     RETURN f.full_text AS full_text, f.scenario AS scenario,
                            f.question AS question, score
@@ -131,6 +132,7 @@ class Neo4jVectorStore:
                     """
                     MATCH (f:EvolvedFewShot)
                     WHERE f.question_embedding IS NOT NULL
+                      AND COALESCE(f.enabled, true) = true
                     WITH f, vector.similarity.cosine(f.question_embedding, $query_vec) AS score
                     RETURN f.full_text AS full_text, f.scenario AS scenario,
                            f.question AS question, score
@@ -165,6 +167,7 @@ class Neo4jVectorStore:
                     """
                     MATCH (r:RuntimeRule)
                     WHERE r.question_embedding IS NOT NULL
+                      AND COALESCE(r.enabled, true) = true
                     WITH r, vector.similarity.cosine(r.question_embedding, $query_vec) AS score
                     RETURN r.question AS question, r.normalized_question AS normalized_question,
                            r.preferred_main_table AS preferred_main_table,

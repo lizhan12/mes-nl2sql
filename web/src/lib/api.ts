@@ -12,6 +12,8 @@ import type {
   HarnessListResponse,
   KnowledgeSearchResult,
   Nl2SqlResponse,
+  PageResponse,
+  Message,
   PrePublishCheckResponse,
   RuntimeRuleItem,
   SyncFromNeo4jResult,
@@ -92,6 +94,12 @@ export function labelFailureCase(failureCaseId: number, correctSql: string, note
   });
 }
 
+export function deleteFailureCase(failureCaseId: number): Promise<HarnessActionResponse> {
+  return requestJson<HarnessActionResponse>(`/admin/harness/failure-cases/${failureCaseId}`, {
+    method: "DELETE",
+  });
+}
+
 export function analyzeFailures(limit = 200): Promise<HarnessActionResponse> {
   return requestJson<HarnessActionResponse>(`/admin/harness/analyze-failures?limit=${limit}&sync_failures=true`, {
     method: "POST",
@@ -121,16 +129,22 @@ export function reviewCandidate(candidateId: number, action: "approve" | "reject
   });
 }
 
+export function deleteCandidate(candidateId: number): Promise<HarnessActionResponse> {
+  return requestJson<HarnessActionResponse>(`/admin/harness/candidates/${candidateId}`, {
+    method: "DELETE",
+  });
+}
+
 export function prePublishCheck(): Promise<PrePublishCheckResponse> {
   return requestJson<PrePublishCheckResponse>("/admin/harness/pre-publish-check", {
     method: "POST",
   });
 }
 
-export function publishApproved(version: string, force = false): Promise<HarnessActionResponse> {
+export function publishApproved(version: string, force = false, candidateIds?: number[]): Promise<HarnessActionResponse> {
   return requestJson<HarnessActionResponse>("/admin/harness/publish", {
     method: "POST",
-    body: JSON.stringify({ version, force }),
+    body: JSON.stringify({ version, force, candidate_ids: candidateIds ?? null }),
   });
 }
 
@@ -151,6 +165,13 @@ export function listFeedback(limit = 100): Promise<FeedbackRecord[]> {
   return requestJson<{ items: FeedbackRecord[] }>(
     `/admin/harness/feedback?limit=${limit}`,
   ).then((data) => data.items);
+}
+
+export function fetchPage(sql: string, page: number, pageSize = 20): Promise<PageResponse> {
+  return requestJson<PageResponse>("/execute/page", {
+    method: "POST",
+    body: JSON.stringify({ sql, page, page_size: pageSize }),
+  });
 }
 
 export interface GraphEdge {
@@ -258,6 +279,38 @@ export function deleteGraphEdge(edgeId: number): Promise<GraphEdgeMutationRespon
   return requestJson<GraphEdgeMutationResponse>(`/api/graph/edges/${edgeId}`, {
     method: "DELETE",
   });
+}
+
+// ── 聊天历史 ────────────────────────────────────────────────────────
+
+export interface ChatHistoryItem {
+  thread_id: string;
+  first_query: string;
+  message_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ChatHistoryListResponse {
+  sessions: ChatHistoryItem[];
+}
+
+interface ChatThreadResponse {
+  thread_id: string;
+  user_id: string;
+  messages: Message[];
+}
+
+export function fetchChatHistory(userId: string): Promise<ChatHistoryItem[]> {
+  return requestJson<ChatHistoryListResponse>(
+    `/chat/history?user_id=${encodeURIComponent(userId)}`,
+  ).then((r) => r.sessions);
+}
+
+export function loadChatThread(userId: string, threadId: string): Promise<ChatThreadResponse> {
+  return requestJson<ChatThreadResponse>(
+    `/chat/history/${threadId}?user_id=${encodeURIComponent(userId)}`,
+  );
 }
 
 // ── Trace API ──────────────────────────────────────────────────────
@@ -448,6 +501,16 @@ export function deleteFewShot(fewShotId: string): Promise<{ message: string; id:
   );
 }
 
+export function toggleFewShot(
+  fewShotId: string,
+  enabled: boolean,
+): Promise<{ message: string; enabled: boolean }> {
+  return requestJson<{ message: string; enabled: boolean }>(
+    `/api/knowledge/few-shots/${encodeURIComponent(fewShotId)}/enabled`,
+    { method: "PATCH", body: JSON.stringify({ enabled }) },
+  );
+}
+
 // ── EvolvedFewShot 管理 API ────────────────────────────────────────
 
 export function fetchEvolvedFewShots(): Promise<EvolvedFewShotItem[]> {
@@ -488,6 +551,16 @@ export function deleteEvolvedFewShot(
   return requestJson<{ message: string; id: string }>(
     `/api/knowledge/evolved-few-shots/${encodeURIComponent(evolvedId)}`,
     { method: "DELETE" },
+  );
+}
+
+export function toggleEvolvedFewShot(
+  evolvedId: string,
+  enabled: boolean,
+): Promise<{ message: string; enabled: boolean }> {
+  return requestJson<{ message: string; enabled: boolean }>(
+    `/api/knowledge/evolved-few-shots/${encodeURIComponent(evolvedId)}/enabled`,
+    { method: "PATCH", body: JSON.stringify({ enabled }) },
   );
 }
 
@@ -549,6 +622,16 @@ export function deleteRuntimeRule(
   return requestJson<{ message: string; normalized_question: string }>(
     `/api/knowledge/runtime-rules/${encodeURIComponent(normalizedQuestion)}`,
     { method: "DELETE" },
+  );
+}
+
+export function toggleRuntimeRule(
+  normalizedQuestion: string,
+  enabled: boolean,
+): Promise<{ message: string; enabled: boolean }> {
+  return requestJson<{ message: string; enabled: boolean }>(
+    `/api/knowledge/runtime-rules/${encodeURIComponent(normalizedQuestion)}/enabled`,
+    { method: "PATCH", body: JSON.stringify({ enabled }) },
   );
 }
 

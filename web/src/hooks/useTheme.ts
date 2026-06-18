@@ -1,53 +1,29 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState, useEffect } from 'react';
 
-const KEY = "nl2sql_theme";
-
-function getStored(): "light" | "dark" {
-  const v = localStorage.getItem(KEY);
-  if (v === "dark") return "dark";
-  return "light";
-}
-
-function apply(theme: "light" | "dark") {
-  const root = document.documentElement;
-  if (theme === "dark") {
-    root.classList.add("dark");
-    root.setAttribute("data-theme", "dark");
-  } else {
-    root.classList.remove("dark");
-    root.removeAttribute("data-theme");
-  }
-}
-
-let current: "light" | "dark" = getStored();
-apply(current);
-let listeners: Array<() => void> = [];
-
-function notify() {
-  for (const fn of listeners) fn();
-}
+type Theme = 'light' | 'dark';
 
 export function useTheme() {
-  const [theme, setTheme] = useState<"light" | "dark">(current);
+  const [theme, setTheme] = useState<Theme>(() => {
+    const savedTheme = localStorage.getItem('theme') as Theme;
+    if (savedTheme) {
+      return savedTheme;
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
 
   useEffect(() => {
-    const fn = () => setTheme(current);
-    listeners.push(fn);
-    return () => {
-      listeners = listeners.filter((l) => l !== fn);
-    };
-  }, []);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
-  const toggleTheme = useCallback(() => {
-    current = current === "light" ? "dark" : "light";
-    localStorage.setItem(KEY, current);
-    apply(current);
-    notify();
-  }, []);
+  const toggleTheme = () => {
+    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+  };
 
   return {
     theme,
-    isDark: theme === "dark",
     toggleTheme,
+    isDark: theme === 'dark'
   };
-}
+} 

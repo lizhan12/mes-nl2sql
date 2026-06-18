@@ -1,95 +1,106 @@
-import { Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface SearchableSelectOption {
   value: string;
   label: string;
+  hint?: string;
 }
 
 interface SearchableSelectProps {
+  options: SearchableSelectOption[];
   value: string;
   onChange: (value: string) => void;
-  options: SearchableSelectOption[];
   placeholder?: string;
-  disabled?: boolean;
+  className?: string;
 }
 
-export function SearchableSelect({ value, onChange, options, placeholder = "搜索...", disabled }: SearchableSelectProps) {
+/**
+ * 可搜索的下拉选择器。
+ * 输入关键字过滤选项列表，点击选中后回填到输入框。
+ */
+export function SearchableSelect({
+  options,
+  value,
+  onChange,
+  placeholder = "输入搜索...",
+  className = "",
+}: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const filtered = useMemo(() => {
-    if (!search) return options;
-    const s = search.toLowerCase();
-    return options.filter((o) => o.label.toLowerCase().includes(s) || o.value.toLowerCase().includes(s));
-  }, [options, search]);
-
-  const selected = options.find((o) => o.value === value);
-
+  // 点击外部关闭
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
+    const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const filtered = query
+    ? options.filter(
+        (o) =>
+          o.value.toLowerCase().includes(query.toLowerCase()) ||
+          o.label.toLowerCase().includes(query.toLowerCase()) ||
+          (o.hint && o.hint.toLowerCase().includes(query.toLowerCase())),
+      )
+    : options;
+
+  const selected = options.find((o) => o.value === value);
+
   return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => {
-          if (!disabled) {
-            setOpen((v) => !v);
-            setSearch("");
-            setTimeout(() => inputRef.current?.focus(), 0);
-          }
+    <div ref={containerRef} className={`relative ${className}`}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={open ? query : (selected?.label ?? value)}
+        placeholder={placeholder}
+        onFocus={() => {
+          setOpen(true);
+          setQuery("");
         }}
-        className="flex w-full items-center justify-between rounded border border-[var(--border-default)] bg-[var(--bg-input)] px-2 py-1.5 text-left text-xs text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <span className={selected ? "" : "text-[var(--text-tertiary)]"}>
-          {selected?.label ?? placeholder}
-        </span>
-        <span className="ml-1 text-[10px] text-[var(--text-tertiary)]">▼</span>
-      </button>
-      {open && (
-        <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded border border-[var(--border-default)] bg-[var(--bg-raised)] shadow-lg">
-          <div className="sticky top-0 border-b border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-tertiary)]" />
-              <input
-                ref={inputRef}
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索..."
-                className="w-full rounded border border-[var(--border-default)] bg-[var(--bg-input)] py-1 pl-6 pr-2 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)] focus:outline-none"
-              />
-            </div>
-          </div>
-          {filtered.length === 0 ? (
-            <div className="px-2 py-3 text-center text-[11px] text-[var(--text-tertiary)]">无匹配选项</div>
-          ) : (
-            filtered.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                className="w-full px-2 py-1.5 text-left text-xs text-[var(--text-primary)] hover:bg-[var(--bg-subtle)]"
-                onClick={() => {
-                  onChange(opt.value);
-                  setOpen(false);
-                  setSearch("");
-                }}
-              >
-                {opt.label}
-              </button>
-            ))
-          )}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          if (!open) setOpen(true);
+        }}
+        onBlur={() => {
+          // 延迟关闭，让 onClick 有时间触发
+          setTimeout(() => setOpen(false), 150);
+        }}
+        className="w-full rounded border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1.5 font-mono text-xs text-[var(--text-primary)] outline-none focus:ring-1 focus:ring-[var(--accent)]"
+      />
+      {open && filtered.length > 0 && (
+        <ul
+          className="absolute z-[9999] mt-1 max-h-48 w-full overflow-auto rounded border border-[var(--border-default)] bg-[var(--bg-raised)] shadow-lg"
+        >
+          {filtered.map((o) => (
+            <li
+              key={o.value}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange(o.value);
+                setOpen(false);
+                setQuery("");
+              }}
+              className={`flex cursor-pointer items-center gap-2 px-2 py-1.5 text-xs hover:bg-[var(--bg-subtle)] ${
+                o.value === value ? "bg-[var(--bg-subtle)] font-medium text-[var(--accent)]" : "text-[var(--text-primary)]"
+              }`}
+            >
+              <span className="font-mono">{o.label}</span>
+              {o.hint && <span className="truncate text-[10px] text-[var(--text-tertiary)]">{o.hint}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {open && filtered.length === 0 && (
+        <div
+          className="absolute z-[9999] mt-1 w-full rounded border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-2 text-center text-[10px] text-[var(--text-tertiary)] shadow-lg"
+        >
+          无匹配项
         </div>
       )}
     </div>

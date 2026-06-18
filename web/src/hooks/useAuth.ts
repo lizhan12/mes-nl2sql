@@ -1,71 +1,91 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AuthUser, LoginResponse } from "@/lib/api";
+
 import { fetchCurrentUser, login as apiLogin, logout as apiLogout } from "@/lib/api";
 
-interface AuthState {
-  user: AuthUser | null;
-  isAuthenticated: boolean;
-  isAdmin: boolean;
-  loading: boolean;
-  login: (username: string, password: string) => Promise<LoginResponse>;
-  logout: () => Promise<void>;
+export interface AuthUser {
+  id: number;
+  username: string;
+  display_name: string;
+  role: string;
+  created_at?: string;
+  last_login_at?: string;
 }
 
-let globalUser: AuthUser | null = null;
-let listeners: Array<() => void> = [];
+const TOKEN_KEY = "nl2sql_auth_token";
+const USER_KEY = "nl2sql_user_info";
 
-function notify() {
-  for (const fn of listeners) fn();
+function loadUser(): AuthUser | null {
+  const raw = localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    return null;
+  }
 }
 
-export function useAuth(): AuthState {
-  const [, setTick] = useState(0);
+export function useAuth() {
+  const [token, setToken] = useState<string>(() => localStorage.getItem(TOKEN_KEY) ?? "");
+  const [user, setUser] = useState<AuthUser | null>(() => loadUser());
 
-  useEffect(() => {
-    const fn = () => setTick((n) => n + 1);
-    listeners.push(fn);
-    return () => {
-      listeners = listeners.filter((l) => l !== fn);
-    };
-  }, []);
+  const isAuthenticated = !!token && !!user;
+  const isAdmin = user?.role === "admin";
 
-  useEffect(() => {
-    if (!globalUser) {
-      fetchCurrentUser()
-        .then((u) => {
-          globalUser = u;
-          notify();
-        })
-        .catch(() => {
-          globalUser = null;
-          notify();
-        });
-    }
-  }, []);
-
+  /** 登录：成功后保存 token 和用户信息 */
   const login = useCallback(async (username: string, password: string) => {
     const res = await apiLogin(username, password);
-    localStorage.setItem("nl2sql_auth_token", res.token);
-    localStorage.setItem("nl2sql_user_info", JSON.stringify(res.user));
-    globalUser = res.user;
-    notify();
-    return res;
+    localStorage.setItem(TOKEN_KEY, res.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+    setToken(res.token);
+    setUser(res.user);
+    return res.user;
   }, []);
 
+  /** 登出：清除本地状态并通知后端 */
   const logout = useCallback(async () => {
-    await apiLogout().catch(() => {});
-    localStorage.removeItem("nl2sql_auth_token");
-    localStorage.removeItem("nl2sql_user_info");
-    globalUser = null;
-    notify();
+    try {
+      await apiLogout();
+    } catch {
+      // 忽略后端错误，本地强制清除
+    }
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    setToken("");
+    setUser(null);
   }, []);
+
+  /** 刷新当前用户信息（用于校验 token 是否仍有效） */
+  const refreshUser = useCallback(async () => {
+    if (!token) return null;
+    try {
+      const me = await fetchCurrentUser();
+      localStorage.setItem(USER_KEY, JSON.stringify(me));
+      setUser(me);
+      return me;
+    } catch {
+      // token 失效，清除本地状态
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      setToken("");
+      setUser(null);
+      return null;
+    }
+  }, [token]);
+
+  // 启动时若有 token，校验一次（静默失败则清除）
+  useEffect(() => {
+    if (token && !user) {
+      void refreshUser();
+    }
+  }, [token, user, refreshUser]);
 
   return {
-    user: globalUser,
-    isAuthenticated: !!globalUser,
-    isAdmin: globalUser?.role === "admin",
-    loading: false,
+    token,
+    user,
+    isAuthenticated,
+    isAdmin,
     login,
     logout,
+    refreshUser,
   };
 }

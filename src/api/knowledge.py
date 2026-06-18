@@ -138,7 +138,7 @@ async def update_knowledge_table(table_name: str, data: TableKnowledgeUpdate):
 
 @router.get("/tables/{table_name}/columns")
 async def get_table_columns_from_db(table_name: str):
-    """从数据库获取表的真实列名列表（含类型信息）。"""
+    """从数据库获取表的真实列名列表（含类型和注释信息）。"""
     from src.graph.nodes import _get_table_columns
 
     cols = _get_table_columns(table_name)
@@ -148,11 +148,24 @@ async def get_table_columns_from_db(table_name: str):
 
     with execution_connection() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT column_name, data_type FROM information_schema.columns "
-            "WHERE table_name = %s ORDER BY ordinal_position",
-            (table_name,),
+            """
+            SELECT
+                c.column_name,
+                c.data_type,
+                pg_catalog.col_description(
+                    (SELECT oid FROM pg_class WHERE relname = %s),
+                    c.ordinal_position
+                ) AS column_comment
+            FROM information_schema.columns c
+            WHERE c.table_name = %s
+            ORDER BY c.ordinal_position
+            """,
+            (table_name, table_name),
         )
-        return [{"name": r["column_name"], "type": r["data_type"], "comment": ""} for r in cur.fetchall()]
+        return [
+            {"name": r["column_name"], "type": r["data_type"], "comment": r["column_comment"] or ""}
+            for r in cur.fetchall()
+        ]
 
 
 @router.delete("/tables/{table_name}")

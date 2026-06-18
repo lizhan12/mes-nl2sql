@@ -125,6 +125,71 @@ export interface ActivityItem {
   payload?: unknown;
 }
 
+export interface StepInfo {
+  node: string;
+  label: string;
+  textPreview: string;
+  status: "running" | "done" | "error";
+}
+
+export interface SqlResult {
+  description?: string;
+  question?: string;
+  sql?: string;
+  success?: boolean;
+  rows?: number;
+  columns?: string[];
+  preview?: Array<Record<string, JsonValue>>;
+  error?: string;
+  repaired?: boolean;
+}
+
+export interface Message {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  type: "text" | "sql" | "progress" | "error";
+  timestamp: number;
+  nodeStatus?: Record<string, "pending" | "running" | "done" | "error">;
+  sql?: string;
+  executionResult?: Record<string, JsonValue> | null;
+  requestId?: string;
+  traceId?: string;
+  // 多 SQL 相关
+  multiSql?: boolean;
+  finalSqls?: string[];
+  executionResults?: SqlResult[];
+  subQueries?: Array<{ question: string; description: string }>;
+  steps?: StepInfo[];
+  userRating?: number; // 用户评分: 1=点赞, -1=点踩, null/undefined=未评分
+}
+
+export interface ChatStreamEvent {
+  node: string;
+  status: "progress" | "complete" | "error";
+  thread_id: string;
+  request_id?: string;
+  trace_id?: string;
+  data: Record<string, JsonValue>;
+}
+
+export interface PageRequest {
+  sql: string;
+  page: number;
+  page_size: number;
+}
+
+export interface PageResponse {
+  success: boolean;
+  total_rows: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  columns: string[];
+  rows: Array<Record<string, JsonValue>>;
+  error: string;
+}
+
 // ── Trace 类型 ─────────────────────────────────────────────────────
 
 export interface TraceSpan {
@@ -279,6 +344,7 @@ export interface FewShotItem {
   scenario: string;
   question: string;
   full_text: string;
+  enabled: boolean;
 }
 
 export interface EvolvedFewShotItem {
@@ -286,6 +352,7 @@ export interface EvolvedFewShotItem {
   scenario: string;
   question: string;
   full_text: string;
+  enabled: boolean;
 }
 
 // ── RuntimeRule 管理 ──────────────────────────────────────────────
@@ -297,6 +364,7 @@ export interface RuntimeRuleItem {
   required_tables: string[];
   required_joins: string[];
   source: string;
+  enabled: boolean;
 }
 
 export interface DedupSimilarItem {

@@ -166,11 +166,12 @@ async def replace_all_graph(graph: dict[str, list[dict]]) -> int:
                 desc = e.get("desc", "")
                 if "(反向)" in desc:
                     continue  # 跳过反向边
+                # 全量替换场景已 DETACH DELETE 所有节点，使用 CREATE 避免同表对多条 JOIN 被 MERGE 去重
                 await session.run(
                     """
                     MATCH (a:Table {name: $from_table})
                     MATCH (b:Table {name: $to_table})
-                    MERGE (a)-[r:JOIN_REL]->(b)
+                    CREATE (a)-[r:JOIN_REL]->(b)
                     SET r.from_field = $from_field,
                         r.to_field = $to_field,
                         r.join_condition = $join,
@@ -618,9 +619,7 @@ async def runtime_rule_has_embeddings() -> bool:
     """检查 RuntimeRule 节点是否已有向量数据。"""
     driver = await _get_driver()
     async with driver.session() as session:
-        result = await session.run(
-            "MATCH (r:RuntimeRule) WHERE r.question_embedding IS NOT NULL RETURN count(r) AS c"
-        )
+        result = await session.run("MATCH (r:RuntimeRule) WHERE r.question_embedding IS NOT NULL RETURN count(r) AS c")
         rec = await result.single()
         return bool(rec and rec["c"] > 0)
 
@@ -850,7 +849,8 @@ async def load_published_rules() -> list[dict]:
                    r.preferred_main_table AS preferred_main_table,
                    r.required_tables AS required_tables,
                    r.required_joins AS required_joins,
-                   r.source AS source
+                   r.source AS source,
+                   COALESCE(r.enabled, true) AS enabled
             """
         )
         rules: list[dict] = []
@@ -860,6 +860,7 @@ async def load_published_rules() -> list[dict]:
                 "normalized_question": rec["normalized_question"],
                 "preferred_main_table": rec["preferred_main_table"] or "",
                 "source": rec["source"],
+                "enabled": rec["enabled"] if rec["enabled"] is not None else True,
             }
             # 还原 JSON 数组（兼容双重编码）
             tables_raw = rec["required_tables"]
@@ -908,6 +909,7 @@ async def load_published_few_shot_text() -> str:
         result = await session.run(
             """
             MATCH (f:EvolvedFewShot)
+            WHERE COALESCE(f.enabled, true) = true
             RETURN f.full_text AS full_text
             ORDER BY f.id
             """
@@ -934,10 +936,8 @@ async def init_neo4j_graph() -> None:
     """初始化 Neo4j 表关系图。
 
     若 Neo4j 中已有 Table 节点（含 JOIN_REL 边），跳过初始化。
-    若 neo4j_graph_auto_init 为 False，即使 Neo4j 为空也不从 PG/JSON 重建。
-    否则从 PG 或本地 JSON 加载图数据并全量导入 Neo4j。
-
-    数据源优先级：PG graph_edges 表 > 本地 mes_relation_graph.json
+    若 neo4j_graph_auto_init 为 False，即使 Neo4j 为空也不从 JSON 重建。
+    否则从本地 JSON 加载图数据并全量导入 Neo4j。
     """
     node_count, edge_count = await count_graph()
     if node_count > 0:
@@ -952,32 +952,19 @@ async def init_neo4j_graph() -> None:
 
     graph: dict[str, list[dict]] = {}
 
-    # 尝试从 PG 加载
-    try:
-        from src.services.graph_repository import get_graph_repository
+    # 从本地 JSON 加载（PG graph_edges 已废弃，不再维护）
+    import json
+    from pathlib import Path
 
-        repo = get_graph_repository()
-        repo.ensure_tables()
-        graph = repo.load_full_graph()
-        if graph:
-            logger.info("从 PG graph_edges 加载关系图，%d 个表", len(graph))
-    except Exception as e:
-        logger.warning("从 PG 加载关系图失败: %s", e)
-
-    # 降级到 JSON
-    if not graph:
-        import json
-        from pathlib import Path
-
-        graph_path = Path(__file__).parent.parent.parent / "data" / "mes_relation_graph.json"
-        if graph_path.exists():
-            with open(graph_path, encoding="utf-8") as f:
-                data = json.load(f)
-            graph = data["graph"] if isinstance(data, dict) and "graph" in data else data
-            logger.info("从 JSON 文件加载关系图，%d 个表", len(graph))
-        else:
-            logger.warning("关系图 JSON 文件不存在: %s", graph_path)
-            return
+    graph_path = Path(__file__).parent.parent.parent / "data" / "mes_relation_graph.json"
+    if graph_path.exists():
+        with open(graph_path, encoding="utf-8") as f:
+            data = json.load(f)
+        graph = data["graph"] if isinstance(data, dict) and "graph" in data else data
+        logger.info("从 JSON 文件加载关系图，%d 个表", len(graph))
+    else:
+        logger.warning("关系图 JSON 文件不存在: %s", graph_path)
+        return
 
     if not graph:
         logger.warning("无关系图数据可导入 Neo4j")

@@ -243,6 +243,9 @@ async def _load_runtime_regression_cases() -> dict[str, dict[str, Any]]:
     for rule in await load_runtime_rules():
         if not isinstance(rule, dict):
             continue
+        # 跳过已禁用的规则
+        if rule.get("enabled") is False:
+            continue
         question = str(rule.get("question", "")).strip()
         normalized = str(rule.get("normalized_question") or normalize_question(question))
         if not normalized:

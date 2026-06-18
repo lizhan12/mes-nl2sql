@@ -486,6 +486,129 @@ export default function GraphPage() {
 
   return (
     <div className="relative flex h-screen flex-col bg-[var(--bg-base)]">
+      {/* 顶部工具栏 */}
+      <header className="flex items-center justify-between border-b border-[var(--border-default)] bg-[var(--bg-raised)] px-4 py-2.5">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/"
+            className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            返回
+          </Link>
+          <div className="h-4 w-px bg-[var(--border-default)]" />
+          <h1 className="font-display text-sm font-semibold uppercase tracking-[0.06em] text-[var(--text-primary)]">
+            MES 表关系图
+          </h1>
+          <span className="font-mono text-[10px] text-[var(--text-tertiary)] tabular-nums">
+            {nodeCount} 表 <span className="opacity-40">|</span> {edgeCount} 关系
+          </span>
+          {saveMsg && (
+            <span
+              className="font-mono text-[10px]"
+              style={{ color: saveMsg.includes("失败") ? "var(--error)" : "var(--success)" }}
+            >
+              {saveMsg}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* 主题切换 */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={isDark ? "切换到亮色模式" : "切换到暗色模式"}
+            className="flex items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 font-mono text-[10px] uppercase text-[var(--text-secondary)] transition-all hover:border-[var(--border-accent)] hover:text-[var(--accent)] hover:shadow-[var(--shadow-glow)]"
+          >
+            {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          </button>
+
+          {/* 编辑模式开关 */}
+          <button
+            onClick={() => setEditMode(!editMode)}
+            className="flex items-center gap-1 rounded-[var(--radius-sm)] border px-2 font-mono text-[10px] uppercase transition-all"
+            style={{
+              borderColor: editMode ? "var(--accent)" : "var(--border-default)",
+              backgroundColor: editMode ? "var(--accent-surface)" : "var(--bg-subtle)",
+              color: editMode ? "var(--accent)" : "var(--text-secondary)",
+            }}
+          >
+            <Edit3 className="h-3.5 w-3.5" />
+            编辑
+          </button>
+
+          {editMode && (
+            <>
+              <button
+                onClick={openAddEditor}
+                className="flex items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 font-mono text-[10px] uppercase text-[var(--text-secondary)] transition-all hover:text-[var(--text-primary)]"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                新增边
+              </button>
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                className="flex items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 font-mono text-[10px] uppercase text-[var(--text-secondary)] transition-all hover:text-[var(--text-primary)] disabled:opacity-30"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+                同步
+              </button>
+              <div className="h-4 w-px bg-[var(--border-default)]" />
+            </>
+          )}
+
+          {/* 搜索 */}
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              placeholder="搜索表名..."
+              className="w-44 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-2 font-mono text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)] focus:outline-none"
+              style={{ height: "28px" }}
+            />
+            <button
+              onClick={handleSearch}
+              className="flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--text-secondary)] transition-all hover:text-[var(--accent)]"
+              style={{ height: "28px", width: "28px" }}
+            >
+              <Search className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <div className="h-4 w-px bg-[var(--border-default)]" />
+
+          {/* 缩放 */}
+          <button
+            onClick={zoomIn}
+            className="flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--text-secondary)] transition-all hover:text-[var(--accent)]"
+            style={{ height: "28px", width: "28px" }}
+            title="放大"
+          >
+            <ZoomIn className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={zoomOut}
+            className="flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--text-secondary)] transition-all hover:text-[var(--accent)]"
+            style={{ height: "28px", width: "28px" }}
+            title="缩小"
+          >
+            <ZoomOut className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={fitAll}
+            className="flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2 font-mono text-[10px] uppercase text-[var(--text-secondary)] transition-all hover:text-[var(--accent)]"
+            style={{ height: "28px" }}
+            title="适应视图"
+          >
+            适应
+          </button>
+        </div>
+      </header>
+
       {/* 主区域 */}
       <div className="flex flex-1 overflow-hidden">
         {/* 图区域 */}
@@ -493,134 +616,15 @@ export default function GraphPage() {
 
         {/* 右侧面板 */}
         <div className="flex w-64 flex-col border-l border-[var(--border-default)] bg-[var(--bg-raised)]">
-          <div className="flex-1 overflow-auto px-3 py-3">
-            {/* ── 头部工具栏（合并自原 header） ── */}
-            <div className="mb-2.5 flex items-center gap-1.5">
-              <Link
-                to="/"
-                className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.04em] text-[var(--text-tertiary)] transition-colors hover:text-[var(--accent)]"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                返回
-              </Link>
-              <div className="h-3 w-px bg-[var(--border-default)]" />
-              <h1 className="font-display text-sm font-semibold uppercase tracking-[0.06em] text-[var(--text-primary)]">
-                MES 表关系图
-              </h1>
-              <span className="font-mono text-[10px] text-[var(--text-tertiary)] tabular-nums">
-                {nodeCount} 表 <span className="opacity-40">|</span> {edgeCount} 关系
-              </span>
-            </div>
-
-            {/* 工具按钮：主题切换、编辑模式、缩放 */}
-            <div className="mb-2.5 flex flex-wrap items-center gap-1">
-              {/* 主题切换 */}
-              <button
-                type="button"
-                onClick={toggleTheme}
-                title={isDark ? "切换到亮色模式" : "切换到暗色模式"}
-                className="flex h-7 items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 font-mono text-[10px] uppercase text-[var(--text-secondary)] transition-all hover:border-[var(--border-accent)] hover:text-[var(--accent)]"
-              >
-                {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-              </button>
-
-              {/* 编辑模式开关 */}
-              <button
-                onClick={() => setEditMode(!editMode)}
-                className="flex h-7 items-center gap-1 rounded-[var(--radius-sm)] border px-1.5 font-mono text-[10px] uppercase transition-all"
-                style={{
-                  borderColor: editMode ? "var(--accent)" : "var(--border-default)",
-                  backgroundColor: editMode ? "var(--accent-surface)" : "var(--bg-subtle)",
-                  color: editMode ? "var(--accent)" : "var(--text-secondary)",
-                }}
-              >
-                <Edit3 className="h-3.5 w-3.5" />
-                编辑
-              </button>
-
-              {editMode && (
-                <>
-                  <button
-                    onClick={openAddEditor}
-                    className="flex h-7 items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 font-mono text-[10px] uppercase text-[var(--text-secondary)] transition-all hover:text-[var(--text-primary)]"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    新增边
-                  </button>
-                  <button
-                    onClick={handleSync}
-                    disabled={syncing}
-                    className="flex h-7 items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 font-mono text-[10px] uppercase text-[var(--text-secondary)] transition-all hover:text-[var(--text-primary)] disabled:opacity-30"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
-                    同步
-                  </button>
-                </>
-              )}
-
-              {/* 缩放 */}
-              <div className="ml-auto flex items-center gap-1">
-                <button
-                  onClick={zoomIn}
-                  className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--text-secondary)] transition-all hover:text-[var(--accent)]"
-                  title="放大"
-                >
-                  <ZoomIn className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={zoomOut}
-                  className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--text-secondary)] transition-all hover:text-[var(--accent)]"
-                  title="缩小"
-                >
-                  <ZoomOut className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={fitAll}
-                  className="flex h-7 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] px-1.5 font-mono text-[10px] uppercase text-[var(--text-secondary)] transition-all hover:text-[var(--accent)]"
-                  title="适应视图"
-                >
-                  适应
-                </button>
-              </div>
-            </div>
-
-            {/* 搜索 */}
-            <div className="mb-2.5 flex items-center gap-1">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                placeholder="搜索表名..."
-                className="w-full rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] px-2 font-mono text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)] focus:outline-none"
-                style={{ height: "28px" }}
-              />
-              <button
-                onClick={handleSearch}
-                className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--text-secondary)] transition-all hover:text-[var(--accent)]"
-                style={{ height: "28px", width: "28px" }}
-              >
-                <Search className="h-3.5 w-3.5" />
-              </button>
-            </div>
-
-            {saveMsg && (
-              <div
-                className="mb-2.5 font-mono text-[10px]"
-                style={{ color: saveMsg.includes("失败") ? "var(--error)" : "var(--success)" }}
-              >
-                {saveMsg}
-              </div>
-            )}
-
-            {/* 域过滤 */}
+          {/* 域过滤 */}
+          <div className="border-b border-[var(--border-default)] px-3 py-3">
             <div className="mb-2.5 flex items-center gap-1.5">
               <Filter className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
               <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--text-secondary)]">
                 域过滤
               </span>
             </div>
-            <div className="mb-2.5 flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {Object.entries(DOMAIN_CONFIG).map(([key, cfg]) => (
                 <button
                   key={key}
@@ -641,11 +645,10 @@ export default function GraphPage() {
                 </button>
               ))}
             </div>
+          </div>
 
-            {/* 分隔线：工具栏与详情区分隔 */}
-            <div className="mb-2.5 border-b border-[var(--border-default)]" />
-
-            {/* ── 边详情 / 编辑模式下列表 ── */}
+          {/* 边详情 / 编辑模式下列表 */}
+          <div className="flex-1 overflow-auto px-3 py-3">
             {editMode ? (
               <>
                 <span className="font-mono text-[10px] font-medium uppercase tracking-[0.04em] text-[var(--text-secondary)]">
