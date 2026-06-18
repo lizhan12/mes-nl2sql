@@ -1,0 +1,664 @@
+表名：t_bd_bom
+模块：基础数据
+业务含义：物料清单
+关键字段：
+  part_id (varchar(40)) -- 成品料号
+  bom_version (varchar(40)) -- BOM版本
+  remark (varchar(40)) -- 备注
+  current_status (int4) -- 当前状态(0,初始;1,提交;2,签核;3,驳回;4,废弃)
+  is_enabled (varchar(1))
+  create_user_id (varchar(40))
+  update_user_id (varchar(40))
+关联关系：
+  JOIN t_bd_part ON t_bd_bom.part_id = t_bd_part.id  -- BOM主表←成品料号
+  JOIN t_bd_bom_detail ON t_bd_bom.id = t_bd_bom_detail.bom_id  -- BOM明细←BOM主表(反向)
+适用场景：BOM查询
+---
+表名：t_bd_bom_detail
+模块：基础数据
+业务含义：物料清单明细
+关键字段：
+  bom_id (varchar(40)) -- 物料清单主表ID
+  item_seq (int4) -- 排序(组装时，规定组装先后顺序)
+  item_part_id (varchar(40)) -- 料号
+  unit_id (varchar(40)) -- 单位
+  points (varchar(2000)) -- 点位
+  attrition_rate (numeric(16,) -- 损耗率
+  process_id (varchar(40)) -- 工序ID
+  remark (varchar(200)) -- 备注
+  pre_item_part_no (varchar(40)) -- 上阶料号
+  pcb_side (int4) -- PCB面别(0,正面;1,反面;2,整体)
+  stage_code (varchar(40)) -- 区段
+  fisskip (varchar(1)) -- 跳层
+关联关系：
+  JOIN t_bd_bom ON t_bd_bom_detail.bom_id = t_bd_bom.id  -- BOM明细←BOM主表
+  JOIN t_bd_part ON t_bd_bom_detail.item_part_id = t_bd_part.id  -- BOM明细←子件料号
+  JOIN t_bd_process ON t_bd_bom_detail.process_id = t_bd_process.id  -- BOM明细←工序
+适用场景：BOM查询
+---
+表名：t_bd_part
+模块：基础数据
+业务含义：（无注释）
+关键字段：
+  part_no (varchar(40)) -- 料号
+  part_name (varchar(2000)) -- 品名
+  part_spec (varchar(2000)) -- 规格
+  unit_id (varchar(40)) -- 单位
+  part_level (varchar(40)) -- 贵重等级
+  group_id (varchar(40)) -- 料号分组
+  limit_time_value (int4) -- 超期值(单位：天）
+  warm_time_value (int4) -- 预警值(单位：天）
+  pkg_size (int4) -- 包装厚度
+  is_rohs (varchar(1)) -- RoHS标志
+  default_warehouse (varchar(40)) -- 默认仓库
+  low_qty (int4) -- 最低安全库存量
+关联关系：
+  JOIN t_pd_wo ON t_bd_part.id = t_pd_wo.part_id  -- 工单←料号(反向)
+  JOIN t_pd_wo_bom ON t_bd_part.id = t_pd_wo_bom.part_id  -- 工单BOM←主料(反向)
+  JOIN t_pd_sn_status ON t_bd_part.id = t_pd_sn_status.part_id  -- SN状态←料号(反向)
+  JOIN t_bd_bom ON t_bd_part.id = t_bd_bom.part_id  -- BOM主表←成品料号(反向)
+  JOIN t_bd_bom_detail ON t_bd_part.id = t_bd_bom_detail.item_part_id  -- BOM明细←子件料号(反向)
+  JOIN t_qm_inspect_info ON t_bd_part.id = t_qm_inspect_info.part_id  -- 检验单←料号(反向)
+---
+表名：t_bd_part_route
+模块：基础数据
+业务含义：产品工艺路线主表
+关键字段：
+  part_id (varchar(40)) -- 料号ID
+  route_id (varchar(40)) -- 工艺路线ID
+  pcb_side (int4) -- PCB面别(0,正面;1,反面;2,整体)
+  paint_json (text) -- 工艺路线画布渲染
+  is_default (varchar(1)) -- 是否默认
+  is_enabled (varchar(1)) -- 是否启用
+  update_user_id (varchar(40))
+  create_user_id (varchar(40))
+关联关系：
+  JOIN t_bd_part ON t_bd_part_route.part_id = t_bd_part.id  -- 工艺路线←料号
+  JOIN t_bd_part_route_detail ON t_bd_part_route.id = t_bd_part_route_detail.part_route_id  -- 路线明细←工艺路线(反向)
+---
+表名：t_bd_pdline
+模块：基础数据
+业务含义：产线
+关键字段：
+  pdline_seq (int4) -- 线别序号
+  pdline_code (varchar(40)) -- 线别代码
+  pdline_name (varchar(40)) -- 线别名称
+  pdline_desc (varchar(40)) -- 线别描述
+  pdline_type (varchar(40)) -- 线别类型(0-通用线;1-手帖线)
+  workshop_id (varchar(40)) -- 车间ID
+  stage_code (varchar(40)) -- 区段
+  lineleaderid (varchar(40)) -- 线长
+  is_enabled (varchar(1))
+  create_user_id (varchar(40))
+  update_user_id (varchar(40))
+  lane_type (int4) -- 轨道类型（0.单轨;1双轨）
+关联关系：
+  JOIN t_pd_wo ON t_bd_pdline.pdline_code = t_pd_wo.pdline_code  -- 工单←产线(反向)
+  JOIN t_pd_sn_status ON t_bd_pdline.pdline_code = t_pd_sn_status.pdline_code  -- SN状态←产线(反向)
+  JOIN t_bd_workshop ON t_bd_pdline.workshop_id = t_bd_workshop.id  -- 产线←车间
+  JOIN t_bd_terminal ON t_bd_pdline.id = t_bd_terminal.pdline_id  -- 工作站←产线(反向)
+---
+表名：t_bd_substitute
+模块：基础数据
+业务含义：替代料
+关键字段：
+  item_part_id (varchar(40)) -- 主料料号
+  sub_part_id (varchar(40)) -- 替代料料号
+  sub_type (varchar(1)) -- 替代类型(0.全局1.产品2.工单)
+  work_order (varchar(40)) -- 工单号
+  part_id (varchar(40)) -- 产品料号
+  bom_version (varchar(40)) -- 产品版本
+  remark (varchar(200)) -- 备注
+  start_time (timestamp(6)) -- 开始时间
+  end_time (timestamp(6)) -- 结束时间
+  sub_seq (int4) -- 替代顺序
+  is_enabled (varchar(1))
+  create_user_id (varchar(40))
+---
+表名：t_bd_supplier
+模块：基础数据
+业务含义：（无注释）
+关键字段：
+  supplier_code (varchar(200)) -- 供应商代码
+  supplier_name (varchar(200)) -- 供应商名称
+  supplier_desc (varchar(200)) -- 描述
+  tel (varchar(40)) -- 电话
+  email (varchar(40)) -- Email
+  fax (varchar(200)) -- 传真
+  supplier_type (varchar(40)) -- 供应商类型(1,原材料;2,锡膏)
+  addr (varchar(200)) -- 地址
+  contacts (varchar(40)) -- 联系人
+  short_name (varchar(200)) -- 供应商简称
+  parse_rule_id (varchar(40)) -- 解码规则名称
+  is_enabled (varchar(1))
+关联关系：
+  JOIN t_wms_po_in_bill ON t_bd_supplier.id = t_wms_po_in_bill.supplier_id  -- 采购入库←供应商(反向)
+---
+表名：t_bd_unit
+模块：基础数据
+业务含义：物料单位表
+关键字段：
+  unit_name (varchar(40)) -- 单位名称
+  unit_desc (varchar(100)) -- 单位描述
+  is_enabled (varchar(1)) -- 是否可用
+  create_user_id (varchar(40)) -- 创建人员
+  update_user_id (varchar(40)) -- 更新人员
+---
+表名：t_ht_pd_wo_issue_material
+模块：其他
+业务含义：工单发料历史归档表（物料级别记录，记录每条物料的发料状态流转；注意：非发料单据，发料单/领料单请用 t_wms_wo_material_bill）
+关键字段：
+  doc_no (varchar(40)) -- 发料单据
+  upn (varchar(40)) -- 物料编号
+  current_status (int4) -- 物料当前状态(0,备料;1,产线接收;2,绑定载具;3,上线;4,下线;5,用必;6,待退;7,仓库待接收;8,已退;9,续料;)
+  from_warehouse_code (varchar(40)) -- 发料仓库
+  work_order (varchar(40)) -- 工单
+  pdline_code (varchar(40)) -- 产线
+  total_qty (numeric(32,) -- 总量
+  current_qty (numeric(32,) -- 当前量
+  machine_code (varchar(40)) -- 绑定编号(设备编号或工作站名称)
+  table_no (varchar(40)) -- 区域
+  slot_no (varchar(40)) -- 料站
+  track_no (varchar(40)) -- 通道
+适用场景：工单查询
+---
+表名：t_pd_plan_detail
+模块：生产执行
+业务含义：区段计划表
+关键字段：
+  plan_id (varchar(40)) -- 计划明细ID
+  part_id (varchar(40)) -- 料号ID
+  qty (numeric(16,) -- 计划数量
+  stage_code (varchar(40)) -- 区段
+  bom_id (varchar(40)) -- BOM拆分工单使用
+  customer_code (varchar(40)) -- 客户代码
+  plan_type_code (int4) -- 计划类型(0,正常;1,重工;2,委外;3,研发)
+  current_status (int4) -- 当前状态(0,创建;1,开始;2,完结)
+  schedule_start_date (timestamp(6)) -- 预计开始时间
+  schedule_end_date (timestamp(6)) -- 预计结束时间
+  item_seq (int4) -- 序号
+  remark (varchar(2000)) -- 备注
+关联关系：
+  JOIN t_pd_wo ON t_pd_plan_detail.id = t_pd_wo.plan_detail_id  -- 工单←计划明细(反向)
+  JOIN t_pd_plan ON t_pd_plan_detail.plan_id = t_pd_plan.id  -- 计划明细←计划主表
+  JOIN t_bd_part ON t_pd_plan_detail.part_id = t_bd_part.id  -- 计划明细←料号
+  JOIN t_pd_plan_need_material ON t_pd_plan_detail.id = t_pd_plan_need_material.plan_detail_id  -- 用料需求←计划明细(反向)
+适用场景：生产计划
+---
+表名：t_pd_sn_status
+模块：生产执行
+业务含义：SN状态表
+关键字段：
+  sn (varchar(200)) -- 主条码
+  csn (varchar(200)) -- 客户条码
+  work_order (varchar(40)) -- 工单
+  part_id (varchar(40)) -- 料号
+  old_sn (varchar(40)) -- 转标签前的SN
+  old_wo (varchar(40)) -- 转工单前工单
+  pdline_code (varchar(40)) -- 产线
+  terminal_code (varchar(40)) -- 工作站
+  stage_code (varchar(40)) -- 区段ID
+  node_id (varchar(40)) -- 当前节点ID
+  process_name (varchar(40)) -- 当前制程
+  current_phase (int4) -- 当前阶段(0,未投入;1,投入;2.产出)
+关联关系：
+  JOIN t_pd_wo ON t_pd_sn_status.work_order = t_pd_wo.work_order  -- SN状态←工单
+  JOIN t_bd_part ON t_pd_sn_status.part_id = t_bd_part.id  -- SN状态←料号
+  JOIN t_bd_pdline ON t_pd_sn_status.pdline_code = t_bd_pdline.pdline_code  -- SN状态←产线
+  JOIN t_pd_sn_travel ON t_pd_sn_status.sn = t_pd_sn_travel.sn  -- SN履历←SN状态(反向)
+  JOIN t_pd_sn_defect ON t_pd_sn_status.sn = t_pd_sn_defect.sn  -- SN不良←SN状态(反向)
+  JOIN t_pd_sn_material ON t_pd_sn_status.sn = t_pd_sn_material.sn  -- 条码用料←SN状态(反向)
+适用场景：SN追溯
+---
+表名：t_pd_upn_record
+模块：生产执行
+业务含义：（无注释）
+关键字段：
+  upn (varchar(40)) -- UPN
+  item_part_no (varchar(40)) -- 料号
+  item_part_name (varchar(400)) -- 品名
+  item_part_spec (varchar(400)) -- 规格
+  qty (numeric(16,) -- 数量
+  date_code (varchar(40)) -- 日期码
+  lot_no (varchar(40)) -- 批次
+  doc_no (varchar(40)) -- 单据号
+  work_order (varchar(40)) -- 工单
+  part_no (varchar(40)) -- 产品料号
+  issue_work_order (varchar(40)) -- 发料工单
+  issue_doc_category (varchar(40)) -- 发料单据
+---
+表名：t_pd_wo
+模块：生产执行
+业务含义：工单
+关键字段：
+  id (character varying)
+  work_order (character varying) -- 工单号(订单号
+  wo_type (character varying) -- 工单类型(0,正常;1,重工;2,委外;3,研发
+  wo_side (character varying) -- 工单面别(0,正面;1,反面;2,整体
+  priority_level (integer) -- 工单优先级(0,正常;1,紧急;2,延后
+  material_prepare_status (integer) -- 备料状态(0,初始状态;1,首套备料中;2,备料中(低位预警发料
+  part_id (character varying)
+  stage_code (character varying)
+  plan_detail_id (character varying)
+  pdline_code (character varying)
+  part_route_id (character varying)
+  encode_group_id (character varying)
+  label_group_id (character varying)
+  pack_rule_id (character varying)
+  target_qty (integer)
+  release_qty (integer)
+  input_qty (integer)
+  scrap_qty (integer)
+  output_qty (integer)
+  schedule_start_date (timestamp without time zone)
+  schedule_end_date (timestamp without time zone)
+  start_date (timestamp without time zone)
+  end_date (timestamp without time zone)
+  wo_status (integer) -- 工单状态(-1,初始/ERP转入;0,排队/Queue;1,投入/WIP;2,暂停/HOLD;3,取消/Cancel;4,清尾/Clear;5,完成/Complete)
+  remark (character varying)
+  wo_from (character varying)
+  bom_version (character varying)
+  panel_qty (integer)
+  wo_group (character varying)
+  inventory_type (integer)
+  customer_code (character varying)
+  pre_wo (character varying)
+  split_qty (integer)
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+  paint_json (text)
+关联关系：
+  JOIN t_pd_plan_detail ON t_pd_wo.plan_detail_id = t_pd_plan_detail.id  -- 工单←计划明细
+  JOIN t_bd_part ON t_pd_wo.part_id = t_bd_part.id  -- 工单←料号
+  JOIN t_bd_pdline ON t_pd_wo.pdline_code = t_bd_pdline.pdline_code  -- 工单←产线
+  JOIN t_pd_wo_bom ON t_pd_wo.work_order = t_pd_wo_bom.work_order  -- 工单BOM←工单(反向)
+  JOIN t_pd_wo_route ON t_pd_wo.work_order = t_pd_wo_route.work_order  -- 工单路线←工单(反向)
+  JOIN t_pd_wo_issue_material ON t_pd_wo.work_order = t_pd_wo_issue_material.work_order  -- 发料历史←工单(反向)
+  JOIN t_wms_wo_material_bill ON t_pd_wo.work_order = t_wms_wo_material_bill.work_order  -- 领料单←工单(反向)
+  JOIN t_wms_wo_rb ON t_pd_wo.work_order = t_wms_wo_rb.work_order  -- 退料单←工单(反向)
+适用场景：
+工单查询
+---
+表名：t_pd_wo_bom
+模块：生产执行
+业务含义：工单bom表
+关键字段：
+  work_order (varchar(40)) -- 工单
+  part_id (varchar(40)) -- 主料料号
+  item_part_id (varchar(40)) -- 子料
+  item_qty (numeric(16,) -- 单位用量
+  points (varchar(200)) -- 点位
+  unit_code (varchar(40)) -- 单位
+  attrition_rate (numeric(16,) -- 损耗率
+  fentryid (varchar(200)) -- 用料清单行id
+  fid (varchar(200)) -- 用料清单表头id
+  create_user_id (varchar(40))
+  update_user_id (varchar(40))
+关联关系：
+  JOIN t_pd_wo ON t_pd_wo_bom.work_order = t_pd_wo.work_order  -- 工单BOM←工单
+  JOIN t_bd_part ON t_pd_wo_bom.part_id = t_bd_part.id  -- 工单BOM←主料
+适用场景：工单查询, BOM查询
+---
+表名：t_pd_wo_issue_material
+模块：生产执行
+业务含义：工单发料历史表（物料级别记录，记录每条物料的发料状态流转；注意：非发料单据，发料单/领料单请用 t_wms_wo_material_bill）
+关键字段：
+  doc_no (varchar(40)) -- 发料单据
+  upn (varchar(40)) -- 物料编号
+  current_status (int4) -- 物料当前状态(0,备料;1,产线接收;2,绑定载具;3,上线;4,下线;5,用必;6,待退;7,仓库待接收;8,已退;9,续料;
+  from_warehouse_code (varchar(40)) -- 发料仓库
+  work_order (varchar(40)) -- 工单
+  pdline_code (varchar(40)) -- 产线
+  total_qty (numeric(32,) -- 总量
+  current_qty (numeric(32,) -- 当前量
+  machine_code (varchar(40)) -- 绑定编号(设备编号或工作站名称
+  table_no (varchar(40)) -- 区域
+  slot_no (varchar(40)) -- 料站
+  track_no (varchar(40)) -- 通道
+适用场景：
+工单查询
+---
+表名：t_pd_wo_load_material
+模块：生产执行
+业务含义：工单上料表
+关键字段：
+  work_order (varchar(40)) -- 工单
+  machine_code (varchar(40)) -- 设备号
+  table_no (varchar(40)) -- 区域
+  track_no (varchar(40)) -- 通道
+  item_part_no (varchar(40)) -- 子件料号
+  upn (varchar(40)) -- 物料编号
+  total_qty (numeric(16,) -- 总量
+  current_qty (numeric(16,) -- 当前数量
+  pdline_id (varchar(40)) -- 产线代号
+  check_flag (varchar(1)) -- 对料标志(只有为Y才可使用)
+  item_part_no2 (varchar(40)) -- 续料的料号
+  upn2 (varchar(40)) -- 续料的UPN
+关联关系：
+  JOIN t_pd_wo ON t_pd_wo_load_material.work_order = t_pd_wo.work_order  -- 上料←工单
+适用场景：工单查询
+---
+表名：t_pd_wo_route
+模块：生产执行
+业务含义：（无注释）
+关键字段：
+  nid (numeric(16,)
+  work_order (varchar(40)) -- 工单
+  part_route_id (varchar(40))
+  route_name (varchar(200))
+  node_id (varchar(40)) -- 过站前id
+  process_name (varchar(100)) -- 工序
+  next_node_id (varchar(40)) -- 过站后id
+  is_default (varchar(1))
+  start_flag (varchar(1))
+  end_flag (varchar(1))
+  adapter_id (varchar(40))
+  adapter_value (varchar(40))
+关联关系：
+  JOIN t_pd_wo ON t_pd_wo_route.work_order = t_pd_wo.work_order  -- 工单路线←工单
+适用场景：工单查询
+---
+表名：t_qm_exemption_info
+模块：质量管理
+业务含义：免检管理基础信息表
+关键字段：
+  file_name (varchar(40)) -- 文件名称
+  cancel_user_id (varchar(40)) -- 撤销人
+  file_display_name (varchar(200)) -- 附件显示名称
+  part_id (varchar(40)) -- 物料料号
+  supplier_code (varchar(40)) -- 供应商编码
+  is_cancel (varchar(1)) -- 是否撤销:Y撤销N不撤销
+  begin_time (timestamp(6)) -- 有效起始时间
+  end_time (timestamp(6)) -- 有效结束时间
+  apply_reason (varchar(200)) -- 申请原因
+  apply_basis (varchar(2000)) -- 申请依据
+  suggestion (varchar(200)) -- 评审意见
+  cancel_reason (varchar(200)) -- 撤销原因
+---
+表名：t_qm_inspect_info
+模块：质量管理
+业务含义：检验单信息
+关键字段：
+  doc_no (varchar(40)) -- 检验单号
+  test_step (varchar(2)) -- 检验阶别
+  is_urgent (varchar(1)) -- 是否加急
+  plan_id (varchar(40)) -- 抽样方案ID
+  send_dept (varchar(40)) -- 送检部门
+  cust_code (varchar(40)) -- 客户编码
+  supplier_code (varchar(40)) -- 供应商编码
+  re_group_code (varchar(40)) -- 抽检工序
+  status (varchar(1)) -- 单据状态
+  send_qty (int4) -- 送检数量
+  plan_qty (int4) -- 应抽数量
+  real_qty (int4) -- 实抽数量
+关联关系：
+  JOIN t_bd_part ON t_qm_inspect_info.part_id = t_bd_part.id  -- 检验单←料号
+  JOIN t_qm_inspect_item_info ON t_qm_inspect_info.doc_no = t_qm_inspect_item_info.doc_no  -- 检验项目←检验单(反向)
+适用场景：质量检验
+---
+表名：t_wms_doc_type
+模块：仓库管理
+业务含义：单据类别配置
+关键字段：
+  doc_category_code (varchar(40)) -- 单据类别
+  doc_type (varchar(40)) -- 单据类型
+  handover_ways (varchar(40)) -- 交接方式
+  is_excess_pick (varchar(1)) -- 是否允许超发
+  is_excess_receive (varchar(1)) -- 是否允许超收
+  is_forbid_del (varchar(1)) -- 是否禁止删除
+  is_handover (varchar(1)) -- 是否交接
+  is_inspection (varchar(1)) -- 是否送检标识
+  is_pda_display (varchar(1)) -- 是否在PDA显示
+  is_upload_erp (varchar(1)) -- 是否同步ERP
+  test_step (varchar(200)) -- 检测阶别
+  strategy_id (varchar(40)) -- 拣货策略
+---
+表名：t_wms_location
+模块：仓库管理
+业务含义：（无注释）
+关键字段：
+  location_no (varchar(40)) -- 储位编号
+  location_desc (varchar(40)) -- 描述
+  warehouse_id (varchar(40)) -- 仓库
+  shelf_id (varchar(40)) -- 货架
+  location_addr (int4) -- 储位地址
+  location_capacity (int4) -- 储位容量(0,不管;>0,按实际数值)
+  shelf_side (varchar(1)) -- 储位所处货架的面(A,B)
+  current_status (int4) -- 当前状态(0,空闲或未装满;1,使用或已装满;)
+  create_user_id (varchar(40))
+  update_user_id (varchar(40))
+  is_enabled (varchar(1))
+关联关系：
+  JOIN t_wms_warehouse ON t_wms_location.warehouse_id = t_wms_warehouse.id  -- 储位←仓库
+---
+表名：t_wms_over_issue_bill_detail
+模块：仓库管理
+业务含义：物料超领单(补料单)细项
+关键字段：
+  doc_id (varchar(40)) -- 单据ID
+  item_seq (int4) -- 项次
+  part_id (varchar(40)) -- 料号
+  unit_id (varchar(40)) -- 单位
+  warehouse_id (varchar(40)) -- 出货仓库
+  current_status (int4) -- 当前状态(0,创建;1,开始;2,完结;3,删除)
+  lot_no (varchar(40)) -- 批次
+  bin_code (varchar(40)) -- BIN值
+  need_fid (varchar(200)) -- 用料清单ID
+  need_frowid (varchar(200)) -- 用料清单行ID
+  upload_erp (varchar(1)) -- 上传ERP
+  upload_time (timestamp(6)) -- 上传时间
+---
+表名：t_wms_stock
+模块：仓库管理
+业务含义：物料信息表
+关键字段：
+  upn (varchar(40)) -- 物料编号（最小包装号）
+  receive_qty (numeric(16,) -- 接收数量（第一次入库）
+  qty (numeric(16,) -- 当前数量
+  supplier_id (varchar(40)) -- 供应商代码
+  customer_id (varchar(40)) -- 客户代码
+  date_code (varchar(40)) -- 生产日期
+  lot_no (varchar(40)) -- 批次
+  work_order (varchar(40)) -- 工单
+  qc_result (int4) -- QC结果
+  current_status (int4) -- 当前状态（0,正常;1,不良;2,报废;）
+  location_no (varchar(40)) -- 储位
+  stock_status (int4) -- 库存状态(0,收料;1,在库;2,不在库;3,待交接)
+关联关系：
+  JOIN t_bd_part ON t_wms_stock.part_no = t_bd_part.part_no  -- 库存←料号
+  JOIN t_wms_warehouse ON t_wms_stock.warehouse_id = t_wms_warehouse.id  -- 库存←仓库
+适用场景：库存查询
+---
+表名：t_wms_transfer_bill_detail
+模块：仓库管理
+业务含义：调拨细项
+关键字段：
+  doc_id (varchar(40)) -- 单据ID
+  item_seq (int4) -- 项次
+  part_id (varchar(40)) -- 料号ID
+  total_qty (numeric(16,) -- 需入总量
+  unit_id (varchar(40)) -- 单位ID
+  date_code (varchar(40)) -- 日期码
+  lot_no (varchar(40)) -- 批号
+  from_warehouse_id (varchar(40)) -- 发料仓库
+  bin_code (varchar(40)) -- BIN值
+  to_warehouse_id (varchar(40)) -- 收料仓库
+  qty (numeric(16,) -- 已入数量
+  handover_qty (numeric(16,) -- 交接数量
+---
+表名：t_wms_upn_record
+模块：仓库管理
+业务含义：UPN履历表
+关键字段：
+  upn (varchar(40)) -- UPN
+  part_no (varchar(100)) -- 料号
+  part_name (varchar(400)) -- 品名
+  part_spec (varchar(2000)) -- 规格
+  qty (numeric(16,) -- 数量
+  supplier_code (varchar(40)) -- 供应商代码
+  supplier_name (varchar(200)) -- 供应商名称
+  customer_code (varchar(40)) -- 客户代码
+  customer_name (varchar(200)) -- 客户名称
+  date_code (varchar(40)) -- 日期码
+  lot_no (varchar(200)) -- 批次号
+  doc_no (varchar(40)) -- 单据号
+关联关系：
+  JOIN t_bd_part ON t_wms_upn_record.part_no = t_bd_part.part_no  -- UPN履历←料号
+---
+表名：t_wms_warehouse
+模块：仓库管理
+业务含义：仓库
+关键字段：
+  warehouse_code (varchar(40))
+  warehouse_name (varchar(40))
+  warehouse_desc (varchar(200))
+  warehouse_type (varchar(40))
+  remark (varchar(200))
+  order_show (int4) -- 排序显示
+  process_level (int4) -- 加工等级
+  fifo_flag (varchar(1)) -- 先进先出管控标志
+  create_user_id (varchar(40))
+  update_user_id (varchar(40))
+  is_enabled (varchar(1))
+关联关系：
+  JOIN t_wms_stock ON t_wms_warehouse.id = t_wms_stock.warehouse_id  -- 库存←仓库(反向)
+  JOIN t_wms_location ON t_wms_warehouse.id = t_wms_location.warehouse_id  -- 储位←仓库(反向)
+---
+表名：t_wms_wo_material_bill
+模块：仓库管理
+业务含义：（无注释）
+关键字段：
+  id (varchar(40)) -- 主键ID
+  doc_no (varchar(40)) -- 单据号
+  work_order (varchar(40)) -- 工单
+  doc_type_id (varchar(40)) -- 单据类型
+  current_status (int4) -- 当前状态
+  merge_flag (varchar(1)) -- 是否合并
+  upload_time (timestamp(6)) -- ERP上传时间
+  fid (varchar(40)) -- ERP主表ID
+  remark (varchar(200)) -- 备注
+  doc_from (varchar(40)) -- 单据来源
+  create_user_id (varchar(40))
+  update_user_id (varchar(40))
+  upload_flag (varchar(1)) -- 上传ERP
+关联关系：
+  JOIN t_pd_wo ON t_wms_wo_material_bill.work_order = t_pd_wo.work_order  -- 领料单←工单
+  JOIN t_wms_wo_material_bill_detail ON t_wms_wo_material_bill.id = t_wms_wo_material_bill_detail.doc_id  -- 领料明细←领料单(反向)
+适用场景：工单查询
+---
+表名：t_wms_wo_material_bill_detail
+模块：仓库管理
+业务含义：（无注释）
+关键字段：
+  doc_id (varchar(40)) -- 单据ID
+  item_seq (int4) -- 序号
+  part_id (varchar(40)) -- 物料编码
+  unit_id (varchar(40)) -- 单位
+  current_status (int4) -- 当前状态(0,创建;1,开始;2,完结)
+  warehouse_id (varchar(40)) -- 出仓编码
+  need_fid (varchar(40)) -- 用料清单ID
+  need_frowid (varchar(40)) -- 用料清单行ID
+  lot_no (varchar(40)) -- 批次
+  supplier_id (varchar(40)) -- 供应商
+  bin_code (varchar(40)) -- BIN值
+  upload_time (timestamp(6)) -- 上传时间
+关联关系：
+  JOIN t_wms_wo_material_bill ON t_wms_wo_material_bill_detail.doc_id = t_wms_wo_material_bill.id  -- 领料明细←领料单
+适用场景：工单查询
+---
+表名：t_wms_wo_rb
+模块：仓库管理
+业务含义：生产退料单
+关键字段：
+  id (varchar(40)) -- 主键ID
+  doc_no (varchar(40)) -- 单据
+  doc_type_id (varchar(40)) -- 单据类型
+  current_status (int4) -- 当前状态(0,创建;1,开始;2,完结;3,删除)
+  upload_flag (varchar(1)) -- 上传ERP
+  upload_time (timestamp(6)) -- ERP上传时间
+  upload_user_id (varchar(40)) -- ERP上传人员
+  work_order (varchar(40)) -- 工单
+  upload_result (varchar(2000)) -- ERP返回结果
+  fid (varchar(40)) -- ERP主表ID
+  doc_from (varchar(40)) -- 单据来源
+  remark (varchar(2000)) -- 备注
+  create_user_id (varchar(40))
+关联关系：
+  JOIN t_pd_wo ON t_wms_wo_rb.work_order = t_pd_wo.work_order  -- 退料单←工单
+适用场景：工单查询
+---
+表名：t_wms_wo_rb_detail
+模块：仓库管理
+业务含义：生产退料单细项
+关键字段：
+  doc_id (varchar(40)) -- 单据ID
+  item_seq (int4) -- 项次
+  part_id (varchar(40)) -- 料号
+  total_qty (int4) -- 总量(退料数量)
+  unit_id (varchar(40)) -- 单位
+  warehouse_id (varchar(40)) -- 退料仓库
+  in_qty (int4) -- 已退数量
+  current_status (int4) -- 当前状态(0,创建;1,开始;2,完结;3,删除)
+  upload_qty (int4) -- 上传数量
+  upload_time (timestamp(6)) -- 上传时间
+  fid (varchar(2000)) -- ERP主表ID
+  fentry_id (varchar(200)) -- ERP子表ID
+  remark (varchar(2000)) -- 备注
+  handover_qty (int4) -- 交接数量
+  upload_user_id (varchar(40)) -- 上传人员
+  upload_result (varchar(200)) -- 上传结果
+  create_user_id (varchar(40))
+  create_time (timestamp(6))
+  update_user_id (varchar(40))
+  update_time (timestamp(6))
+关联关系：
+  JOIN t_wms_wo_rb ON t_wms_wo_rb_detail.doc_id = t_wms_wo_rb.id  -- 退料单细项←退料单(主从)
+  JOIN t_bd_part ON t_wms_wo_rb_detail.part_id = t_bd_part.id  -- 退料单细项←料号
+  JOIN t_bd_unit ON t_wms_wo_rb_detail.unit_id = t_bd_unit.id  -- 退料单细项←单位
+  JOIN t_wms_warehouse ON t_wms_wo_rb_detail.warehouse_id = t_wms_warehouse.id  -- 退料单细项←仓库
+适用场景：工单查询、退料明细查询、仓库退料统计
+---
+表名：t_test_info
+模块：基础数据
+业务含义：项目基础信息表，用于存储项目的编码、所属系统、工厂、配置参数及审计信息。
+关键字段：
+  id (varchar(40)) -- 主键ID
+  project_code (varchar(255)) -- 项目编号
+  project_system_code (varchar(255)) -- 项目系统编号
+  business_system_code (varchar(255)) -- 业务系统编码
+  configure_code (varchar(255)) -- 管理配置平台编码
+  factory_name (varchar(255)) -- 工厂名称
+  default_language (varchar(255)) -- 默认语言
+  time_out (numeric(38)) -- 请求超期时间(秒
+  business_system_logo (varchar(255)) -- 业务系统平台logo图片业务ID
+  configure_manage_logo (varchar(255)) -- 管理配置平台logo图片业务ID
+  max_tab_count (numeric(38)) -- 最大页签数
+  create_user (varchar(40)) -- 创建人姓名
+  create_time (timestamp(0)) -- 创建时间
+  update_user (varchar(40)) -- 更新人姓名
+  update_time (timestamp(0)) -- 更新时间
+  test_id (varchar(40)) -- 测试id
+适用场景：
+
+项目初始化配置
+多系统接入管理
+工厂级项目隔离
+---
+表名：t_test
+模块：
+业务含义：动作定义表，用于存储系统或业务流程中的动作代码、名称及排序信息
+关键字段：
+  id (varchar(40)) -- 动作id
+  action_code (varchar(40)) -- 动作代码
+  action_name (varchar(40)) -- 动作名称
+  seq (int2) -- 排序
+  create_user (varchar(40)) -- 创建人姓名
+  create_time (timestamp(0)) -- 创建时间
+  update_user (varchar(40)) -- 更新人姓名
+  update_time (timestamp(0)) -- 更新时间
+  is_enabled (bpchar(1)) -- 是否启用 N--未启用;Y,--启用
+适用场景：
+基础数据配置
+流程动作定义

@@ -1,0 +1,92 @@
+---
+场景：查询今天各产线的工单完成情况
+用户问题：今天各产线完成了多少工单
+SQL：
+SELECT 
+  pl.pdline_name AS 产线名称,
+  COUNT(wo.id) AS 工单总数,
+  SUM(CASE WHEN wo.wo_status = '40' THEN 1 ELSE 0 END) AS 完工数,
+  SUM(CASE WHEN wo.wo_status IN ('20','30') THEN 1 ELSE 0 END) AS 在制数
+FROM t_pd_wo wo
+LEFT JOIN t_bd_pdline pl ON wo.pdline_code = pl.pdline_code
+WHERE DATE(wo.create_time) = CURRENT_DATE
+GROUP BY pl.pdline_name
+ORDER BY 完工数 DESC;
+---
+场景：SN追溯查询
+用户问题：查询SN号为 SN202400001 的过站履历
+SQL：
+SELECT 
+  ss.sn,
+  st.node_name AS 工序,
+  st.pass_flag AS 是否通过,
+  st.create_time AS 过站时间,
+  st.operator AS 操作人
+FROM t_pd_sn_status ss
+LEFT JOIN t_pd_sn_travel st ON ss.sn = st.sn
+WHERE ss.sn = 'SN202400001'
+ORDER BY st.create_time ASC;
+---
+场景：不良统计分析
+用户问题：本周各不良代码的数量统计
+SQL：
+SELECT 
+  d.defect_name AS 不良名称,
+  d.defect_code AS 不良代码,
+  COUNT(sd.id) AS 不良数量
+FROM t_pd_sn_defect sd
+JOIN t_pd_sn_defect_detail dd ON dd.defect_id = sd.id
+LEFT JOIN t_bd_defect d ON dd.defect_code = d.defect_code
+WHERE sd.create_time >= DATE_TRUNC('week', CURRENT_DATE)
+GROUP BY d.defect_name, d.defect_code
+ORDER BY 不良数量 DESC;
+---
+场景：库存查询
+用户问题：查询料号 P001 在各仓库的库存数量
+SQL：
+SELECT 
+  wh.warehouse_name AS 仓库名称,
+  p.part_no AS 料号,
+  p.part_name AS 料号名称,
+  s.qty AS 库存数量,
+  s.lot_no AS 批次
+FROM t_wms_stock s
+LEFT JOIN t_bd_part p ON s.part_no = p.part_no
+LEFT JOIN t_wms_warehouse wh ON s.warehouse_id = wh.id
+WHERE p.part_no = 'P001' OR p.part_name ILIKE '%P001%'
+ORDER BY wh.warehouse_name;
+---
+场景：工单领料与BOM对比
+用户问题：工单 WO20240001 的实际领料与BOM计划用料对比
+SQL：
+SELECT 
+  b.item_part_id,
+  bp.part_no AS 子件料号,
+  bp.part_name AS 子件名称,
+  b.item_qty * wo.plan_qty AS BOM计划用量,
+  COALESCE(SUM(md.actual_qty), 0) AS 实际领料量,
+  (COALESCE(SUM(md.actual_qty), 0) - b.item_qty * wo.plan_qty) AS 差异
+FROM t_pd_wo wo
+LEFT JOIN t_pd_wo_bom wb ON wo.work_order = wb.work_order
+LEFT JOIN t_bd_bom b ON wb.bom_id = b.id
+LEFT JOIN t_bd_bom_detail bd ON b.id = bd.bom_id
+LEFT JOIN t_bd_part bp ON bd.item_part_id = bp.id
+LEFT JOIN t_wms_wo_material_bill mb ON wo.work_order = mb.work_order
+LEFT JOIN t_wms_wo_material_bill_detail md ON mb.id = md.doc_id AND md.part_id = bd.item_part_id
+WHERE wo.work_order = 'WO20240001'
+GROUP BY b.item_part_id, bp.part_no, bp.part_name, b.item_qty, wo.plan_qty;
+---
+场景：设备维修统计
+用户问题：上月各设备的报修次数和平均维修时长
+SQL：
+SELECT 
+  e.equipment_code AS 设备编号,
+  e.equipment_name AS 设备名称,
+  COUNT(r.id) AS 报修次数,
+  ROUND(AVG(EXTRACT(EPOCH FROM (r.repair_end_time - r.create_time))/3600), 2) AS 平均维修时长_小时
+FROM t_ems_repair_request r
+LEFT JOIN t_ems_equipment e ON r.equipment_code = e.equipment_code
+WHERE r.create_time >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
+  AND r.create_time < DATE_TRUNC('month', CURRENT_DATE)
+GROUP BY e.equipment_code, e.equipment_name
+ORDER BY 报修次数 DESC;

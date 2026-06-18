@@ -1,0 +1,587 @@
+[
+  {
+    "case_id": "csv_001",
+    "source": "csv_bootstrap",
+    "question": "查询每个工单对应的料号名称、区段计划信息和产品工艺路线",
+    "expected_main_table": "t_pd_wo",
+    "expected_related_tables": [
+      "t_bd_part",
+      "t_pd_plan_detail",
+      "t_bd_part_route"
+    ],
+    "expected_joins": [
+      "t_bd_part.id = t_pd_wo.part_id",
+      "t_pd_plan_detail.id = t_pd_wo.plan_detail_id",
+      "t_bd_part_route.id = t_pd_wo.part_route_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.* FROM t_pd_wo AS t0 LEFT JOIN t_bd_part AS t1 ON t0.part_id = t1.id LEFT JOIN t_pd_plan_detail AS t2 ON t0.plan_detail_id = t2.id LEFT JOIN t_bd_part_route AS t3 ON t0.part_route_id = t3.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_002",
+    "source": "csv_bootstrap",
+    "question": "查询工单关联的编码规则组、标签组和包装规则",
+    "expected_main_table": "t_pd_wo",
+    "expected_related_tables": [
+      "t_bc_encode_rule_group",
+      "t_lb_label_group",
+      "t_packing_rule"
+    ],
+    "expected_joins": [
+      "t_bc_encode_rule_group.id = t_pd_wo.encode_group_id",
+      "t_lb_label_group.id = t_pd_wo.label_group_id",
+      "t_packing_rule.id = t_pd_wo.pack_rule_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.* FROM t_pd_wo AS t0 LEFT JOIN t_bc_encode_rule_group AS t1 ON t0.encode_group_id = t1.id LEFT JOIN t_lb_label_group AS t2 ON t0.label_group_id = t2.id LEFT JOIN t_packing_rule AS t3 ON t0.pack_rule_id = t3.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_003",
+    "source": "csv_bootstrap",
+    "question": "查询指定工单对应的区段计划、生产计划和料号信息",
+    "expected_main_table": "t_pd_wo",
+    "expected_related_tables": [
+      "t_pd_plan_detail",
+      "t_pd_plan",
+      "t_bd_part"
+    ],
+    "expected_joins": [
+      "t_pd_plan_detail.id = t_pd_wo.plan_detail_id",
+      "t_pd_plan.id = t_pd_plan_detail.plan_id",
+      "t_bd_part.id = t_pd_wo.part_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.* FROM t_pd_wo AS t0 LEFT JOIN t_pd_plan_detail AS t1 ON t0.plan_detail_id = t1.id LEFT JOIN t_pd_plan AS t2 ON t1.plan_id = t2.id LEFT JOIN t_bd_part AS t3 ON t0.part_id = t3.id WHERE t0.work_order = :work_order;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_004",
+    "source": "csv_bootstrap",
+    "question": "查询工单领料单主表和领料明细，并补充料号、单位、仓库、供应商信息",
+    "expected_main_table": "t_wms_wo_material_bill_detail",
+    "expected_related_tables": [
+      "t_wms_wo_material_bill",
+      "t_bd_part",
+      "t_bd_unit",
+      "t_wms_warehouse",
+      "t_bd_supplier"
+    ],
+    "expected_joins": [
+      "t_wms_wo_material_bill.id = t_wms_wo_material_bill_detail.doc_id",
+      "t_bd_part.id = t_wms_wo_material_bill_detail.part_id",
+      "t_bd_unit.id = t_wms_wo_material_bill_detail.unit_id",
+      "t_wms_warehouse.id = t_wms_wo_material_bill_detail.warehouse_id",
+      "t_bd_supplier.id = t_wms_wo_material_bill_detail.supplier_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.*, t4.*, t5.* FROM t_wms_wo_material_bill_detail AS t0 LEFT JOIN t_wms_wo_material_bill AS t1 ON t0.doc_id = t1.id LEFT JOIN t_bd_part AS t2 ON t0.part_id = t2.id LEFT JOIN t_bd_unit AS t3 ON t0.unit_id = t3.id LEFT JOIN t_wms_warehouse AS t4 ON t0.warehouse_id = t4.id LEFT JOIN t_bd_supplier AS t5 ON t0.supplier_id = t5.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_005",
+    "source": "csv_bootstrap",
+    "question": "查询工单领料单关联的领料部门、单据类型和明细物料信息",
+    "expected_main_table": "t_wms_wo_material_bill",
+    "expected_related_tables": [
+      "t_bd_department",
+      "t_wms_doc_type",
+      "t_wms_wo_material_bill_detail",
+      "t_bd_part"
+    ],
+    "expected_joins": [
+      "t_bd_department.id = t_wms_wo_material_bill.req_dept_id",
+      "t_wms_doc_type.id = t_wms_wo_material_bill.doc_type_id",
+      "t_wms_wo_material_bill.id = t_wms_wo_material_bill_detail.doc_id",
+      "t_bd_part.id = t_wms_wo_material_bill_detail.part_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.*, t4.* FROM t_wms_wo_material_bill AS t0 LEFT JOIN t_bd_department AS t1 ON t0.req_dept_id = t1.id LEFT JOIN t_wms_doc_type AS t2 ON t0.doc_type_id = t2.id LEFT JOIN t_wms_wo_material_bill_detail AS t3 ON t3.doc_id = t0.id LEFT JOIN t_bd_part AS t4 ON t3.part_id = t4.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_006",
+    "source": "csv_bootstrap",
+    "question": "查询生产退料单主表和退料明细，并补充料号、单位、仓库信息",
+    "expected_main_table": "t_wms_wo_rb_detail",
+    "expected_related_tables": [
+      "t_wms_wo_rb",
+      "t_bd_part",
+      "t_bd_unit",
+      "t_wms_warehouse"
+    ],
+    "expected_joins": [
+      "t_wms_wo_rb.id = t_wms_wo_rb_detail.doc_id",
+      "t_bd_part.id = t_wms_wo_rb_detail.part_id",
+      "t_bd_unit.id = t_wms_wo_rb_detail.unit_id",
+      "t_wms_warehouse.id = t_wms_wo_rb_detail.warehouse_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.*, t4.* FROM t_wms_wo_rb_detail AS t0 LEFT JOIN t_wms_wo_rb AS t1 ON t0.doc_id = t1.id LEFT JOIN t_bd_part AS t2 ON t0.part_id = t2.id LEFT JOIN t_bd_unit AS t3 ON t0.unit_id = t3.id LEFT JOIN t_wms_warehouse AS t4 ON t0.warehouse_id = t4.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_007",
+    "source": "csv_bootstrap",
+    "question": "查询生产计划对应的料号、区段计划和 BOM 信息",
+    "expected_main_table": "t_pd_plan_detail",
+    "expected_related_tables": [
+      "t_pd_plan",
+      "t_bd_part",
+      "t_bd_bom"
+    ],
+    "expected_joins": [
+      "t_pd_plan.id = t_pd_plan_detail.plan_id",
+      "t_bd_part.id = t_pd_plan_detail.part_id",
+      "t_bd_bom.id = t_pd_plan_detail.bom_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.* FROM t_pd_plan_detail AS t0 LEFT JOIN t_pd_plan AS t1 ON t0.plan_id = t1.id LEFT JOIN t_bd_part AS t2 ON t0.part_id = t2.id LEFT JOIN t_bd_bom AS t3 ON t0.bom_id = t3.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_008",
+    "source": "csv_bootstrap",
+    "question": "查询区段计划的用料需求、需求单位和物料料号信息",
+    "expected_main_table": "t_pd_plan_need_material",
+    "expected_related_tables": [
+      "t_pd_plan_detail",
+      "t_bd_part",
+      "t_bd_unit"
+    ],
+    "expected_joins": [
+      "t_pd_plan_detail.id = t_pd_plan_need_material.plan_detail_id",
+      "t_bd_part.id = t_pd_plan_need_material.part_id",
+      "t_bd_unit.id = t_pd_plan_need_material.unit_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.* FROM t_pd_plan_need_material AS t0 LEFT JOIN t_pd_plan_detail AS t1 ON t0.plan_detail_id = t1.id LEFT JOIN t_bd_part AS t2 ON t0.part_id = t2.id LEFT JOIN t_bd_unit AS t3 ON t0.unit_id = t3.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_009",
+    "source": "csv_bootstrap",
+    "question": "查询 BOM 主表及其明细，并补充子项料号、单位、工序信息",
+    "expected_main_table": "t_bd_bom_detail",
+    "expected_related_tables": [
+      "t_bd_bom",
+      "t_bd_part",
+      "t_bd_unit",
+      "t_bd_process"
+    ],
+    "expected_joins": [
+      "t_bd_bom.id = t_bd_bom_detail.bom_id",
+      "t_bd_bom_detail.item_part_id = t_bd_part.id",
+      "t_bd_bom_detail.unit_id = t_bd_unit.id",
+      "t_bd_bom_detail.process_id = t_bd_process.id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.*, t4.* FROM t_bd_bom_detail AS t0 LEFT JOIN t_bd_bom AS t1 ON t0.bom_id = t1.id LEFT JOIN t_bd_part AS t2 ON t0.item_part_id = t2.id LEFT JOIN t_bd_unit AS t3 ON t0.unit_id = t3.id LEFT JOIN t_bd_process AS t4 ON t0.process_id = t4.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_010",
+    "source": "csv_bootstrap",
+    "question": "查询产品工艺路线主表及其绑定的标准路线、料号和产线信息",
+    "expected_main_table": "t_bd_part_route",
+    "expected_related_tables": [
+      "t_bd_part",
+      "t_bd_route",
+      "t_bd_part_route_pdline",
+      "t_bd_pdline"
+    ],
+    "expected_joins": [
+      "t_bd_part.id = t_bd_part_route.part_id",
+      "t_bd_part_route.route_id = t_bd_route.id",
+      "t_bd_part_route.id = t_bd_part_route_pdline.part_route_id",
+      "t_bd_part_route_pdline.pdline_id = t_bd_pdline.id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.*, t4.* FROM t_bd_part_route AS t0 LEFT JOIN t_bd_part AS t1 ON t0.part_id = t1.id LEFT JOIN t_bd_route AS t2 ON t0.route_id = t2.id LEFT JOIN t_bd_part_route_pdline AS t3 ON t3.part_route_id = t0.id LEFT JOIN t_bd_pdline AS t4 ON t3.pdline_id = t4.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_011",
+    "source": "csv_bootstrap",
+    "question": "查询工作站对应的工序、产线信息",
+    "expected_main_table": "t_bd_terminal",
+    "expected_related_tables": [
+      "t_bd_process",
+      "t_bd_pdline"
+    ],
+    "expected_joins": [
+      "t_bd_process.id = t_bd_terminal.process_id",
+      "t_bd_pdline.id = t_bd_terminal.pdline_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.* FROM t_bd_terminal AS t0 LEFT JOIN t_bd_process AS t1 ON t0.process_id = t1.id LEFT JOIN t_bd_pdline AS t2 ON t0.pdline_id = t2.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_012",
+    "source": "csv_bootstrap",
+    "question": "查询设备对应的设备型号、工作站和工序信息",
+    "expected_main_table": "t_ems_equipment",
+    "expected_related_tables": [
+      "t_ems_model",
+      "t_bd_terminal",
+      "t_bd_process"
+    ],
+    "expected_joins": [
+      "t_ems_equipment.model_id = t_ems_model.id",
+      "t_bd_terminal.id = t_ems_equipment.terminal_id",
+      "t_bd_process.id = t_bd_terminal.process_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.* FROM t_ems_equipment AS t0 LEFT JOIN t_ems_model AS t1 ON t0.model_id = t1.id LEFT JOIN t_bd_terminal AS t2 ON t0.terminal_id = t2.id LEFT JOIN t_bd_process AS t3 ON t2.process_id = t3.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_013",
+    "source": "csv_bootstrap",
+    "question": "查询设备保养工单主表和保养工单明细，并补充设备信息",
+    "expected_main_table": "t_ems_maintain_wo_detail",
+    "expected_related_tables": [
+      "t_ems_maintain_wo",
+      "t_ems_equipment"
+    ],
+    "expected_joins": [
+      "t_ems_maintain_wo.id = t_ems_maintain_wo_detail.maintain_wo_id",
+      "t_ems_equipment.id = t_ems_maintain_wo_detail.equipment_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.* FROM t_ems_maintain_wo_detail AS t0 LEFT JOIN t_ems_maintain_wo AS t1 ON t0.maintain_wo_id = t1.id LEFT JOIN t_ems_equipment AS t2 ON t0.equipment_id = t2.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_014",
+    "source": "csv_bootstrap",
+    "question": "查询点巡检单据主表、点巡检单据细项和设备信息",
+    "expected_main_table": "t_ems_chk_doc_detail",
+    "expected_related_tables": [
+      "t_ems_chk_doc",
+      "t_ems_equipment"
+    ],
+    "expected_joins": [
+      "t_ems_chk_doc.id = t_ems_chk_doc_detail.doc_id",
+      "t_ems_chk_doc.equipment_id = t_ems_equipment.id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.* FROM t_ems_chk_doc_detail AS t0 LEFT JOIN t_ems_chk_doc AS t1 ON t0.doc_id = t1.id LEFT JOIN t_ems_equipment AS t2 ON t1.equipment_id = t2.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_015",
+    "source": "csv_bootstrap",
+    "question": "查询点巡检方案、点巡检方案细项信息",
+    "expected_main_table": "t_ems_chk_sol_detail",
+    "expected_related_tables": [
+      "t_ems_chk_sol"
+    ],
+    "expected_joins": [
+      "t_ems_chk_sol.id = t_ems_chk_sol_detail.sol_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.* FROM t_ems_chk_sol_detail AS t0 LEFT JOIN t_ems_chk_sol AS t1 ON t0.sol_id = t1.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_016",
+    "source": "csv_bootstrap",
+    "question": "查询检验项目设置关联的料号、工序、客户和供应商",
+    "expected_main_table": "t_qm_test_item_setting",
+    "expected_related_tables": [
+      "t_bd_part",
+      "t_bd_process",
+      "t_bd_customer",
+      "t_bd_supplier"
+    ],
+    "expected_joins": [
+      "t_bd_part.id = t_qm_test_item_setting.part_id",
+      "t_bd_process.id = t_qm_test_item_setting.process_id",
+      "t_bd_customer.id = t_qm_test_item_setting.customer_id",
+      "t_bd_supplier.id = t_qm_test_item_setting.supplier_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.*, t4.* FROM t_qm_test_item_setting AS t0 LEFT JOIN t_bd_part AS t1 ON t0.part_id = t1.id LEFT JOIN t_bd_process AS t2 ON t0.process_id = t2.id LEFT JOIN t_bd_customer AS t3 ON t0.customer_id = t3.id LEFT JOIN t_bd_supplier AS t4 ON t0.supplier_id = t4.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_017",
+    "source": "csv_bootstrap",
+    "question": "查询检验项目类型设置关联的料号、客户和供应商",
+    "expected_main_table": "t_qm_sample_type_setting",
+    "expected_related_tables": [
+      "t_bd_part",
+      "t_bd_customer",
+      "t_bd_supplier"
+    ],
+    "expected_joins": [
+      "t_bd_part.id = t_qm_sample_type_setting.part_id",
+      "t_bd_customer.id = t_qm_sample_type_setting.customer_id",
+      "t_bd_supplier.id = t_qm_sample_type_setting.supplier_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.* FROM t_qm_sample_type_setting AS t0 LEFT JOIN t_bd_part AS t1 ON t0.part_id = t1.id LEFT JOIN t_bd_customer AS t2 ON t0.customer_id = t2.id LEFT JOIN t_bd_supplier AS t3 ON t0.supplier_id = t3.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_018",
+    "source": "csv_bootstrap",
+    "question": "查询首检单据主表、首检明细和关联料号信息",
+    "expected_main_table": "t_qm_first_detail",
+    "expected_related_tables": [
+      "t_qm_first_doc",
+      "t_bd_part"
+    ],
+    "expected_joins": [
+      "t_qm_first_detail.doc_id = t_qm_first_doc.id",
+      "t_bd_part.id = t_qm_first_detail.part_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.* FROM t_qm_first_detail AS t0 LEFT JOIN t_qm_first_doc AS t1 ON t0.doc_id = t1.id LEFT JOIN t_bd_part AS t2 ON t0.part_id = t2.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_019",
+    "source": "csv_bootstrap",
+    "question": "查询 IPQC 单据、检验项目和方案信息",
+    "expected_main_table": "t_qm_ipqc_doc_item",
+    "expected_related_tables": [
+      "t_qm_ipqc_doc",
+      "t_qm_ipqc_item",
+      "t_qm_ipqc_scheme"
+    ],
+    "expected_joins": [
+      "t_qm_ipqc_doc.id = t_qm_ipqc_doc_item.doc_id",
+      "t_qm_ipqc_doc_item.test_item_id = t_qm_ipqc_item.id",
+      "t_qm_ipqc_doc.scheme_id = t_qm_ipqc_scheme.id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.* FROM t_qm_ipqc_doc_item AS t0 LEFT JOIN t_qm_ipqc_doc AS t1 ON t0.doc_id = t1.id LEFT JOIN t_qm_ipqc_item AS t2 ON t0.test_item_id = t2.id LEFT JOIN t_qm_ipqc_scheme AS t3 ON t1.scheme_id = t3.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_020",
+    "source": "csv_bootstrap",
+    "question": "查询条码信息关联的标签和编码规则",
+    "expected_main_table": "t_bc_barcode",
+    "expected_related_tables": [
+      "t_lb_label",
+      "t_bc_encode_rule"
+    ],
+    "expected_joins": [
+      "t_bc_barcode.label_id = t_lb_label.id",
+      "t_bc_barcode.encode_rule_id = t_bc_encode_rule.id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.* FROM t_bc_barcode AS t0 LEFT JOIN t_lb_label AS t1 ON t0.label_id = t1.id LEFT JOIN t_bc_encode_rule AS t2 ON t0.encode_rule_id = t2.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_021",
+    "source": "csv_bootstrap",
+    "question": "查询编码规则组明细关联的编码规则组和编码规则",
+    "expected_main_table": "t_bc_encode_rule_group_detail",
+    "expected_related_tables": [
+      "t_bc_encode_rule_group",
+      "t_bc_encode_rule"
+    ],
+    "expected_joins": [
+      "t_bc_encode_rule_group.id = t_bc_encode_rule_group_detail.group_id",
+      "t_bc_encode_rule.id = t_bc_encode_rule_group_detail.encode_rule_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.* FROM t_bc_encode_rule_group_detail AS t0 LEFT JOIN t_bc_encode_rule_group AS t1 ON t0.group_id = t1.id LEFT JOIN t_bc_encode_rule AS t2 ON t0.encode_rule_id = t2.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_022",
+    "source": "csv_bootstrap",
+    "question": "查询 SN 状态关联的料号信息",
+    "expected_main_table": "t_pd_sn_status",
+    "expected_related_tables": [
+      "t_bd_part"
+    ],
+    "expected_joins": [
+      "t_bd_part.id = t_pd_sn_status.part_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.* FROM t_pd_sn_status AS t0 LEFT JOIN t_bd_part AS t1 ON t0.part_id = t1.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_023",
+    "source": "csv_bootstrap",
+    "question": "查询库存记录关联的客户和供应商信息",
+    "expected_main_table": "t_wms_stock",
+    "expected_related_tables": [
+      "t_bd_customer",
+      "t_bd_supplier"
+    ],
+    "expected_joins": [
+      "t_bd_customer.id = t_wms_stock.customer_id",
+      "t_bd_supplier.id = t_wms_stock.supplier_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.* FROM t_wms_stock AS t0 LEFT JOIN t_bd_customer AS t1 ON t0.customer_id = t1.id LEFT JOIN t_bd_supplier AS t2 ON t0.supplier_id = t2.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_024",
+    "source": "csv_bootstrap",
+    "question": "查询调拨单主表和调拨明细，并补充来源仓库、目标仓库和料号信息",
+    "expected_main_table": "t_wms_transfer_bill_detail",
+    "expected_related_tables": [
+      "t_wms_transfer_bill",
+      "t_bd_part",
+      "t_wms_warehouse"
+    ],
+    "expected_joins": [
+      "t_wms_transfer_bill.id = t_wms_transfer_bill_detail.doc_id",
+      "t_bd_part.id = t_wms_transfer_bill_detail.part_id",
+      "t_wms_transfer_bill_detail.from_warehouse_id = t_wms_warehouse.id",
+      "t_wms_transfer_bill_detail.to_warehouse_id = t_wms_warehouse.id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.*, t4.* FROM t_wms_transfer_bill_detail AS t0 LEFT JOIN t_wms_transfer_bill AS t1 ON t0.doc_id = t1.id LEFT JOIN t_bd_part AS t2 ON t0.part_id = t2.id LEFT JOIN t_wms_warehouse AS t3 ON t0.from_warehouse_id = t3.id LEFT JOIN t_wms_warehouse AS t4 ON t0.to_warehouse_id = t4.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_025",
+    "source": "csv_bootstrap",
+    "question": "查询销售出货单明细关联的客户、料号、单位和仓库信息",
+    "expected_main_table": "t_wms_shipping_bill_detail",
+    "expected_related_tables": [
+      "t_wms_shipping_bill",
+      "t_bd_customer",
+      "t_bd_part",
+      "t_bd_unit",
+      "t_wms_warehouse"
+    ],
+    "expected_joins": [
+      "t_wms_shipping_bill.id = t_wms_shipping_bill_detail.doc_id",
+      "t_bd_customer.id = t_wms_shipping_bill.customer_id",
+      "t_bd_part.id = t_wms_shipping_bill_detail.part_id",
+      "t_bd_unit.id = t_wms_shipping_bill_detail.unit_id",
+      "t_wms_shipping_bill_detail.warehouse_id = t_wms_warehouse.id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.*, t4.*, t5.* FROM t_wms_shipping_bill_detail AS t0 LEFT JOIN t_wms_shipping_bill AS t1 ON t0.doc_id = t1.id LEFT JOIN t_bd_customer AS t2 ON t1.customer_id = t2.id LEFT JOIN t_bd_part AS t3 ON t0.part_id = t3.id LEFT JOIN t_bd_unit AS t4 ON t0.unit_id = t4.id LEFT JOIN t_wms_warehouse AS t5 ON t0.warehouse_id = t5.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_026",
+    "source": "csv_bootstrap",
+    "question": "查询受托收料单及其明细，并补充料号、单位、仓库和客户信息",
+    "expected_main_table": "t_wms_consignee_rt_in_bill_detail",
+    "expected_related_tables": [
+      "t_wms_consignee_rt_in_bill",
+      "t_bd_part",
+      "t_bd_unit",
+      "t_wms_warehouse",
+      "t_bd_customer"
+    ],
+    "expected_joins": [
+      "t_wms_consignee_rt_in_bill.id = t_wms_consignee_rt_in_bill_detail.doc_id",
+      "t_bd_customer.id = t_wms_consignee_rt_in_bill.customer_id",
+      "t_bd_part.id = t_wms_consignee_rt_in_bill_detail.part_id",
+      "t_bd_unit.id = t_wms_consignee_rt_in_bill_detail.unit_id",
+      "t_wms_consignee_rt_in_bill_detail.warehouse_id = t_wms_warehouse.id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.*, t4.*, t5.* FROM t_wms_consignee_rt_in_bill_detail AS t0 LEFT JOIN t_wms_consignee_rt_in_bill AS t1 ON t0.doc_id = t1.id LEFT JOIN t_bd_customer AS t2 ON t1.customer_id = t2.id LEFT JOIN t_bd_part AS t3 ON t0.part_id = t3.id LEFT JOIN t_bd_unit AS t4 ON t0.unit_id = t4.id LEFT JOIN t_wms_warehouse AS t5 ON t0.warehouse_id = t5.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_027",
+    "source": "csv_bootstrap",
+    "question": "查询受托退料单及其明细，并补充料号、单位和仓库信息",
+    "expected_main_table": "t_wms_consignee_return_bill_detail",
+    "expected_related_tables": [
+      "t_wms_consignee_return_bill",
+      "t_bd_part",
+      "t_bd_unit",
+      "t_wms_warehouse"
+    ],
+    "expected_joins": [
+      "t_wms_consignee_return_bill.id = t_wms_consignee_return_bill_detail.doc_id",
+      "t_bd_part.id = t_wms_consignee_return_bill_detail.part_id",
+      "t_bd_unit.id = t_wms_consignee_return_bill_detail.unit_id",
+      "t_wms_consignee_return_bill_detail.warehouse_id = t_wms_warehouse.id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.*, t4.* FROM t_wms_consignee_return_bill_detail AS t0 LEFT JOIN t_wms_consignee_return_bill AS t1 ON t0.doc_id = t1.id LEFT JOIN t_bd_part AS t2 ON t0.part_id = t2.id LEFT JOIN t_bd_unit AS t3 ON t0.unit_id = t3.id LEFT JOIN t_wms_warehouse AS t4 ON t0.warehouse_id = t4.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_028",
+    "source": "csv_bootstrap",
+    "question": "查询采购入库单及其明细，并补充供应商和单据类型信息",
+    "expected_main_table": "t_wms_po_in_bill_detail",
+    "expected_related_tables": [
+      "t_wms_po_in_bill",
+      "t_bd_supplier",
+      "t_wms_doc_type"
+    ],
+    "expected_joins": [
+      "t_wms_po_in_bill.id = t_wms_po_in_bill_detail.doc_id",
+      "t_bd_supplier.id = t_wms_po_in_bill.supplier_id",
+      "t_wms_doc_type.id = t_wms_po_in_bill.doc_type_id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.* FROM t_wms_po_in_bill_detail AS t0 LEFT JOIN t_wms_po_in_bill AS t1 ON t0.doc_id = t1.id LEFT JOIN t_bd_supplier AS t2 ON t1.supplier_id = t2.id LEFT JOIN t_wms_doc_type AS t3 ON t1.doc_type_id = t3.id;",
+    "tags": [
+      "join_regression"
+    ]
+  },
+  {
+    "case_id": "csv_029",
+    "source": "csv_bootstrap",
+    "question": "查询委外入库单及其明细，并补充供应商、料号和仓库信息",
+    "expected_main_table": "t_wms_outsourcing_in_bill_detail",
+    "expected_related_tables": [
+      "t_wms_outsourcing_in_bill",
+      "t_bd_supplier",
+      "t_bd_part",
+      "t_wms_warehouse"
+    ],
+    "expected_joins": [
+      "t_wms_outsourcing_in_bill.id = t_wms_outsourcing_in_bill_detail.doc_id",
+      "t_bd_supplier.id = t_wms_outsourcing_in_bill.supplier_id",
+      "t_bd_part.id = t_wms_outsourcing_in_bill_detail.part_id",
+      "t_wms_outsourcing_in_bill_detail.warehouse_id = t_wms_warehouse.id"
+    ],
+    "expected_sql": "SELECT t0.*, t1.*, t2.*, t3.*, t4.* FROM t_wms_outsourcing_in_bill_detail AS t0 LEFT JOIN t_wms_outsourcing_in_bill AS t1 ON t0.doc_id = t1.id LEFT JOIN t_bd_supplier AS t2 ON t1.supplier_id = t2.id LEFT JOIN t_bd_part AS t3 ON t0.part_id = t3.id LEFT JOIN t_wms_warehouse AS t4 ON t0.warehouse_id = t4.id;",
+    "tags": [
+      "join_regression"
+    ]
+  }
+]

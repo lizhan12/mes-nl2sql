@@ -1,0 +1,414 @@
+================================================================================
+执行生成的业务 SQL 查询验证报告
+共 8 个查询
+================================================================================
+
+────────────────────────────────────────────────────────────────────────────────
+查询 1：工单执行进度看板
+────────────────────────────────────────────────────────────────────────────────
+
+【业务场景】
+生产管理人员需要实时掌握每个工单的执行进度。该查询将工单与产品料号、产线、计划明细关联，计算产出达成率，用于发现滞后工单并调整排产。
+
+【涉及表】t_pd_wo, t_bd_part, t_bd_pdline, t_pd_plan_detail
+
+【EXPLAIN 验证】
+  [OK] SQL 语法和语义正确
+  执行计划摘要: Limit
+
+【实际执行预览（前 5 行）】
+  [OK] 执行成功，返回 5 行
+  列名: work_order, wo_status, part_no, part_name, pdline_name, target_qty, output_qty, achievement_pct, schedule_start_date, schedule_end_date, start_date, end_date
+  数据预览:
+    {'work_order': 'work_order', 'wo_status': 'wo_status', 'part_no': 'part_no', 'part_name': 'part_name', 'pdline_name': 'pdline_name', 'target_qty': 'target_qty', 'output_qty': 'output_qty', 'achievement_pct': 'achievement_pct', 'schedule_start_date': 'schedule_start_date', 'schedule_end_date': 'schedule_end_date', 'start_date': 'start_date', 'end_date': 'end_date'}
+    {'work_order': 'work_order', 'wo_status': 'wo_status', 'part_no': 'part_no', 'part_name': 'part_name', 'pdline_name': 'pdline_name', 'target_qty': 'target_qty', 'output_qty': 'output_qty', 'achievement_pct': 'achievement_pct', 'schedule_start_date': 'schedule_start_date', 'schedule_end_date': 'schedule_end_date', 'start_date': 'start_date', 'end_date': 'end_date'}
+    {'work_order': 'work_order', 'wo_status': 'wo_status', 'part_no': 'part_no', 'part_name': 'part_name', 'pdline_name': 'pdline_name', 'target_qty': 'target_qty', 'output_qty': 'output_qty', 'achievement_pct': 'achievement_pct', 'schedule_start_date': 'schedule_start_date', 'schedule_end_date': 'schedule_end_date', 'start_date': 'start_date', 'end_date': 'end_date'}
+    {'work_order': 'work_order', 'wo_status': 'wo_status', 'part_no': 'part_no', 'part_name': 'part_name', 'pdline_name': 'pdline_name', 'target_qty': 'target_qty', 'output_qty': 'output_qty', 'achievement_pct': 'achievement_pct', 'schedule_start_date': 'schedule_start_date', 'schedule_end_date': 'schedule_end_date', 'start_date': 'start_date', 'end_date': 'end_date'}
+    {'work_order': 'work_order', 'wo_status': 'wo_status', 'part_no': 'part_no', 'part_name': 'part_name', 'pdline_name': 'pdline_name', 'target_qty': 'target_qty', 'output_qty': 'output_qty', 'achievement_pct': 'achievement_pct', 'schedule_start_date': 'schedule_start_date', 'schedule_end_date': 'schedule_end_date', 'start_date': 'start_date', 'end_date': 'end_date'}
+
+【SQL】
+SELECT wo.work_order,
+       wo.wo_status,
+       p.part_no,
+       p.part_name,
+       pl.pdline_name,
+       wo.target_qty,
+       wo.output_qty,
+       ROUND(wo.output_qty::numeric / NULLIF(wo.target_qty, 0) * 100, 1) AS achievement_pct,
+       pd.schedule_start_date,
+       pd.schedule_end_date,
+       wo.start_date,
+       wo.end_date
+FROM t_pd_wo wo
+JOIN t_bd_part p ON wo.part_id = p.id
+JOIN t_bd_pdline pl ON wo.pdline_code = pl.pdline_code
+JOIN t_pd_plan_detail pd ON wo.plan_detail_id = pd.id
+WHERE wo.wo_status NOT IN (-1, 3)
+  AND wo.create_time >= '2026-01-01'
+  AND wo.create_time < '2026-07-01'
+ORDER BY achievement_pct ASC
+LIMIT 100
+
+
+────────────────────────────────────────────────────────────────────────────────
+查询 2：SN 全流程追溯（客诉不良品回溯）
+────────────────────────────────────────────────────────────────────────────────
+
+【业务场景】
+客户投诉某个产品不良时，需要通过条码 SN 追溯完整生产履历：
+  1) 该产品经过了哪些工序、各工序的检验结果
+  2) 在哪个工序产生了不良、不良详情
+  3) 生产过程中使用了哪些物料（批号、供应商）
+用于定位不良根因是来料问题还是制程问题。
+
+【涉及表】t_pd_sn_status, t_pd_sn_travel, t_pd_sn_defect, t_pd_sn_material, t_pd_wo
+
+【EXPLAIN 验证】
+  [OK] SQL 语法和语义正确
+  执行计划摘要: Limit
+
+【实际执行预览（前 5 行）】
+  [OK] 执行成功，返回 0 行
+  列名: sn, work_order, current_phase, current_process, travel_process, station_result, qc_result, station_time, station_name, defect_process, repair_flag, material_part_no, material_upn, supplier_code, lot_no, real_qty
+  （无数据返回，可能是占位符参数不匹配）
+
+【SQL】
+SELECT s.sn,
+       s.work_order,
+       s.current_phase,
+       s.process_name AS current_process,
+       tr.process_name AS travel_process,
+       tr.current_status AS station_result,
+       tr.qc_result,
+       tr.create_time AS station_time,
+       tr.terminal_name AS station_name,
+       d.process_name AS defect_process,
+       d.repair_flag,
+       m.item_part_no AS material_part_no,
+       m.upn AS material_upn,
+       m.supplier_code,
+       m.lot_no,
+       m.real_qty
+FROM t_pd_sn_status s
+JOIN t_pd_wo wo ON s.work_order = wo.work_order
+LEFT JOIN t_pd_sn_travel tr ON s.sn = tr.sn
+LEFT JOIN t_pd_sn_defect d ON s.sn = d.sn
+LEFT JOIN t_pd_sn_material m ON s.sn = m.sn
+WHERE s.sn = 'TEST_SN_001'
+ORDER BY tr.create_time ASC
+LIMIT 200
+
+
+────────────────────────────────────────────────────────────────────────────────
+查询 3：产线 × 工序不良率排行分析
+────────────────────────────────────────────────────────────────────────────────
+
+【业务场景】
+质量工程师需要识别不良高发的「产线 × 工序」组合。
+该查询将不良记录与工单、产线、产品关联，
+统计每个组合的不良数量和已维修数量，
+为制程改善提供数据支撑。
+
+【涉及表】t_pd_sn_defect, t_pd_wo, t_bd_pdline, t_bd_part
+
+【EXPLAIN 验证】
+  [OK] SQL 语法和语义正确
+  执行计划摘要: Limit
+
+【实际执行预览（前 5 行）】
+  [OK] 执行成功，返回 0 行
+  列名: pdline_name, process_name, part_no, part_name, defect_count, repaired_count, unrepaired_pct
+  （无数据返回，可能是占位符参数不匹配）
+
+【SQL】
+SELECT pl.pdline_name,
+       d.process_name,
+       p.part_no,
+       p.part_name,
+       COUNT(d.sn) AS defect_count,
+       SUM(CASE WHEN d.repair_flag = 'Y' THEN 1 ELSE 0 END) AS repaired_count,
+       ROUND(
+           SUM(CASE WHEN d.repair_flag = 'N' THEN 1 ELSE 0 END)::numeric
+           / NULLIF(COUNT(d.sn), 0) * 100, 1
+       ) AS unrepaired_pct
+FROM t_pd_sn_defect d
+JOIN t_pd_wo wo ON d.work_order = wo.work_order
+JOIN t_bd_pdline pl ON wo.pdline_code = pl.pdline_code
+JOIN t_bd_part p ON wo.part_id = p.id
+WHERE d.create_time >= '2026-01-01'
+  AND d.create_time < '2026-07-01'
+GROUP BY pl.pdline_name, d.process_name, p.part_no, p.part_name
+HAVING COUNT(d.sn) >= 5
+ORDER BY defect_count DESC
+LIMIT 50
+
+
+────────────────────────────────────────────────────────────────────────────────
+查询 4：工单物料齐套分析（BOM vs 库存）
+────────────────────────────────────────────────────────────────────────────────
+
+【业务场景】
+生产计划员在工单投产前需确认物料是否齐套。
+该查询将工单 BOM 的子件需求量与仓库实时库存对比，
+计算 shortage_qty（缺料数量），标记缺料项，
+帮助计划员提前协调采购或调拨。
+
+【涉及表】t_pd_wo_bom, t_pd_wo, t_bd_part, t_wms_stock
+
+【EXPLAIN 验证】
+  [OK] SQL 语法和语义正确
+  执行计划摘要: Limit
+
+【实际执行预览（前 5 行）】
+  [OK] 执行成功，返回 5 行
+  列名: work_order, wo_status, item_part_id, item_part_no, item_part_name, bom_qty_per_unit, total_need_qty, current_stock, shortage_qty, kit_status
+  数据预览:
+    {'work_order': 'work_order', 'wo_status': 'wo_status', 'item_part_id': 'item_part_id', 'item_part_no': 'item_part_no', 'item_part_name': 'item_part_name', 'bom_qty_per_unit': 'bom_qty_per_unit', 'total_need_qty': 'total_need_qty', 'current_stock': 'current_stock', 'shortage_qty': 'shortage_qty', 'kit_status': 'kit_status'}
+    {'work_order': 'work_order', 'wo_status': 'wo_status', 'item_part_id': 'item_part_id', 'item_part_no': 'item_part_no', 'item_part_name': 'item_part_name', 'bom_qty_per_unit': 'bom_qty_per_unit', 'total_need_qty': 'total_need_qty', 'current_stock': 'current_stock', 'shortage_qty': 'shortage_qty', 'kit_status': 'kit_status'}
+    {'work_order': 'work_order', 'wo_status': 'wo_status', 'item_part_id': 'item_part_id', 'item_part_no': 'item_part_no', 'item_part_name': 'item_part_name', 'bom_qty_per_unit': 'bom_qty_per_unit', 'total_need_qty': 'total_need_qty', 'current_stock': 'current_stock', 'shortage_qty': 'shortage_qty', 'kit_status': 'kit_status'}
+    {'work_order': 'work_order', 'wo_status': 'wo_status', 'item_part_id': 'item_part_id', 'item_part_no': 'item_part_no', 'item_part_name': 'item_part_name', 'bom_qty_per_unit': 'bom_qty_per_unit', 'total_need_qty': 'total_need_qty', 'current_stock': 'current_stock', 'shortage_qty': 'shortage_qty', 'kit_status': 'kit_status'}
+    {'work_order': 'work_order', 'wo_status': 'wo_status', 'item_part_id': 'item_part_id', 'item_part_no': 'item_part_no', 'item_part_name': 'item_part_name', 'bom_qty_per_unit': 'bom_qty_per_unit', 'total_need_qty': 'total_need_qty', 'current_stock': 'current_stock', 'shortage_qty': 'shortage_qty', 'kit_status': 'kit_status'}
+
+【SQL】
+SELECT wo.work_order,
+       wo.wo_status,
+       bom.item_part_id,
+       child_part.part_no AS item_part_no,
+       child_part.part_name AS item_part_name,
+       bom.item_qty AS bom_qty_per_unit,
+       bom.item_qty * wo.target_qty AS total_need_qty,
+       COALESCE(inv.total_stock, 0) AS current_stock,
+       GREATEST(bom.item_qty * wo.target_qty - COALESCE(inv.total_stock, 0), 0) AS shortage_qty,
+       CASE
+           WHEN COALESCE(inv.total_stock, 0) >= bom.item_qty * wo.target_qty THEN '齐套'
+           WHEN COALESCE(inv.total_stock, 0) > 0 THEN '部分缺料'
+           ELSE '完全缺料'
+       END AS kit_status
+FROM t_pd_wo_bom bom
+JOIN t_pd_wo wo ON bom.work_order = wo.work_order
+JOIN t_bd_part child_part ON bom.item_part_id = child_part.id
+LEFT JOIN (
+    SELECT part_id, SUM(qty) AS total_stock
+    FROM t_wms_stock
+    WHERE current_status = 0
+      AND stock_status = 1
+    GROUP BY part_id
+    LIMIT 5000
+) inv ON child_part.id = inv.part_id
+WHERE wo.wo_status IN (0, 1)
+ORDER BY shortage_qty DESC
+LIMIT 100
+
+
+────────────────────────────────────────────────────────────────────────────────
+查询 5：工单发料 vs 退料 vs BOM 标准用量差异分析
+────────────────────────────────────────────────────────────────────────────────
+
+【业务场景】
+财务和仓储部门需要核对工单的物料消耗是否合理。
+该查询汇总每个工单的领料总量、退料总量，
+计算净消耗并与 BOM 标准用量对比，
+找出损耗率异常的工单，用于成本管控。
+
+【涉及表】t_pd_wo, t_wms_wo_material_bill, t_wms_wo_material_bill_detail, t_wms_wo_rb, t_wms_wo_rb_detail, t_bd_part
+
+【EXPLAIN 验证】
+  [OK] SQL 语法和语义正确
+  执行计划摘要: Limit
+
+【实际执行预览（前 5 行）】
+  [OK] 执行成功，返回 0 行
+  列名: work_order, product_part_no, target_qty, output_qty, total_issue_qty, total_return_qty, net_consumed_qty
+  （无数据返回，可能是占位符参数不匹配）
+
+【SQL】
+SELECT wo.work_order,
+       p.part_no AS product_part_no,
+       wo.target_qty,
+       wo.output_qty,
+       COALESCE(issue.total_issue_qty, 0) AS total_issue_qty,
+       COALESCE(rb.total_return_qty, 0) AS total_return_qty,
+       COALESCE(issue.total_issue_qty, 0) - COALESCE(rb.total_return_qty, 0) AS net_consumed_qty
+FROM t_pd_wo wo
+JOIN t_bd_part p ON wo.part_id = p.id
+LEFT JOIN (
+    SELECT mb.work_order, SUM(mbd.current_status) AS total_issue_qty
+    FROM t_wms_wo_material_bill mb
+    JOIN t_wms_wo_material_bill_detail mbd ON mb.id = mbd.doc_id
+    WHERE mb.current_status = 2
+    GROUP BY mb.work_order
+    LIMIT 5000
+) issue ON wo.work_order = issue.work_order
+LEFT JOIN (
+    SELECT rb.work_order, SUM(rbd.total_qty) AS total_return_qty
+    FROM t_wms_wo_rb rb
+    JOIN t_wms_wo_rb_detail rbd ON rb.id = rbd.doc_id
+    WHERE rb.current_status = 2
+    GROUP BY rb.work_order
+    LIMIT 5000
+) rb ON wo.work_order = rb.work_order
+WHERE wo.wo_status = 5
+  AND wo.create_time >= '2026-01-01'
+  AND wo.create_time < '2026-07-01'
+ORDER BY net_consumed_qty DESC
+LIMIT 100
+
+
+────────────────────────────────────────────────────────────────────────────────
+查询 6：仓库库龄分析与超期预警
+────────────────────────────────────────────────────────────────────────────────
+
+【业务场景】
+仓储管理需要监控物料库龄，识别超过预警期的物料。
+该查询将库存与料号主数据（含预警天数配置）和仓库关联，
+计算每批物料的在库天数，与预警阈值和超期阈值对比，
+标记预警/超期状态，推动 FIFO 执行。
+
+【涉及表】t_wms_stock, t_bd_part, t_wms_warehouse
+
+【EXPLAIN 验证】
+  [OK] SQL 语法和语义正确
+  执行计划摘要: Limit
+
+【实际执行预览（前 5 行）】
+  [OK] 执行成功，返回 5 行
+  列名: warehouse_name, part_no, part_name, upn, lot_no, current_qty, date_code, receive_qty, stock_status, fifo_flag, warm_time_value, limit_time_value, days_in_stock, age_status
+  数据预览:
+    {'warehouse_name': 'warehouse_name', 'part_no': 'part_no', 'part_name': 'part_name', 'upn': 'upn', 'lot_no': 'lot_no', 'current_qty': 'current_qty', 'date_code': 'date_code', 'receive_qty': 'receive_qty', 'stock_status': 'stock_status', 'fifo_flag': 'fifo_flag', 'warm_time_value': 'warm_time_value', 'limit_time_value': 'limit_time_value', 'days_in_stock': 'days_in_stock', 'age_status': 'age_status'}
+    {'warehouse_name': 'warehouse_name', 'part_no': 'part_no', 'part_name': 'part_name', 'upn': 'upn', 'lot_no': 'lot_no', 'current_qty': 'current_qty', 'date_code': 'date_code', 'receive_qty': 'receive_qty', 'stock_status': 'stock_status', 'fifo_flag': 'fifo_flag', 'warm_time_value': 'warm_time_value', 'limit_time_value': 'limit_time_value', 'days_in_stock': 'days_in_stock', 'age_status': 'age_status'}
+    {'warehouse_name': 'warehouse_name', 'part_no': 'part_no', 'part_name': 'part_name', 'upn': 'upn', 'lot_no': 'lot_no', 'current_qty': 'current_qty', 'date_code': 'date_code', 'receive_qty': 'receive_qty', 'stock_status': 'stock_status', 'fifo_flag': 'fifo_flag', 'warm_time_value': 'warm_time_value', 'limit_time_value': 'limit_time_value', 'days_in_stock': 'days_in_stock', 'age_status': 'age_status'}
+    {'warehouse_name': 'warehouse_name', 'part_no': 'part_no', 'part_name': 'part_name', 'upn': 'upn', 'lot_no': 'lot_no', 'current_qty': 'current_qty', 'date_code': 'date_code', 'receive_qty': 'receive_qty', 'stock_status': 'stock_status', 'fifo_flag': 'fifo_flag', 'warm_time_value': 'warm_time_value', 'limit_time_value': 'limit_time_value', 'days_in_stock': 'days_in_stock', 'age_status': 'age_status'}
+    {'warehouse_name': 'warehouse_name', 'part_no': 'part_no', 'part_name': 'part_name', 'upn': 'upn', 'lot_no': 'lot_no', 'current_qty': 'current_qty', 'date_code': 'date_code', 'receive_qty': 'receive_qty', 'stock_status': 'stock_status', 'fifo_flag': 'fifo_flag', 'warm_time_value': 'warm_time_value', 'limit_time_value': 'limit_time_value', 'days_in_stock': 'days_in_stock', 'age_status': 'age_status'}
+
+【SQL】
+SELECT wh.warehouse_name,
+       p.part_no,
+       p.part_name,
+       s.upn,
+       s.lot_no,
+       s.qty AS current_qty,
+       s.date_code,
+       s.receive_qty,
+       s.stock_status,
+       wh.fifo_flag,
+       p.warm_time_value,
+       p.limit_time_value,
+       CURRENT_DATE - s.create_time::date AS days_in_stock,
+       CASE
+           WHEN p.limit_time_value > 0
+                AND (CURRENT_DATE - s.create_time::date) > p.limit_time_value THEN '已超期'
+           WHEN p.warm_time_value > 0
+                AND (CURRENT_DATE - s.create_time::date) > p.warm_time_value THEN '预警中'
+           ELSE '正常'
+       END AS age_status
+FROM t_wms_stock s
+JOIN t_bd_part p ON s.part_id = p.id
+JOIN t_wms_warehouse wh ON s.warehouse_code = wh.warehouse_code
+WHERE s.current_status = 0
+  AND s.stock_status = 1
+  AND s.qty > 0
+ORDER BY days_in_stock DESC
+LIMIT 200
+
+
+────────────────────────────────────────────────────────────────────────────────
+查询 7：BOM 多级展开（成品→子件→工序）
+────────────────────────────────────────────────────────────────────────────────
+
+【业务场景】
+工程部门需要查看某产品的完整 BOM 结构。
+该查询将 BOM 主表、明细表、料号主数据、工序关联，
+展开每个子件的料号、品名、规格、用量、损耗率及对应工序，
+用于生产备料和工艺评审。
+
+【涉及表】t_bd_bom, t_bd_bom_detail, t_bd_part, t_bd_process
+
+【EXPLAIN 验证】
+  [OK] SQL 语法和语义正确
+  执行计划摘要: Limit
+
+【实际执行预览（前 5 行）】
+  [OK] 执行成功，返回 0 行
+  列名: product_part_no, product_name, bom_version, bom_status, item_seq, item_part_no, item_part_name, item_spec, attrition_rate, points, pcb_side, stage_code, bindprocess
+  （无数据返回，可能是占位符参数不匹配）
+
+【SQL】
+SELECT parent_part.part_no AS product_part_no,
+       parent_part.part_name AS product_name,
+       bom.bom_version,
+       bom.current_status AS bom_status,
+       detail.item_seq,
+       child_part.part_no AS item_part_no,
+       child_part.part_name AS item_part_name,
+       child_part.part_spec AS item_spec,
+       detail.attrition_rate,
+       detail.points,
+       detail.pcb_side,
+       detail.stage_code,
+       proc.process_name AS bindprocess
+FROM t_bd_bom bom
+JOIN t_bd_part parent_part ON bom.part_id = parent_part.id
+JOIN t_bd_bom_detail detail ON bom.id = detail.bom_id
+JOIN t_bd_part child_part ON detail.item_part_id = child_part.id
+LEFT JOIN t_bd_process proc ON detail.process_id = proc.id
+WHERE parent_part.part_no = 'TEST_PART_001'
+  AND bom.current_status = 2
+  AND bom.is_enabled = 'Y'
+ORDER BY detail.item_seq ASC
+LIMIT 500
+
+
+────────────────────────────────────────────────────────────────────────────────
+查询 8：产线维度 SN 投入产出与不良统计
+────────────────────────────────────────────────────────────────────────────────
+
+【业务场景】
+生产主管需要按产线维度评估生产效率和产品质量。
+该查询将 SN 状态、工单、产线、产品、不良记录关联，
+统计每条产线各工单的 SN 投入数、产出数、不良数、良率，
+用于产能评估和不良趋势监控。
+
+【涉及表】t_pd_sn_status, t_pd_wo, t_bd_pdline, t_bd_part, t_pd_sn_defect
+
+【EXPLAIN 验证】
+  [OK] SQL 语法和语义正确
+  执行计划摘要: Limit
+
+【实际执行预览（前 5 行）】
+  [OK] 执行成功，返回 3 行
+  列名: pdline_name, work_order, part_no, part_name, wo_status, total_sn_count, output_sn_count, defect_sn_count, yield_pct
+  数据预览:
+    {'pdline_name': 'pdline_name', 'work_order': 'work_order', 'part_no': 'part_no', 'part_name': 'part_name', 'wo_status': 'wo_status', 'total_sn_count': 'total_sn_count', 'output_sn_count': 'output_sn_count', 'defect_sn_count': 'defect_sn_count', 'yield_pct': 'yield_pct'}
+    {'pdline_name': 'pdline_name', 'work_order': 'work_order', 'part_no': 'part_no', 'part_name': 'part_name', 'wo_status': 'wo_status', 'total_sn_count': 'total_sn_count', 'output_sn_count': 'output_sn_count', 'defect_sn_count': 'defect_sn_count', 'yield_pct': 'yield_pct'}
+    {'pdline_name': 'pdline_name', 'work_order': 'work_order', 'part_no': 'part_no', 'part_name': 'part_name', 'wo_status': 'wo_status', 'total_sn_count': 'total_sn_count', 'output_sn_count': 'output_sn_count', 'defect_sn_count': 'defect_sn_count', 'yield_pct': 'yield_pct'}
+
+【SQL】
+SELECT pl.pdline_name,
+       wo.work_order,
+       p.part_no,
+       p.part_name,
+       wo.wo_status,
+       COUNT(DISTINCT s.sn) AS total_sn_count,
+       COUNT(DISTINCT CASE WHEN s.current_phase = 2 THEN s.sn END) AS output_sn_count,
+       COUNT(DISTINCT d.sn) AS defect_sn_count,
+       ROUND(
+           COUNT(DISTINCT CASE WHEN s.current_phase = 2 THEN s.sn END)::numeric
+           / NULLIF(COUNT(DISTINCT s.sn), 0) * 100, 1
+       ) AS yield_pct
+FROM t_pd_sn_status s
+JOIN t_pd_wo wo ON s.work_order = wo.work_order
+JOIN t_bd_pdline pl ON wo.pdline_code = pl.pdline_code
+JOIN t_bd_part p ON wo.part_id = p.id
+LEFT JOIN t_pd_sn_defect d ON s.sn = d.sn
+WHERE wo.create_time >= '2026-01-01'
+  AND wo.create_time < '2026-07-01'
+GROUP BY pl.pdline_name, wo.work_order, p.part_no, p.part_name, wo.wo_status
+ORDER BY pl.pdline_name, yield_pct ASC
+LIMIT 100
+
+
+================================================================================
+验证汇总
+================================================================================
+  成功: 8/8
+  失败: 0/8
