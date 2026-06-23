@@ -1,13 +1,8 @@
-"""FewShot 与 EvolvedFewShot 示例管理接口。"""
-
-import json
+"""FewShot 示例管理接口。"""
 
 from fastapi import APIRouter, HTTPException, Query
 
 from src.models.schemas import (
-    EvolvedFewShotCreateRequest,
-    EvolvedFewShotItem,
-    EvolvedFewShotUpdateRequest,
     FewShotCreateRequest,
     FewShotItem,
     FewShotUpdateRequest,
@@ -31,26 +26,13 @@ async def list_few_shots_api():
 
 @router.post("/few-shots", response_model=FewShotItem)
 async def create_few_shot_api(
-    request: FewShotCreateRequest, force: bool = Query(False, description="强制创建（跳过重复检查）")
+    request: FewShotCreateRequest, force: bool = Query(True, description="已废弃，始终覆盖已存在的同 question 示例")
 ):
-    """创建新的 FewShot 示例。"""
-    from src.services.knowledge_service import check_few_shot_dedup, create_few_shot
-
-    if not force:
-        dedup = await check_few_shot_dedup(request.question)
-        if dedup["has_duplicate"]:
-            if dedup["exact_match"]:
-                raise HTTPException(
-                    status_code=409,
-                    detail="已存在完全相同的 FewShot 示例",
-                )
-            raise HTTPException(
-                status_code=409,
-                detail=json.dumps({"duplicate_items": dedup["similar_items"]}, ensure_ascii=False),
-            )
+    """创建或覆盖 FewShot 示例（若同 question 已存在则直接覆盖）。"""
+    from src.services.knowledge_service import create_few_shot
 
     try:
-        result = await create_few_shot(request.scenario, request.question, request.sql)
+        result = await create_few_shot(request.scenario, request.question, request.sql, request.type)
         return FewShotItem(**result)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"创建 FewShot 失败: {exc}") from exc
@@ -78,52 +60,6 @@ async def delete_few_shot_api(few_shot_id: str):
     return {"message": f"FewShot {few_shot_id} 已删除", "id": few_shot_id}
 
 
-# ── EvolvedFewShot 管理 ───────────────────────────────────────────
-
-
-@router.get("/evolved-few-shots", response_model=list[EvolvedFewShotItem])
-async def list_evolved_few_shots_api():
-    """列出所有 EvolvedFewShot 示例。"""
-    from src.services.knowledge_service import list_evolved_few_shots
-
-    items = await list_evolved_few_shots()
-    return [EvolvedFewShotItem(**item) for item in items]
-
-
-@router.post("/evolved-few-shots", response_model=EvolvedFewShotItem)
-async def create_evolved_few_shot_api(request: EvolvedFewShotCreateRequest):
-    """创建新的 EvolvedFewShot 示例。"""
-    from src.services.knowledge_service import create_evolved_few_shot
-
-    try:
-        result = await create_evolved_few_shot(request.scenario, request.question, request.sql)
-        return EvolvedFewShotItem(**result)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"创建 EvolvedFewShot 失败: {exc}") from exc
-
-
-@router.put("/evolved-few-shots/{evolved_id}")
-async def update_evolved_few_shot_api(evolved_id: str, request: EvolvedFewShotUpdateRequest):
-    """更新 EvolvedFewShot 示例。"""
-    from src.services.knowledge_service import update_evolved_few_shot
-
-    ok = await update_evolved_few_shot(evolved_id, request.scenario, request.question, request.sql)
-    if not ok:
-        raise HTTPException(status_code=404, detail=f"EvolvedFewShot {evolved_id} 不存在")
-    return {"message": f"EvolvedFewShot {evolved_id} 更新成功", "id": evolved_id}
-
-
-@router.delete("/evolved-few-shots/{evolved_id}")
-async def delete_evolved_few_shot_api(evolved_id: str):
-    """删除 EvolvedFewShot 示例。"""
-    from src.services.knowledge_service import delete_evolved_few_shot
-
-    ok = await delete_evolved_few_shot(evolved_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail=f"EvolvedFewShot {evolved_id} 不存在")
-    return {"message": f"EvolvedFewShot {evolved_id} 已删除", "id": evolved_id}
-
-
 # ── 启用/禁用 ───────────────────────────────────────────────────────
 
 
@@ -136,14 +72,3 @@ async def toggle_few_shot_api(few_shot_id: str, request: ToggleEnabledRequest):
     if not ok:
         raise HTTPException(status_code=404, detail=f"FewShot {few_shot_id} 不存在")
     return {"message": f"FewShot {few_shot_id} 已{'启用' if request.enabled else '禁用'}", "enabled": request.enabled}
-
-
-@router.patch("/evolved-few-shots/{evolved_id}/enabled")
-async def toggle_evolved_few_shot_api(evolved_id: str, request: ToggleEnabledRequest):
-    """切换 EvolvedFewShot 启用/禁用状态。"""
-    from src.services.knowledge_service import toggle_evolved_few_shot
-
-    ok = await toggle_evolved_few_shot(evolved_id, request.enabled)
-    if not ok:
-        raise HTTPException(status_code=404, detail=f"EvolvedFewShot {evolved_id} 不存在")
-    return {"message": f"EvolvedFewShot {evolved_id} 已{'启用' if request.enabled else '禁用'}", "enabled": request.enabled}

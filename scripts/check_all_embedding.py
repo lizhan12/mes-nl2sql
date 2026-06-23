@@ -4,14 +4,14 @@ from src.services.neo4j_graph import _get_driver
 driver = _get_driver()
 
 with driver.session() as session:
-    # EvolvedFewShot
+    # FewShot
     result = session.run("""
-        MATCH (f:EvolvedFewShot)
+        MATCH (f:FewShot)
         RETURN f.id as id, f.question as question,
                CASE WHEN f.question_embedding IS NOT NULL THEN 'Y' ELSE 'N' END as has_emb
     """)
     records = list(result)
-    print(f"=== EvolvedFewShot ({len(records)} nodes) ===")
+    print(f"=== FewShot ({len(records)} nodes) ===")
     for r in records:
         print(f"  {r['id']}: embedding={r['has_emb']} question={r['question'][:50]}")
 

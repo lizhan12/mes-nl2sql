@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import Home from "@/pages/Home";
 import FewShotManagement from "@/pages/FewShotManagement";
+import GenericKnowledgePage from "@/pages/GenericKnowledgePage";
 import GraphPage from "@/pages/GraphPage";
 import Harness from "@/pages/Harness";
 import KnowledgePage from "@/pages/KnowledgePage";
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="/graph" element={<GraphPage />} />
           <Route path="/trace" element={<TracePage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/knowledge/generic/:kbName" element={<GenericKnowledgePage />} />
           <Route path="/knowledge-search" element={<KnowledgeSearchPage />} />
           <Route path="/few-shot" element={<FewShotManagement />} />
           <Route path="/rule" element={<RuleManagement />} />

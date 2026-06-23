@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     embedding_base_url: str = "https://api.siliconflow.cn/v1"
     embedding_model: str = "BAAI/bge-large-zh-v1.5"
     embedding_api_key: str = ""
+    embedding_dimensions: int = 1024  # 向量维度，需与模型匹配（bge-large-zh-v1.5=1024, qwen3-embedding-8b=4096）
+    embedding_max_chars: int = 800  # embed_text 最大字符数，需与模型上下文匹配
+
+    # ---- Rerank ----
+    rerank_base_url: str = "https://api.siliconflow.cn/v1"  # 硅基流动 rerank 端点
+    rerank_api_key: str = ""  # 为空则复用 embedding_key
+    rerank_model: str = "Qwen/Qwen3-Reranker-4B"
+    rerank_top_n: int = 8  # rerank 后默认返回前 N 条
+    rerank_timeout: float = 30.0  # 单次 rerank 请求超时（秒）
 
     # ---- Database ----
     database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/mes"
@@ -91,6 +100,11 @@ class Settings(BaseSettings):
     def embedding_key(self) -> str:
         """Embedding API key，若未单独设置则复用 LLM key."""
         return self.embedding_api_key or self.openai_api_key
+
+    @property
+    def rerank_key(self) -> str:
+        """Rerank API key，若未单独设置则复用 embedding_key."""
+        return self.rerank_api_key or self.embedding_key
 
     @property
     def app_database_url(self) -> str:

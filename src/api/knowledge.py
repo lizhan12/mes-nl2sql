@@ -5,8 +5,8 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
+from src.core.config import settings
 from src.models.schemas import (
-    EvolvedFewShotSearchItem,
     FewShotSearchItem,
     FieldSearchItem,
     GraphEdgeCreate,
@@ -181,10 +181,16 @@ async def delete_knowledge_table(table_name: str):
 
 @router.post("/search", response_model=KnowledgeSearchResult)
 async def search_knowledge(request: KnowledgeSearchRequest):
-    """知识库检索：同时检索表结构库、SQL 示例库和字段级索引。"""
+    """知识库检索：同时检索表结构库、SQL 示例库和字段级索引。
+
+    当 use_rerank=True 时，调用硅基流动 Rerank 模型（配置项 RERANK_MODEL）
+    对各路向量召回结果按 query 重新打分并截断到 rerank_top_n。
+    Rerank 失败时回退到原排序，保证检索可用性。
+    """
     import src.graph.nodes as nodes
     from src.services.vector_store import (
         keyword_search_schema,
+        rerank_documents,
         search_few_shot_with_meta,
         search_fields,
         search_schema_with_meta,
@@ -198,21 +204,24 @@ async def search_knowledge(request: KnowledgeSearchRequest):
     search_types = request.search_types
     threshold = request.similarity_threshold
     top_k = request.top_k
+    use_rerank = request.use_rerank
+    rerank_top_n = request.rerank_top_n
+    # Rerank 需要宽召回：向量检索多召回一些候选，给 rerank 足够空间精排
+    recall_k = min(top_k * 3, 50) if use_rerank else top_k
 
     schema_results: list[SchemaSearchItem] = []
     few_shot_results: list[FewShotSearchItem] = []
     field_results: list[FieldSearchItem] = []
     runtime_rule_results: list[RuntimeRuleSearchItem] = []
-    evolved_few_shot_results: list[EvolvedFewShotSearchItem] = []
     keyword_tables: list[str] = []
 
     async def _do_search():
         nonlocal schema_results, few_shot_results, field_results, keyword_tables
-        nonlocal runtime_rule_results, evolved_few_shot_results
+        nonlocal runtime_rule_results
 
         if "schema" in search_types:
             docs_with_scores = await search_schema_with_meta(
-                schema_store, request.query, k=top_k, similarity_threshold=threshold
+                schema_store, request.query, k=recall_k, similarity_threshold=threshold
             )
             for doc, score in docs_with_scores:
                 meta = doc.metadata
@@ -227,7 +236,7 @@ async def search_knowledge(request: KnowledgeSearchRequest):
                 )
 
         if "few_shot" in search_types:
-            docs = await search_few_shot_with_meta(few_shot_store, request.query, k=top_k)
+            docs = await search_few_shot_with_meta(few_shot_store, request.query, k=recall_k)
             for doc in docs:
                 meta = doc.metadata
                 few_shot_results.append(
@@ -241,7 +250,7 @@ async def search_knowledge(request: KnowledgeSearchRequest):
 
         if "fields" in search_types:
             try:
-                fields = await search_fields(request.query, k=top_k, threshold=threshold)
+                fields = await search_fields(request.query, k=recall_k, threshold=threshold)
                 for f in fields:
                     field_results.append(
                         FieldSearchItem(
@@ -261,7 +270,7 @@ async def search_knowledge(request: KnowledgeSearchRequest):
                 if runtime_rule_store:
                     from src.services.vector_store import search_runtime_rules
 
-                    rules = await search_runtime_rules(runtime_rule_store, request.query, k=top_k, threshold=threshold)
+                    rules = await search_runtime_rules(runtime_rule_store, request.query, k=recall_k, threshold=threshold)
                     for rule in rules:
                         runtime_rule_results.append(
                             RuntimeRuleSearchItem(
@@ -280,38 +289,84 @@ async def search_knowledge(request: KnowledgeSearchRequest):
                 logger.warning("运行时规则检索失败: %s", e)
 
         if "evolved_few_shot" in search_types:
-            try:
-                evolved_few_shot_store = nodes._evolved_few_shot_store
-                if evolved_few_shot_store:
-                    docs_with_scores = await evolved_few_shot_store.similarity_search_with_score(request.query, k=top_k)
-                    for doc, score in docs_with_scores:
-                        if score >= threshold:
-                            meta = doc.metadata
-                            evolved_few_shot_results.append(
-                                EvolvedFewShotSearchItem(
-                                    full_text=meta.get("full_text", doc.page_content),
-                                    scenario=meta.get("scenario", ""),
-                                    question=meta.get("question", ""),
-                                    score=round(score, 4),
-                                )
-                            )
-                else:
-                    logger.warning("进化 few-shot 向量库未初始化，跳过向量检索")
-            except Exception as e:
-                logger.warning("进化 few-shot 检索失败: %s", e)
+            # 合并到 few_shot 检索（使用统一的 few_shot_store）
+            pass
 
         keyword_tables = keyword_search_schema(request.query, top_n=10)
+
+        # ── Rerank 重排 ──
+        # 仅对 4 类语义召回结果做 rerank，关键词命中的表名（keyword_tables）保留原样
+        if use_rerank:
+            await _apply_rerank(
+                request.query,
+                schema_results=schema_results,
+                few_shot_results=few_shot_results,
+                field_results=field_results,
+                runtime_rule_results=runtime_rule_results,
+                top_n=rerank_top_n,
+            )
+
+    async def _apply_rerank(
+        query: str,
+        *,
+        schema_results: list[SchemaSearchItem],
+        few_shot_results: list[FewShotSearchItem],
+        field_results: list[FieldSearchItem],
+        runtime_rule_results: list[RuntimeRuleSearchItem],
+        top_n: int | None,
+    ) -> None:
+        """对各路结果独立调用 rerank，按新分数降序并截断到 top_n。"""
+
+        async def _rerank_and_apply(items: list, text_fn, score_attr: str = "score") -> None:
+            if not items:
+                return
+            texts = [text_fn(it) for it in items]
+            try:
+                ranked = await rerank_documents(query, texts, top_n=top_n)
+            except Exception as exc:
+                logger.warning("rerank 失败（%s），保留原排序: %s", score_attr, exc)
+                return
+            # ranked 已按新分降序；截断到 keep_idx 顺序并写回新分
+            new_score_map = dict(ranked)
+            reordered = [items[i] for i, _ in ranked]
+            for new_pos, (orig_idx, _) in enumerate(ranked):
+                setattr(reordered[new_pos], score_attr, round(new_score_map[orig_idx], 4))
+            items.clear()
+            items.extend(reordered)
+
+        # 表结构：rerank 文本使用 business_meaning + full_text 摘要
+        await _rerank_and_apply(
+            schema_results,
+            lambda it: (it.business_meaning or "") + "\n" + (it.full_text or ""),
+        )
+        # SQL 示例：使用 question + scenario
+        await _rerank_and_apply(
+            few_shot_results,
+            lambda it: f"{it.scenario} {it.question}".strip(),
+        )
+        # 字段级：表名.字段名 + 注释
+        await _rerank_and_apply(
+            field_results,
+            lambda it: f"{it.table_name}.{it.field_name} {it.type} {it.comment}".strip(),
+        )
+        # 运行时规则：question + normalized_question
+        await _rerank_and_apply(
+            runtime_rule_results,
+            lambda it: f"{it.question} {it.normalized_question}".strip(),
+        )
+        # 进化 few-shot：已合并到 few_shot_results
 
     await _do_search()
 
     return KnowledgeSearchResult(
         query=request.query,
+        embedding_model=settings.embedding_model,
+        rerank_model=settings.rerank_model if request.use_rerank else "",
         schema_results=schema_results,
         few_shot_results=few_shot_results,
         field_results=field_results,
         keyword_tables=keyword_tables,
         runtime_rule_results=runtime_rule_results,
-        evolved_few_shot_results=evolved_few_shot_results,
     )
 
 

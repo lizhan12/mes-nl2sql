@@ -2,23 +2,20 @@ import {
   ArrowUpRight,
   Beaker,
   Bot,
-  Brain,
   CheckCircle,
   ChevronDown,
   ChevronUp,
-  Database,
   Eye,
   MessageCircle,
   Moon,
   RefreshCw,
   Search,
-  Sparkles,
   Sun,
   ThumbsDown,
   ThumbsUp,
   XCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { useTheme } from "@/hooks/useTheme";
@@ -30,10 +27,8 @@ import { Panel } from "@/components/Panel";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   analyzeFailures,
-  autoLabelFailures,
   deleteCandidate,
   deleteFailureCase,
-  evolveOnline,
   labelFailureCase,
   listCandidates,
   listFailureCases,
@@ -122,6 +117,119 @@ function FeedbackItem({ fb }: { fb: FeedbackRecord }) {
   );
 }
 
+
+function getNum(r: Record<string, unknown>, key: string): number {
+  return Number(r[key]) || 0;
+}
+
+interface ResultCategoryProps {
+  icon: ReactNode;
+  label: string;
+  tone: "success" | "warning" | "accent" | "neutral";
+  lines: string[];
+}
+
+function ResultCategory({ icon, label, tone, lines }: ResultCategoryProps) {
+  const toneColor = {
+    success: "var(--success)",
+    warning: "var(--warning)",
+    accent: "var(--accent)",
+    neutral: "var(--text-tertiary)",
+  }[tone];
+  return (
+    <div className="group relative rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-3 transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)]">
+      <div className="absolute inset-y-0 left-0 w-[2px] rounded-l-[var(--radius-sm)] opacity-60" style={{ backgroundColor: toneColor }} />
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="flex h-5 w-5 items-center justify-center rounded border border-[var(--border-default)] bg-[var(--bg-subtle)]" style={{ color: toneColor }}>
+          {icon}
+        </span>
+        <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--text-primary)]">
+          {label}
+        </span>
+      </div>
+      {lines.map((line, i) => (
+        <p key={i} className="ml-7 font-mono text-[10px] leading-relaxed text-[var(--text-tertiary)]">
+          {line}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function AnalyzeResultPanel({ result }: { result: Record<string, unknown> }) {
+  const synced = getNum(result, "synced_failures");
+  const total = getNum(result, "open_failures") + getNum(result, "liked_requests") + getNum(result, "retry_success_cases");
+  const upserted = getNum(result, "candidates_upserted");
+  const skipped = getNum(result, "candidates_skipped");
+
+  return (
+    <Panel title="分析结果" subtitle={`同步 ${synced} 条失败案例，共处理 ${total} 条，生成 ${upserted} 条候选，跳过 ${skipped} 条`}>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {/* 人工标注 */}
+        <ResultCategory
+          icon={<CheckCircle className="h-3 w-3" />}
+          label="人工标注"
+          tone="success"
+          lines={[
+            `生成 ${getNum(result, "labeled_candidates")} 条候选`,
+            getNum(result, "labeled_skipped") > 0 ? `跳过 ${getNum(result, "labeled_skipped")} 条（已存在）` : "",
+          ].filter(Boolean)}
+        />
+
+        {/* SQL 匹配恢复 */}
+        <ResultCategory
+          icon={<Search className="h-3 w-3" />}
+          label="SQL 匹配恢复"
+          tone="accent"
+          lines={[
+            `恢复 ${getNum(result, "recovered_candidates")} 条候选`,
+          ]}
+        />
+
+        {/* LLM 回退标注 */}
+        <ResultCategory
+          icon={<Bot className="h-3 w-3" />}
+          label="LLM 回退标注"
+          tone="warning"
+          lines={[
+            `生成 ${getNum(result, "llm_generated_candidates")} 条候选`,
+            `自动通过 ${getNum(result, "llm_auto_approved")} 条`,
+            getNum(result, "llm_medium_confidence") > 0 ? `待确认 ${getNum(result, "llm_medium_confidence")} 条` : "",
+            getNum(result, "llm_failed") > 0 ? `失败 ${getNum(result, "llm_failed")} 条` : "",
+          ].filter(Boolean)}
+        />
+
+        {/* 用户点赞 */}
+        <ResultCategory
+          icon={<ThumbsUp className="h-3 w-3" />}
+          label="用户点赞"
+          tone="success"
+          lines={[
+            `${getNum(result, "liked_requests")} 条请求 → ${getNum(result, "liked_candidates")} 条候选`,
+            getNum(result, "liked_skipped") > 0 ? `跳过 ${getNum(result, "liked_skipped")} 条（已存在）` : "",
+          ].filter(Boolean)}
+        />
+
+        {/* 重试成功评估 */}
+        {getNum(result, "retry_success_cases") > 0 ? (
+          <ResultCategory
+            icon={<RefreshCw className="h-3 w-3" />}
+            label="重试成功评估"
+            tone="warning"
+            lines={[
+              `${getNum(result, "retry_success_cases")} 条案例`,
+              `自动通过 ${getNum(result, "retry_auto_approved")} 条`,
+              getNum(result, "retry_medium_confidence") > 0 ? `待确认 ${getNum(result, "retry_medium_confidence")} 条` : "",
+              getNum(result, "retry_low_confidence") > 0 ? `低置信 ${getNum(result, "retry_low_confidence")} 条` : "",
+              getNum(result, "retry_skipped") > 0 ? `跳过 ${getNum(result, "retry_skipped")} 条（已由点赞处理）` : "",
+            ].filter(Boolean)}
+          />
+        ) : null}
+      </div>
+    </Panel>
+  );
+}
+
 export default function Harness() {
   const { isDark, toggleTheme } = useTheme();
 
@@ -154,16 +262,10 @@ export default function Harness() {
     result: PrePublishCheckResponse | null;
   }>({ open: false, result: null });
 
-  // Auto-label config
-  const [autoLabelLimit, setAutoLabelLimit] = useState(50);
-  const [autoLabelGenModel, setAutoLabelGenModel] = useState("");
-  const [autoLabelEvalModel, setAutoLabelEvalModel] = useState("");
-
-  // Evolve online config
-  const [evolveOnlineLimit, setEvolveOnlineLimit] = useState(200);
-
-  // Analyze config
+  // Analyze config（含 LLM 回退参数）
   const [analyzeLimit, setAnalyzeLimit] = useState(200);
+  const [analyzeGenModel, setAnalyzeGenModel] = useState("");
+  const [analyzeEvalModel, setAnalyzeEvalModel] = useState("");
 
   // Expanded states
   const [expandedFailure, setExpandedFailure] = useState<number | null>(null);
@@ -241,39 +343,9 @@ export default function Harness() {
   async function handleAnalyze() {
     setBusy("analyze");
     try {
-      const result = await analyzeFailures(analyzeLimit);
+      const result = await analyzeFailures(analyzeLimit, analyzeGenModel, analyzeEvalModel);
       setLastResult(result);
       setLastResultTitle("分析失败案例");
-      await refreshCandidates();
-      await refreshFailures();
-    } catch {
-      // ignore
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function handleAutoLabel() {
-    setBusy("auto-label");
-    try {
-      const result = await autoLabelFailures(autoLabelLimit, autoLabelGenModel, autoLabelEvalModel);
-      setLastResult(result as unknown as Record<string, unknown>);
-      setLastResultTitle("LLM 自动标注");
-      await refreshCandidates();
-      await refreshFailures();
-    } catch {
-      // ignore
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function handleEvolveOnline() {
-    setBusy("evolve");
-    try {
-      const result = await evolveOnline(evolveOnlineLimit);
-      setLastResult(result as unknown as Record<string, unknown>);
-      setLastResultTitle("线上进化");
       await refreshCandidates();
       await refreshFailures();
     } catch {
@@ -540,9 +612,9 @@ export default function Harness() {
                 分析失败案例
               </div>
               <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
-                从线上失败案例和用户点赞记录生成候选规则
+                从线上失败案例和用户点赞记录生成候选规则（含 LLM 回退 + 重试成功评估）
               </p>
-              <div className="mt-3 flex items-center gap-3">
+              <div className="mt-3 flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
                   <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
                     Limit:
@@ -554,49 +626,13 @@ export default function Harness() {
                     className="w-20 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAnalyze}
-                  disabled={busy === "analyze"}
-                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[var(--shadow-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-                >
-                  <Bot className="h-3.5 w-3.5" />
-                  {busy === "analyze" ? "分析中..." : "分析"}
-                </button>
-              </div>
-            </div>
-
-            {/* Auto-Label */}
-            <div className="group relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4 transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)] hover:shadow-[0_0_24px_var(--success-glow)]">
-              <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--success)] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-30" />
-              <div className="mb-2 flex h-8 w-8 items-center justify-center rounded border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--success)] transition-colors duration-300 group-hover:border-[var(--success)]/20 group-hover:bg-[var(--success)]/5">
-                <Brain className="h-4 w-4" />
-              </div>
-              <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-primary)]">
-                LLM 自动标注
-              </div>
-              <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
-                LLM 对失败案例生成修正 SQL + 多维度置信度评估
-              </p>
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
-                    Limit:
-                  </label>
-                  <input
-                    type="number"
-                    value={autoLabelLimit}
-                    onChange={(e) => setAutoLabelLimit(Number(e.target.value) || 50)}
-                    className="w-16 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
-                  />
-                </div>
                 <div className="flex items-center gap-2">
                   <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
                     生成模型:
                   </label>
                   <input
-                    value={autoLabelGenModel}
-                    onChange={(e) => setAutoLabelGenModel(e.target.value)}
+                    value={analyzeGenModel}
+                    onChange={(e) => setAnalyzeGenModel(e.target.value)}
                     placeholder="默认"
                     className="w-28 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
                   />
@@ -606,56 +642,20 @@ export default function Harness() {
                     评估模型:
                   </label>
                   <input
-                    value={autoLabelEvalModel}
-                    onChange={(e) => setAutoLabelEvalModel(e.target.value)}
+                    value={analyzeEvalModel}
+                    onChange={(e) => setAnalyzeEvalModel(e.target.value)}
                     placeholder="默认"
                     className="w-28 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
                   />
                 </div>
                 <button
                   type="button"
-                  onClick={handleAutoLabel}
-                  disabled={busy === "auto-label"}
-                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--success)] px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[0_0_20px_var(--success-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                  onClick={handleAnalyze}
+                  disabled={busy === "analyze"}
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[var(--shadow-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                 >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  {busy === "auto-label" ? "标注中..." : "自动标注"}
-                </button>
-              </div>
-            </div>
-
-            {/* Evolve Online */}
-            <div className="group relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4 transition-all duration-[var(--duration-normal)] hover:border-[var(--border-accent)] hover:shadow-[0_0_24px_var(--warning-glow)]">
-              <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--warning)] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-30" />
-              <div className="mb-2 flex h-8 w-8 items-center justify-center rounded border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--warning)] transition-colors duration-300 group-hover:border-[var(--warning)]/20 group-hover:bg-[var(--warning)]/5">
-                <ArrowUpRight className="h-4 w-4" />
-              </div>
-              <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-primary)]">
-                线上进化
-              </div>
-              <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
-                从线上高成本成功请求中提炼规则并直接发布
-              </p>
-              <div className="mt-3 flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <label className="font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
-                    Limit:
-                  </label>
-                  <input
-                    type="number"
-                    value={evolveOnlineLimit}
-                    onChange={(e) => setEvolveOnlineLimit(Number(e.target.value) || 200)}
-                    className="w-20 rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] placeholder:text-[var(--text-tertiary)]/40 focus:border-[var(--border-accent)] focus:ring-1 focus:ring-[var(--accent)]/20"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleEvolveOnline}
-                  disabled={busy === "evolve"}
-                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--warning)] px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-[#080c0f] transition-all duration-[var(--duration-fast)] hover:shadow-[0_0_20px_var(--warning-glow)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-                >
-                  <Database className="h-3.5 w-3.5" />
-                  {busy === "evolve" ? "进化中..." : "执行进化"}
+                  <Bot className="h-3.5 w-3.5" />
+                  {busy === "analyze" ? "分析中..." : "分析"}
                 </button>
               </div>
             </div>
@@ -693,7 +693,9 @@ export default function Harness() {
         </Panel>
 
         {/* ── Last Result (if any) ── */}
-        {lastResult ? (
+        {lastResult && lastResultTitle === "分析失败案例" ? (
+          <AnalyzeResultPanel result={lastResult} />
+        ) : lastResult ? (
           <Panel
             title={`结果：${lastResultTitle}`}
             subtitle="最近一次操作的返回值"

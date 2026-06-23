@@ -12,6 +12,7 @@
   uv run python scripts/rebuild_knowledge_base.py --force  # 强制全量重建
 """
 
+import asyncio
 import logging
 import os
 import sys
@@ -23,7 +24,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelna
 logger = logging.getLogger("rebuild_knowledge_base")
 
 
-def main() -> None:
+async def main() -> None:
     force_rebuild = "--force" in sys.argv
 
     logger.info("=" * 60)
@@ -33,38 +34,40 @@ def main() -> None:
         logger.info("增量构建知识库（已有数据则跳过，无数据则初始化）")
     logger.info("=" * 60)
 
-    # ── 1. 表结构向量库 ────────────────────────────────────────────
-    logger.info("\n[1/4] 构建表结构向量库...")
-    from src.services.vector_store import build_neo4j_schema_store
-
-    schema_store = build_neo4j_schema_store(force_rebuild=force_rebuild)
-    logger.info("[1/4] 表结构向量库构建完成")
-
-    # ── 2. SQL 示例向量库 ──────────────────────────────────────────
-    logger.info("\n[2/4] 构建 SQL 示例向量库...")
-    from src.services.vector_store import build_neo4j_few_shot_store
-
-    few_shot_store = build_neo4j_few_shot_store(force_rebuild=force_rebuild)
-    logger.info("[2/4] SQL 示例向量库构建完成")
-
-    # ── 3. 关系图初始化 ────────────────────────────────────────────
-    logger.info("\n[3/4] 初始化表关系图...")
+    # ── 1. 关系图初始化 ────────────────────────────────────────────
+    logger.info("\n[1/4] 初始化表关系图...")
+    from src.core.config import settings
     from src.services.neo4j_graph import count_graph, init_neo4j_graph
 
     if force_rebuild:
-        # 强制重建时清空已有的关系图
         from src.services.neo4j_graph import _get_driver
 
-        driver = _get_driver()
-        with driver.session() as session:
-            session.run("MATCH (t:Table) DETACH DELETE t")
+        driver = await _get_driver()
+        async with driver.session() as session:
+            await session.run("MATCH (t:Table) DETACH DELETE t")
             logger.info("已清空 Neo4j 关系图节点和边")
-        init_neo4j_graph()
+        # 重建时临时允许自动初始化关系图
+        settings.neo4j_graph_auto_init = True
+        await init_neo4j_graph()
     else:
-        init_neo4j_graph()
+        await init_neo4j_graph()
 
-    node_count, edge_count = count_graph()
-    logger.info("[3/4] 关系图初始化完成，共 %d 节点, %d 边", node_count, edge_count)
+    node_count, edge_count = await count_graph()
+    logger.info("[1/4] 关系图初始化完成，共 %d 节点, %d 边", node_count, edge_count)
+
+    # ── 2. 表结构向量库 ────────────────────────────────────────────
+    logger.info("\n[2/4] 构建表结构向量库...")
+    from src.services.vector_store import build_neo4j_schema_store
+
+    schema_store = await build_neo4j_schema_store(force_rebuild=force_rebuild)
+    logger.info("[2/4] 表结构向量库构建完成")
+
+    # ── 3. SQL 示例向量库 ──────────────────────────────────────────
+    logger.info("\n[3/4] 构建 SQL 示例向量库...")
+    from src.services.vector_store import build_neo4j_few_shot_store
+
+    few_shot_store = await build_neo4j_few_shot_store(force_rebuild=force_rebuild)
+    logger.info("[3/4] SQL 示例向量库构建完成")
 
     # ── 4. 验证 ─────────────────────────────────────────────────────
     logger.info("\n[4/4] 验证知识库数据...")
@@ -75,9 +78,9 @@ def main() -> None:
     )
 
     checks = {
-        "表结构向量 (Table.schema_embedding)": schema_has_embeddings(),
-        "SQL 示例向量 (FewShot.question_embedding)": few_shot_has_embeddings(),
-        "字段向量 (Field.field_embedding)": field_has_embeddings(),
+        "表结构向量 (Table.schema_embedding)": await schema_has_embeddings(),
+        "SQL 示例向量 (FewShot.question_embedding)": await few_shot_has_embeddings(),
+        "字段向量 (Field.field_embedding)": await field_has_embeddings(),
         "关系图 (Table 节点 + JOIN_REL 边)": node_count > 0,
     }
 
@@ -97,4 +100,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

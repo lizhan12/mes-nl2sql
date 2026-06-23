@@ -15,16 +15,13 @@ from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_VECTOR_DIMENSIONS = 1024
-
 
 class Neo4jVectorStore:
     """Neo4j 向量存储，使用原生向量索引进行相似度搜索。
 
-    支持四种集合：
+    支持三种集合：
       - "schema": 从 Table 节点的 schema_embedding 属性检索
       - "few_shot": 从 FewShot 节点的 question_embedding 属性检索
-      - "evolved_few_shot": 从 EvolvedFewShot 节点的 question_embedding 属性检索
       - "runtime_rule": 从 RuntimeRule 节点的 question_embedding 属性检索
     """
 
@@ -46,8 +43,6 @@ class Neo4jVectorStore:
         query_vec = self._embedding.embed_query(query)
         if self._collection == "schema":
             return await self._schema_search(query_vec, k)
-        elif self._collection == "evolved_few_shot":
-            return await self._evolved_few_shot_search(query_vec, k)
         elif self._collection == "runtime_rule":
             return await self._runtime_rule_search(query_vec, k)
         return await self._few_shot_search(query_vec, k)
@@ -122,41 +117,6 @@ class Neo4jVectorStore:
                 ]
         except Exception as e:
             logger.warning("Neo4j few_shot 向量搜索失败: %s", e)
-            return []
-
-    async def _evolved_few_shot_search(self, query_vec: list[float], k: int) -> list[tuple[Document, float]]:
-        """在 EvolvedFewShot 节点上做向量相似度搜索。"""
-        try:
-            async with self._driver.session() as session:
-                result = await session.run(
-                    """
-                    MATCH (f:EvolvedFewShot)
-                    WHERE f.question_embedding IS NOT NULL
-                      AND COALESCE(f.enabled, true) = true
-                    WITH f, vector.similarity.cosine(f.question_embedding, $query_vec) AS score
-                    RETURN f.full_text AS full_text, f.scenario AS scenario,
-                           f.question AS question, score
-                    ORDER BY score DESC
-                    LIMIT $k
-                    """,
-                    {"query_vec": query_vec, "k": k},
-                )
-                return [
-                    (
-                        Document(
-                            page_content=rec["full_text"] or "",
-                            metadata={
-                                "scenario": rec["scenario"] or "",
-                                "question": rec["question"] or "",
-                                "full_text": rec["full_text"] or "",
-                            },
-                        ),
-                        rec["score"],
-                    )
-                    async for rec in result
-                ]
-        except Exception as e:
-            logger.warning("Neo4j evolved_few_shot 向量搜索失败: %s", e)
             return []
 
     async def _runtime_rule_search(self, query_vec: list[float], k: int) -> list[tuple[Document, float]]:

@@ -47,4 +47,4 @@ with driver.session() as session:
         print(f"有向量化的节点数: {len(records) - no_embedding_count}")
     else:
         print("\n数据库中不存在 EvalFewShot 标签")
-        print("可能您指的是 EvolvedFewShot？")
+        print("可能您指的是 FewShot？")

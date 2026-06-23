@@ -24,7 +24,7 @@ from langgraph.config import get_stream_writer
 
 from src.core.config import settings
 from src.graph.state import GraphState
-from src.harness.knowledge import load_evolved_few_shot_text, load_runtime_rules, normalize_question
+from src.harness.knowledge import load_runtime_rules, normalize_question
 from src.services.bfs import (
     bfs_expand,
     build_chain_join_hints,
@@ -567,16 +567,14 @@ def _build_column_feedback(sql: str, schema_context: str) -> str:
 # 全局 store 引用（由 workflow 初始化时注入）
 _schema_store = None
 _few_shot_store = None
-_evolved_few_shot_store = None
 _runtime_rule_store = None
 
 
-def init_stores(schema_store, few_shot_store, evolved_few_shot_store=None, runtime_rule_store=None):
+def init_stores(schema_store, few_shot_store, runtime_rule_store=None):
     """初始化向量存储引用。"""
-    global _schema_store, _few_shot_store, _evolved_few_shot_store, _runtime_rule_store
+    global _schema_store, _few_shot_store, _runtime_rule_store
     _schema_store = schema_store
     _few_shot_store = few_shot_store
-    _evolved_few_shot_store = evolved_few_shot_store
     _runtime_rule_store = runtime_rule_store
 
 
@@ -744,25 +742,6 @@ async def node_2_parallel_retrieval(state: GraphState) -> dict:
         if doc and doc not in seen_schema:
             seen_schema.add(doc)
             required_schema_docs.append(doc)
-
-    evolved_few_shot_text = await load_evolved_few_shot_text()
-    if evolved_few_shot_text and evolved_few_shot_text not in seen_few:
-        seen_few.add(evolved_few_shot_text)
-        few_shot_docs_list.append(evolved_few_shot_text)
-
-    # 使用向量检索 evolved_few_shot（替代全量加载）
-    if _evolved_few_shot_store:
-        try:
-            from src.services.vector_store import search_evolved_few_shot
-
-            for sq in search_queries[:3]:
-                evolved_docs = await search_evolved_few_shot(_evolved_few_shot_store, sq, k=2)
-                for doc in evolved_docs:
-                    if doc not in seen_few:
-                        seen_few.add(doc)
-                        few_shot_docs_list.append(doc)
-        except Exception as e:
-            logger.warning("节点2: evolved_few_shot 向量检索失败: %s", e)
 
     # 截断策略：required_schema_docs 优先保留（不计入截断上限），
     # 向量检索结果用剩余配额截断，最后 required 在前拼接。

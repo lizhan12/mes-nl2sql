@@ -22,7 +22,7 @@ with driver.session() as session:
     print("\n" + "=" * 60)
 
     # 检查可能的变体名称
-    variants = ['EvalFewShot', 'EvolvedFewShot', 'FewShot', 'RuntimeRule']
+    variants = ['EvalFewShot', 'FewShot', 'RuntimeRule']
 
     for variant in variants:
         result = session.run(f"""

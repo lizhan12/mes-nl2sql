@@ -51,56 +51,59 @@ bcencode数据查询
 模块：条码管理
 业务含义：编码规则组，将多个编码规则组合为规则组，供物料料号引用以确定其条码编码方式
 关键字段：
-  id (character varying)
-  group_name (character varying) -- 规则集合名称
-  group_desc (character varying) -- 规则集合描述
-  is_enabled (character varying)
-  create_user_id (character varying)
-  create_time (timestamp without time zone)
-  update_user_id (character varying)
-  update_time (timestamp without time zone)
+  id (varchar)
+  group_name (varchar) -- 规则集合名称
+  group_desc (varchar) -- 规则集合描述
+  is_enabled (varchar)
+  create_user_id (varchar)
+  create_time (timestamp)
+  update_user_id (varchar)
+  update_time (timestamp)
 适用场景：
+
 bcencode数据查询
 ---
 表名：t_bd_bom
 模块：基础数据
 业务含义：物料清单(BOM)，定义产品的组件结构树，包含组件物料、用量、工序位置、替代关系等完整的产品组成信息
 关键字段：
-  id (character varying)
-  part_id (character varying) -- 成品料号
-  bom_version (character varying) -- BOM版本
-  remark (character varying) -- 备注
-  current_status (integer) -- 当前状态(0,初始;1,提交;2,签核;3,驳回;4,废弃)
-  is_enabled (character varying)
-  create_user_id (character varying)
-  create_time (timestamp without time zone)
-  update_user_id (character varying)
-  update_time (timestamp without time zone)
+  id (varchar)
+  part_id (varchar) -- 成品料号
+  bom_version (varchar) -- BOM版本
+  remark (varchar) -- 备注
+  current_status (int) -- 当前状态(0,初始;1,提交;2,签核;3,驳回;4,废弃)
+  is_enabled (varchar)
+  create_user_id (varchar)
+  create_time (timestamp)
+  update_user_id (varchar)
+  update_time (timestamp)
 适用场景：
+
 bdbom数据查询
 ---
 表名：t_bd_customer
 模块：基础数据
 业务含义：客户档案表，记录客户基本信息（代码、名称、联系人等），用于检验单、库存等业务中的客户关联
 关键字段：
-  id (character varying)
-  customer_code (character varying)
-  customer_name (character varying)
-  customer_desc (character varying)
-  tel (character varying)
-  email (character varying)
-  fax (character varying)
-  contacts (character varying)
-  addr (character varying)
-  customer_short_name (character varying)
-  rule_set_name (character varying)
-  is_confirm_wo_need (character varying)
-  is_enabled (character varying)
-  create_user_id (character varying)
-  create_time (timestamp without time zone)
-  update_user_id (character varying)
-  update_time (timestamp without time zone)
+  id (varchar)
+  customer_code (varchar)
+  customer_name (varchar)
+  customer_desc (varchar)
+  tel (varchar)
+  email (varchar)
+  fax (varchar)
+  contacts (varchar)
+  addr (varchar)
+  customer_short_name (varchar)
+  rule_set_name (varchar)
+  is_confirm_wo_need (varchar)
+  is_enabled (varchar)
+  create_user_id (varchar)
+  create_time (timestamp)
+  update_user_id (varchar)
+  update_time (timestamp)
 适用场景：
+
 bdcustomer数据查询
 ---
 表名：t_bd_file
@@ -430,7 +433,7 @@ pdplan数据查询
 ---
 表名：t_pd_sn_defect
 模块：生产执行
-业务含义：SN不良记录表，记录产品序列号在生产过程中产生的不良缺陷信息，包括缺陷代码、位置、责任人等质量追溯数据
+业务含义：产品/SN维修与不良记录表,记录维修产品信息序列号在生产过程中产生的查询维修产品信息缺陷信息，包括缺陷代码、位置、责任人等质量追溯数据（注意：非治具/设备维修）
 关键字段：
   id (varchar(40))
   sn (varchar(40))
@@ -444,10 +447,23 @@ pdplan数据查询
   create_time (timestamp(6))
   update_user_id (varchar(40))
   update_time (timestamp(6))
-关联关系：
-  JOIN t_bd_part ON t_pd_sn_defect.part_no = t_bd_part.part_no  -- SN不良→料号
-  JOIN t_basic_user ON t_pd_sn_defect.create_user_id = t_basic_user.id  -- SN不良→创建人
-适用场景：pdsn数据查询
+适用场景：
+
+pdsn数据查询
+---
+表名：t_pd_sn_defect_detail
+模块：生产执行
+业务含义：SN缺陷明细
+关键字段：
+  id (varchar(40))
+  defect_id (varchar(40))
+  in_defect_code (varchar(40))
+  in_defect_location (varchar(40))
+  in_defect_time (timestamp(6))
+  defect_code (varchar(40))
+  duty_code (varchar(40))
+  reason_code (varchar(40))
+  repair_code (varchar(40))
 ---
 表名：t_pd_sn_travel
 模块：生产执行
@@ -546,27 +562,25 @@ pdplan数据查询
 ---
 表名：t_pd_wo_bom
 模块：生产执行
-业务含义：工单BOM表，记录每个工单实际使用的组件物料清单，包括物料需求数量和实际消耗
+业务含义：工单BOM表，记录每个工单实际使用的组件物料清单，包括物料需求数量、实际消耗和工单用料明细
 关键字段：
-  id (varchar(40))
-  work_order (varchar(40))
-  part_id (varchar(40))
-  item_part_id (varchar(40))
-  item_qty (numeric(16)
-  points (varchar(200))
-  unit_code (varchar(40))
-  attrition_rate (numeric(16)
-  fentryid (varchar(200))
-  fid (varchar(200))
-  create_user_id (varchar(40))
-  create_time (timestamp(6))
-  update_user_id (varchar(40))
-  update_time (timestamp(6))
-关联关系：
-  JOIN t_bd_part ON t_pd_wo_bom.item_part_id = t_bd_part.id  -- 工单BOM→料号
-  JOIN t_pd_wo ON t_pd_wo_bom.work_order = t_pd_wo.work_order  -- 工单BOM→工单
-  JOIN t_wms_stock ON t_pd_wo_bom.item_part_id = t_wms_stock.part_id  -- 工单BOM→库存
-适用场景：pdwo数据查询
+  id (character varying)
+  work_order (character varying) -- 工单
+  part_id (character varying) -- 主料料号
+  item_part_id (character varying) -- 子料
+  item_qty (numeric) -- 单位用量
+  points (character varying) -- 点位
+  unit_code (character varying) -- 单位
+  attrition_rate (numeric) -- 损耗率
+  fentryid (character varying) -- 用料清单行id
+  fid (character varying) -- 用料清单表头id
+  create_user_id (character varying)
+  create_time (timestamp without time zone)
+  update_user_id (character varying)
+  update_time (timestamp without time zone)
+适用场景：
+
+pdwo数据查询
 ---
 表名：t_pd_wo_issue_material
 模块：生产执行
@@ -675,25 +689,23 @@ pdplan数据查询
 ---
 表名：t_pd_wo_msl
 模块：生产执行
-业务含义：工单料站用料需求表(Material Station List)，定义工单在各产线的料站物料需求，是产线上料指导的核心数据
+业务含义：工单料站用料需求表(Material Station List),定义工单在各产线的料站物料需求，在线料况等信息，是产线上料指导的核心数据
 关键字段：
-  id (varchar(40))
-  msl_no (varchar(40))
-  msl_version (varchar(40))
-  pcb_side (int4)
-  current_status (int4)
-  work_order (varchar(40))
-  part_no (varchar(40))
-  pdline_code (varchar(40))
-  create_user_id (varchar(40))
-  create_time (timestamp(6))
-  update_user_id (varchar(40))
-  update_time (timestamp(6))
-关联关系：
-  JOIN t_bd_pdline ON t_pd_wo_msl.pdline_code = t_bd_pdline.pdline_code  -- 工单MSL→产线
-  JOIN t_pd_wo_msl_detail ON t_pd_wo_msl.id = t_pd_wo_msl_detail.msl_id  -- 工单MSL→MSL明细
-  JOIN t_pd_wo_load_material ON t_pd_wo_msl.work_order = t_pd_wo_load_material.work_order  -- 工单MSL→上料(含多字段关联)
-适用场景：pdwo数据查询
+  id (varchar)
+  msl_no (varchar) -- 料站表号
+  msl_version (varchar) -- 版本
+  pcb_side (int) -- (0,Top;1,Bottom;2,All
+  current_status (int) -- 当前状态(0,建立;1.开始备料;2,备料完成
+  work_order (varchar) -- 工单
+  part_no (varchar) -- 产品料号
+  pdline_code (varchar) -- 产线
+  create_user_id (varchar)
+  create_time (timestamp)
+  update_user_id (varchar)
+  update_time (timestamp)
+适用场景：
+
+pdwo数据查询
 ---
 表名：t_pd_wo_msl_detail
 模块：生产执行
@@ -909,7 +921,7 @@ qmsample数据查询
 ---
 表名：t_tool_maintenance_info
 模块：工装管理
-业务含义：工装治具维保记录表，记录治具的报修、维修、保养等维保事件，包含报修人/维修人、不良代码、维修方法及相关文件
+业务含义：工装治具维保记录表，记录治具的报修、维修等维保事件，包含报修人/维修人、不良代码、维修方法及相关文件
 关键字段：
   id (character varying)
   repair_result (character varying) -- 维修结果
@@ -1019,7 +1031,7 @@ toolno数据查询
 ---
 表名：t_tool_no_attr_travel
 模块：工装管理
-业务含义：治具属性变更履历表，记录治具生命周期中的属性变化、检测记录和保养履历
+业务含义：治具保养、治具属性变更履历表，记录治具生命周期中的属性变化、检测记录和保养履历
 关键字段：
   id (character varying)
   test_name (character varying) -- 属性名称
@@ -1028,7 +1040,7 @@ toolno数据查询
   max_content (numeric) -- 属性区间最大值
   tool_no (character varying) -- 治具编号
   pro_content (numeric) -- 属性值
-  feeder_track (integer) -- Feeder通道(1:单，2：双，3：三)
+  feeder_track (integer) -- Feeder通道(1:单，2：双，3：三
   item_attribute (character varying) -- 类型
   fixed_value (character varying) -- 固定值
   attr_item_id (character varying) -- 制具属性表ID
@@ -1041,6 +1053,7 @@ toolno数据查询
   update_time (timestamp without time zone)
   item_range (integer) -- 值域
 适用场景：
+
 toolno数据查询
 ---
 表名：t_tool_type

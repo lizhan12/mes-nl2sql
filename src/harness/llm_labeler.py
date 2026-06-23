@@ -51,6 +51,8 @@ _SQL_GENERATE_USER = """## 用户问题
 ## JOIN 关系参考
 {join_hints}
 
+{user_feedback_section}
+
 请输出修正后的完整 SQL："""
 
 
@@ -62,9 +64,10 @@ _SEMANTIC_EVAL_SYSTEM = """你是 SQL 审查专家。请评估一条 SQL 是否�
 1. **意图匹配度**：SQL 的查询目标是否与用户问题一致（是否查对了东西）
 2. **条件完整性**：用户问题中的过滤条件是否都体现在 SQL 中
 3. **输出合理性**：SELECT 的字段是否合理，是否包含用户关心的信息
+4. **反馈修复度**（如果提供用户反馈）：SQL 是否处理了用户反馈中指出的问题
 
 返回纯 JSON 格式：
-{"intent_match": 分数, "condition_completeness": 分数, "output_reasonability": 分数, "overall": 综合分, "comment": "简短评语"}"""
+{"intent_match": 分数, "condition_completeness": 分数, "output_reasonability": 分数, "feedback_addressed": 分数, "overall": 综合分, "comment": "简短评语"}"""
 
 _SEMANTIC_EVAL_USER = """## 用户问题
 {question}
@@ -74,17 +77,20 @@ _SEMANTIC_EVAL_USER = """## 用户问题
 {sql}
 ```
 
+{user_feedback_section}
+
 请评估并返回 JSON："""
 
 
 # ── 维度权重 ─────────────────────────────────────────────────────
 
-# 四个维度的权重
+# 五个维度的权重
 DIMENSION_WEIGHTS = {
-    "semantic_consistency": 0.30,  # LLM 语义评估
-    "structural_integrity": 0.25,  # 结构完整性
-    "execution_correctness": 0.35,  # 执行正确性
-    "sql_compliance": 0.10,  # SQL 规范度
+    "semantic_consistency": 0.25,  # LLM 语义评估
+    "structural_integrity": 0.22,  # 结构完整性
+    "execution_correctness": 0.30,  # 执行正确性
+    "sql_compliance": 0.08,  # SQL 规范度
+    "user_validation": 0.15,  # 用户反馈验证（点踩反馈）
 }
 
 # 置信度阈值
@@ -101,6 +107,7 @@ class DimensionScores:
     structural_integrity: float = 0.0  # 结构完整性 (0-1)
     execution_correctness: float = 0.0  # 执行正确性 (0-1)
     sql_compliance: float = 0.0  # SQL 规范度 (0-1)
+    user_validation: float = 0.0  # 用户反馈验证 (0-1)，从点踩反馈中提取
     details: dict[str, Any] = field(default_factory=dict)  # 详细评估信息
 
     @property
@@ -110,7 +117,8 @@ class DimensionScores:
             self.semantic_consistency * DIMENSION_WEIGHTS["semantic_consistency"]
             + self.structural_integrity * DIMENSION_WEIGHTS["structural_integrity"]
             + self.execution_correctness * DIMENSION_WEIGHTS["execution_correctness"]
-            + self.sql_compliance * DIMENSION_WEIGHTS["sql_compliance"],
+            + self.sql_compliance * DIMENSION_WEIGHTS["sql_compliance"]
+            + self.user_validation * DIMENSION_WEIGHTS["user_validation"],
             4,
         )
 
@@ -135,6 +143,8 @@ def generate_correct_sql(
     error_msg: str,
     schema_info: str = "",
     join_hints: str = "",
+    user_feedback: str = "",
+    user_rating: int = 0,
     model: str | None = None,
     temperature: float = 0.1,
 ) -> str:
@@ -146,6 +156,8 @@ def generate_correct_sql(
         error_msg: 错误信息
         schema_info: 相关表结构信息
         join_hints: JOIN 关系提示
+        user_feedback: 用户反馈内容（点踩时的输入）
+        user_rating: 用户评分（<0 表示点踩）
         model: LLM 模型名，默认使用强模型
         temperature: LLM 温度
 
@@ -153,12 +165,14 @@ def generate_correct_sql(
         生成的修正 SQL 文本（已去除 markdown 包装）
     """
     llm = get_llm(model=model, temperature=temperature)
+    user_feedback_section = _format_user_feedback_section(user_feedback, user_rating)
     user_prompt = _SQL_GENERATE_USER.format(
         question=question,
         failed_sql=failed_sql,
         error_msg=error_msg,
         schema_info=schema_info or "（无额外表结构信息）",
         join_hints=join_hints or "（无额外 JOIN 提示）",
+        user_feedback_section=user_feedback_section,
     )
     messages = [
         SystemMessage(content=_SQL_GENERATE_SYSTEM),
@@ -183,6 +197,17 @@ def _extract_sql_from_text(text: str) -> str:
     return text
 
 
+def _format_user_feedback_section(user_feedback: str, user_rating: int) -> str:
+    """格式化用户反馈信息，供 prompt 使用。"""
+    if not user_feedback.strip():
+        if user_rating and user_rating < 0:
+            return "## 用户反馈\n用户点踩了这条结果"
+        return ""
+    rating_label = "点踩" if user_rating and user_rating < 0 else ""
+    header = f"## 用户反馈{('（' + rating_label + '）') if rating_label else ''}"
+    return f"{header}\n{user_feedback.strip()}"
+
+
 # ── 多维度评估 ───────────────────────────────────────────────────
 
 
@@ -193,6 +218,8 @@ def evaluate_sql_multi_dimension(
     error_msg: str = "",
     table_names: list[str] | None = None,
     db_url: str | None = None,
+    user_feedback: str = "",
+    user_rating: int = 0,
     model: str | None = None,
 ) -> DimensionScores:
     """对生成的 SQL 进行多维度评估。
@@ -204,6 +231,8 @@ def evaluate_sql_multi_dimension(
         error_msg: 错误信息
         table_names: 涉及的已知表名列表
         db_url: 数据库连接串（用于实际执行验证）
+        user_feedback: 用户反馈内容（点踩时的输入）
+        user_rating: 用户评分（<0 表示点踩）
         model: LLM 模型名
 
     Returns:
@@ -211,8 +240,8 @@ def evaluate_sql_multi_dimension(
     """
     details: dict[str, Any] = {}
 
-    # 维度1：语义一致性（LLM 评估）
-    semantic_score, semantic_detail = _evaluate_semantic(question, sql, model)
+    # 维度1：语义一致性（LLM 评估，含用户反馈上下文）
+    semantic_score, semantic_detail = _evaluate_semantic(question, sql, user_feedback, user_rating, model)
 
     # 维度2：结构完整性（规则评估）
     structural_score, structural_detail = _evaluate_structural(sql, failed_sql, error_msg, table_names)
@@ -223,12 +252,16 @@ def evaluate_sql_multi_dimension(
     # 维度4：SQL 规范度
     compliance_score, compliance_detail = _evaluate_compliance(sql)
 
+    # 维度5：用户反馈验证（从点踩信号提取）
+    user_val_score, user_val_detail = _evaluate_user_validation(failed_sql, sql, user_feedback, user_rating)
+
     details.update(
         {
             "semantic": semantic_detail,
             "structural": structural_detail,
             "execution": exec_detail,
             "compliance": compliance_detail,
+            "user_validation": user_val_detail,
         }
     )
 
@@ -237,17 +270,25 @@ def evaluate_sql_multi_dimension(
         structural_integrity=structural_score,
         execution_correctness=exec_score,
         sql_compliance=compliance_score,
+        user_validation=user_val_score,
         details=details,
     )
 
 
-def _evaluate_semantic(question: str, sql: str, model: str | None = None) -> tuple[float, dict]:
+def _evaluate_semantic(
+    question: str, sql: str, user_feedback: str = "", user_rating: int = 0, model: str | None = None
+) -> tuple[float, dict]:
     """维度1：语义一致性 —— LLM 评估 SQL 是否回答了用户问题。"""
     try:
         llm = get_llm(model=model, temperature=0.0)
+        user_feedback_section = _format_user_feedback_section(user_feedback, user_rating)
         messages = [
             SystemMessage(content=_SEMANTIC_EVAL_SYSTEM),
-            HumanMessage(content=_SEMANTIC_EVAL_USER.format(question=question, sql=sql)),
+            HumanMessage(content=_SEMANTIC_EVAL_USER.format(
+                question=question,
+                sql=sql,
+                user_feedback_section=user_feedback_section,
+            )),
         ]
         response = llm.invoke(messages)
         result = _parse_semantic_json(str(response.content))
@@ -388,6 +429,51 @@ def _evaluate_compliance(sql: str) -> tuple[float, dict]:
     return min(max(score, 0.0), 1.0), {"checks": checks}
 
 
+def _evaluate_user_validation(
+    failed_sql: str, corrected_sql: str, user_feedback: str = "", user_rating: int = 0
+) -> tuple[float, dict]:
+    """维度5：用户反馈验证 —— 从点踩信号中提取验证信息。
+
+    要点：
+    - 用户点踩（rating < 0）意味着原始 SQL 有问题，是强负面信号
+    - 结合 failed_sql 与 corrected_sql 的差异度：差异越大，LLM 修正越充分
+    - 用户反馈文本提供额外的语义线索（语义一致性评估已利用此信息）
+    """
+    if user_rating is None or user_rating >= 0:
+        return 0.5, {"signal": "neutral", "reason": "无用户点踩信号"}
+
+    has_feedback = bool(user_feedback.strip())
+
+    # 计算 failed_sql 和 corrected_sql 的 token 级差异度
+    failed_tokens = set(re.findall(r"\w+", failed_sql.upper())) if failed_sql else set()
+    corrected_tokens = set(re.findall(r"\w+", corrected_sql.upper())) if corrected_sql else set()
+
+    if not failed_tokens or not corrected_tokens:
+        diff_ratio = 0.5
+    else:
+        union = failed_tokens | corrected_tokens
+        intersection = failed_tokens & corrected_tokens
+        jaccard = len(intersection) / len(union) if union else 0
+        diff_ratio = 1.0 - jaccard
+
+    # 差异越大 + 有用户反馈 → 分数越高（LLM 充分修正了用户指出的问题）
+    base = 0.3 + diff_ratio * 0.4  # 0.3 ~ 0.7
+    if has_feedback:
+        base += 0.15  # 用户提供了具体反馈，修正方向更明确
+    score = min(max(base, 0.0), 1.0)
+
+    reason = f"用户点踩，failed/corrected差异度 {diff_ratio:.0%}"
+    if has_feedback:
+        reason += "，含用户反馈文本"
+
+    return score, {
+        "signal": "downvote",
+        "diff_ratio": round(diff_ratio, 3),
+        "has_feedback": has_feedback,
+        "reason": reason,
+    }
+
+
 # ── 自动标注入口 ─────────────────────────────────────────────────
 
 
@@ -410,6 +496,8 @@ def auto_label_failure_case(
     schema_info: str = "",
     join_hints: str = "",
     db_url: str | None = None,
+    user_feedback: str = "",
+    user_rating: int = 0,
     generate_model: str | None = None,
     eval_model: str | None = None,
 ) -> AutoLabelResult:
@@ -422,6 +510,8 @@ def auto_label_failure_case(
         schema_info: 相关表结构信息
         join_hints: JOIN 关系提示
         db_url: 数据库连接串（用于执行验证）
+        user_feedback: 用户反馈内容（点踩时的输入）
+        user_rating: 用户评分（<0 表示点踩）
         generate_model: 生成 SQL 用的模型
         eval_model: 评估用的模型
 
@@ -435,6 +525,8 @@ def auto_label_failure_case(
         error_msg=error_msg,
         schema_info=schema_info,
         join_hints=join_hints,
+        user_feedback=user_feedback,
+        user_rating=user_rating,
         model=generate_model,
     )
 
@@ -457,6 +549,8 @@ def auto_label_failure_case(
         error_msg=error_msg,
         table_names=tables,
         db_url=db_url,
+        user_feedback=user_feedback,
+        user_rating=user_rating,
         model=eval_model,
     )
 
@@ -465,30 +559,27 @@ def auto_label_failure_case(
     needs_review = scores.needs_human_review
 
     # 生成审核备注
+    dim_labels: dict[str, str] = {
+        "语义": "semantic_consistency",
+        "结构": "structural_integrity",
+        "执行": "execution_correctness",
+        "规范": "sql_compliance",
+        "反馈": "user_validation",
+    }
     if confidence >= CONFIDENCE_HIGH:
         review_note = f"LLM自动标注，置信度 {confidence:.2%}，各维度均通过。建议自动审批。"
         candidate_type = "llm_auto_approved"
     elif confidence >= CONFIDENCE_MEDIUM:
         dim_info = ", ".join(
-            f"{k}={v:.2f}"
-            for k, v in {
-                "语义": scores.semantic_consistency,
-                "结构": scores.structural_integrity,
-                "执行": scores.execution_correctness,
-                "规范": scores.sql_compliance,
-            }.items()
+            f"{k}={getattr(scores, v, 0):.2f}"
+            for k, v in dim_labels.items()
         )
         review_note = f"LLM自动标注，置信度 {confidence:.2%}（中等）。各维度得分: {dim_info}。建议人工快速确认。"
         candidate_type = "llm_labeled_failure"
     else:
         dim_info = ", ".join(
-            f"{k}={v:.2f}"
-            for k, v in {
-                "语义": scores.semantic_consistency,
-                "结构": scores.structural_integrity,
-                "执行": scores.execution_correctness,
-                "规范": scores.sql_compliance,
-            }.items()
+            f"{k}={getattr(scores, v, 0):.2f}"
+            for k, v in dim_labels.items()
         )
         review_note = f"LLM自动标注，置信度 {confidence:.2%}（低）。各维度得分: {dim_info}。必须人工编写正确 SQL。"
         candidate_type = "llm_low_confidence_failure"

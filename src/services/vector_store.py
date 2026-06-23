@@ -14,6 +14,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import httpx
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from openai import OpenAI
@@ -26,8 +27,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _DATA_DIR = Path(__file__).parent.parent.parent / "data"
-EMBED_MAX_CHARS = 800  # bge-large-zh-v1.5 支持 512 tokens，中文约 1.5 字符/token，800 字符安全
-_EMBED_BATCH_SIZE = 20  # SiliconFlow 单次请求文本数上限
+_EMBED_BATCH_SIZE = 20  # 单次 embedding 请求文本数上限
 
 # 全局关键词索引：{关键词 -> [表名列表]}
 _keyword_index: dict[str, list[str]] = {}
@@ -145,14 +145,14 @@ def _build_few_shot_embed_text(meta: dict) -> str:
     """
     scenario = meta.get("scenario", "")
     question = meta.get("question", "")
-    return f"{scenario} {question}".strip()[:EMBED_MAX_CHARS]
+    return f"{scenario} {question}".strip()[:settings.embedding_max_chars]
 
 
 def _build_schema_embed_text(meta: dict) -> str:
     """构造表结构的紧凑 embedding 文本，保留全部列名+注释+场景。
 
     格式：表 t_xxx 模块名 业务含义 列: col1(注释1) col2(注释2) ... 场景: 场景1,场景2
-    确保在 EMBED_MAX_CHARS 内包含尽可能多的关键信息。
+    确保在 settings.embedding_max_chars 内包含尽可能多的关键信息。
 
     注意：不包含关联关系（JOIN），JOIN 由 Neo4j :JOIN_REL 边管理。
     """
@@ -178,22 +178,22 @@ def _build_schema_embed_text(meta: dict) -> str:
         parts.append(f"场景: {','.join(scenarios)}")
 
     embed_text = " ".join(parts)
-    if len(embed_text) > EMBED_MAX_CHARS:
+    if len(embed_text) > settings.embedding_max_chars:
         # 智能裁减：按优先级逐步丢弃低优先级部分
         # 优先级：表名+模块+业务含义 > 列信息 > 适用场景
         # 1. 先去掉场景
-        if scenarios and len(embed_text) > EMBED_MAX_CHARS:
+        if scenarios and len(embed_text) > settings.embedding_max_chars:
             parts_trimmed = [p for p in parts if not p.startswith("场景:")]
             embed_text = " ".join(parts_trimmed)
         # 2. 列信息过长时，截断列列表但保留列名（去掉注释）
-        if columns and len(embed_text) > EMBED_MAX_CHARS:
+        if columns and len(embed_text) > settings.embedding_max_chars:
             col_names_only = " ".join(c.split("(")[0] for c in columns)
             parts_trimmed = [p for p in parts if not p.startswith("列:")]
             parts_trimmed.append(f"列: {col_names_only}")
             embed_text = " ".join(parts_trimmed)
         # 3. 最终兜底截断
-        if len(embed_text) > EMBED_MAX_CHARS:
-            embed_text = embed_text[:EMBED_MAX_CHARS]
+        if len(embed_text) > settings.embedding_max_chars:
+            embed_text = embed_text[:settings.embedding_max_chars]
     return embed_text
 
 
@@ -333,9 +333,9 @@ def _load_chunks_with_metadata(
             # few-shot 只 embedding 场景+问题，不包含 SQL，避免 SQL 语法干扰语义匹配
             scenario = meta.get("scenario", "")
             question = meta.get("question", "")
-            embed_text = f"{scenario} {question}".strip()[:EMBED_MAX_CHARS]
+            embed_text = f"{scenario} {question}".strip()[:settings.embedding_max_chars]
         else:
-            embed_text = chunk[:EMBED_MAX_CHARS]
+            embed_text = chunk[:settings.embedding_max_chars]
         results.append(
             {
                 "full_text": chunk,
@@ -376,6 +376,104 @@ class _DirectEmbeddings(Embeddings):
 
 def _get_embeddings() -> _DirectEmbeddings:
     return _DirectEmbeddings()
+
+
+# ---- Rerank（硅基流动 /v1/rerank）----
+
+
+_RERANK_BATCH_SIZE = 64  # 单次请求最大文档数，避免超长请求
+_RERANK_TEXT_MAX_CHARS = 4000  # 单条文档最大字符数，超出截断
+
+
+def _truncate_for_rerank(text: str, max_chars: int = _RERANK_TEXT_MAX_CHARS) -> str:
+    """rerank 文本截断，避免单条文档过长拖慢调用。"""
+    if not text:
+        return ""
+    text = text.strip()
+    return text if len(text) <= max_chars else text[:max_chars]
+
+
+async def rerank_documents(
+    query: str,
+    documents: list[str],
+    top_n: int | None = None,
+) -> list[tuple[int, float]]:
+    """调用硅基流动 Rerank 接口对文档列表重排。
+
+    Args:
+        query: 用户查询文本
+        documents: 候选文档纯文本列表（与外部结果集下标一一对应）
+        top_n: 返回前 N 条；None 时使用 settings.rerank_top_n；<=0 表示不截断
+
+    Returns:
+        [(original_index, relevance_score), ...] 按 rerank 分数降序排列
+        若调用失败或输入为空，返回 [(i, 0.0) for i in range(len(documents))] 保持原序
+    """
+    if not query or not documents:
+        return [(i, 0.0) for i in range(len(documents))]
+
+    api_key = settings.rerank_key
+    if not api_key:
+        logger.warning("未配置 rerank_api_key，跳过 rerank")
+        return [(i, 0.0) for i in range(len(documents))]
+
+    base_url = settings.rerank_base_url.rstrip("/")
+    url = f"{base_url}/rerank"
+    if not url.endswith("/v1/rerank"):
+        url = f"{url}/rerank" if url.endswith("/v1") else f"{url}/v1/rerank"
+
+    truncated = [_truncate_for_rerank(d) for d in documents]
+    n = len(truncated)
+    target_n = top_n if (top_n is not None and top_n > 0) else settings.rerank_top_n
+    target_n = min(target_n, n) if target_n > 0 else n
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    async def _call_one_batch(batch_docs: list[str]) -> list[dict]:
+        payload = {
+            "model": settings.rerank_model,
+            "query": query,
+            "documents": batch_docs,
+            "top_n": len(batch_docs),
+            "return_documents": False,
+        }
+        async with httpx.AsyncClient(timeout=settings.rerank_timeout) as client:
+            resp = await client.post(url, headers=headers, json=payload)
+        if resp.status_code != 200:
+            raise RuntimeError(f"rerank HTTP {resp.status_code}: {resp.text[:300]}")
+        data = resp.json()
+        return data.get("results", [])
+
+    # 长列表分批：每批独立打分后按原 index 合并，最后统一按 score 排序
+    try:
+        merged: list[tuple[int, float]] = []
+        for start in range(0, n, _RERANK_BATCH_SIZE):
+            batch = truncated[start : start + _RERANK_BATCH_SIZE]
+            results = await _call_one_batch(batch)
+            # 兼容 SiliconFlow 字段名 relevance_score / 其他实现 score
+            scored: list[tuple[int, float]] = []
+            for r in results:
+                idx = r.get("index")
+                score = r.get("relevance_score", r.get("score", 0.0))
+                if idx is None or not (0 <= idx < len(batch)):
+                    continue
+                scored.append((start + idx, float(score)))
+            merged.extend(scored)
+
+        # 未返回的项兜底 0 分，确保一一对应
+        seen = {i for i, _ in merged}
+        for i in range(n):
+            if i not in seen:
+                merged.append((i, 0.0))
+
+        merged.sort(key=lambda x: x[1], reverse=True)
+        return merged[:target_n]
+    except Exception as exc:
+        logger.warning("rerank 调用失败，回退到原排序: %s", exc)
+        return [(i, 0.0) for i in range(len(documents))]
 
 
 # ---- 检索 ----
@@ -758,13 +856,14 @@ async def build_neo4j_schema_store(force_rebuild: bool = False) -> "Neo4jVectorS
 
 
 async def build_neo4j_few_shot_store(force_rebuild: bool = False) -> "Neo4jVectorStore":
-    """构建 Neo4j SQL 示例向量库。
+    """构建 Neo4j few_shot 向量库（仅手动示例，保留进化节点）。
 
     从 dify_few_shot.txt 加载数据，生成 embedding 后写入 FewShot 节点的
-    question_embedding 属性。
+    question_embedding 属性，并标记 type='manual'。
+    已发布的进化示例（type='evolved'）不会被清除或覆盖。
 
     Args:
-        force_rebuild: 是否强制重建（忽略已有数据）
+        force_rebuild: 是否强制重建（仅重建手动示例）
     """
     from src.services.neo4j_graph import (
         batch_set_few_shot_embeddings,
@@ -817,119 +916,6 @@ async def build_neo4j_few_shot_store(force_rebuild: bool = False) -> "Neo4jVecto
     return store
 
 
-async def build_neo4j_evolved_few_shot_store(force_rebuild: bool = False) -> "Neo4jVectorStore | None":
-    """构建 Neo4j 进化 SQL 示例向量库。
-
-    从 Neo4j 中已发布的 EvolvedFewShot 节点加载数据，生成 embedding 后写入
-    question_embedding 属性。
-
-    Args:
-        force_rebuild: 是否强制重建（忽略已有数据）
-
-    Returns:
-        Neo4jVectorStore 实例，如果无数据则返回 None
-    """
-    from src.services.neo4j_graph import (
-        batch_set_evolved_few_shot_embeddings,
-        ensure_vector_indexes,
-        evolved_few_shot_has_embeddings,
-        get_evolved_few_shot_without_embeddings,
-        load_published_few_shot_text,
-    )
-    from src.services.neo4j_vector_store import Neo4jVectorStore
-
-    await ensure_vector_indexes()
-
-    embeddings = _get_embeddings()
-    store = Neo4jVectorStore("evolved_few_shot", embeddings)
-
-    if force_rebuild or not await evolved_few_shot_has_embeddings():
-        if force_rebuild:
-            logger.info("强制重建 Neo4j evolved_few_shot 向量库...")
-        else:
-            logger.info("Neo4j evolved_few_shot 向量库为空，开始初始化...")
-
-        # 从 Neo4j 加载已发布的进化示例
-        text = await load_published_few_shot_text()
-        if not text:
-            logger.info("无已发布的进化示例，跳过初始化")
-            return None
-
-        chunks = [c.strip() for c in text.split("\n---\n") if c.strip()]
-        if not chunks:
-            logger.info("进化示例文本为空，跳过初始化")
-            return None
-
-        # 解析每个 chunk
-        parsed_chunks = []
-        for chunk in chunks:
-            meta = _parse_few_shot_chunk(chunk)
-            embed_text = _build_few_shot_embed_text(meta)
-            parsed_chunks.append(
-                {
-                    "metadata": meta,
-                    "embed_text": embed_text,
-                    "full_text": chunk,
-                }
-            )
-
-        # 生成 embedding
-        texts = [c["embed_text"] for c in parsed_chunks]
-        logger.info("正在生成 %d 个 evolved_few_shot embedding...", len(texts))
-        vectors = embeddings.embed_documents(texts)
-
-        # 批量写入 Neo4j
-        batch = [
-            {
-                "id": f"evolved_{i}",
-                "embedding": vec,
-                "scenario": c["metadata"].get("scenario", ""),
-                "question": c["metadata"].get("question", ""),
-                "full_text": c["full_text"],
-            }
-            for i, (c, vec) in enumerate(zip(parsed_chunks, vectors, strict=True))
-        ]
-        total = await batch_set_evolved_few_shot_embeddings(batch)
-        logger.info("Neo4j evolved_few_shot 向量库初始化完成，共 %d 条记录", total)
-    else:
-        # 检查是否有缺失 embedding 的节点
-        missing_nodes = await get_evolved_few_shot_without_embeddings()
-        if missing_nodes:
-            logger.info("发现 %d 个缺失向量化的 EvolvedFewShot 节点，开始补全...", len(missing_nodes))
-
-            # 为缺失节点生成 embedding
-            texts = [
-                _build_few_shot_embed_text(
-                    {
-                        "scenario": node["scenario"],
-                        "question": node["question"],
-                    }
-                )
-                for node in missing_nodes
-            ]
-
-            logger.info("正在生成 %d 个补全 embedding...", len(texts))
-            vectors = embeddings.embed_documents(texts)
-
-            # 批量写入
-            batch = [
-                {
-                    "id": node["id"],
-                    "embedding": vec,
-                    "scenario": node["scenario"],
-                    "question": node["question"],
-                    "full_text": node["full_text"],
-                }
-                for node, vec in zip(missing_nodes, vectors, strict=True)
-            ]
-            total = await batch_set_evolved_few_shot_embeddings(batch)
-            logger.info("EvolvedFewShot 向量化补全完成，共处理 %d 条记录", total)
-        else:
-            logger.info("Neo4j evolved_few_shot 向量库已有数据，跳过初始化")
-
-    return store
-
-
 async def build_neo4j_runtime_rule_store(force_rebuild: bool = False) -> "Neo4jVectorStore | None":
     """构建 Neo4j 运行时规则向量库。
 
@@ -963,10 +949,19 @@ async def build_neo4j_runtime_rule_store(force_rebuild: bool = False) -> "Neo4jV
         else:
             logger.info("Neo4j runtime_rule 向量库为空，开始初始化...")
 
-        # 从 Neo4j 加载已发布的运行时规则
-        rules = await load_published_rules()
+        # 加载运行时规则（优先 Neo4j，回退到 runtime_rules.json）
+        from src.harness.knowledge import _RUNTIME_RULES_PATH, load_json_file, load_runtime_rules
+
+        rules = await load_runtime_rules()
+        # 线上模式 Neo4j 为空时，回退到 JSON 种子文件
+        if not rules and _RUNTIME_RULES_PATH.exists():
+            data = load_json_file(_RUNTIME_RULES_PATH, [])
+            if isinstance(data, list) and data:
+                rules = data
+                logger.info("Neo4j 无 RuntimeRule 节点，从 runtime_rules.json 加载种子数据 %d 条", len(rules))
+
         if not rules:
-            logger.info("无已发布的运行时规则，跳过初始化")
+            logger.info("无运行时规则数据，跳过初始化")
             return None
 
         # 为每个规则生成 embedding（使用问题文本）
@@ -994,12 +989,6 @@ async def build_neo4j_runtime_rule_store(force_rebuild: bool = False) -> "Neo4jV
         logger.info("Neo4j runtime_rule 向量库已有数据，跳过初始化")
 
     return store
-
-
-async def search_evolved_few_shot(store: "Neo4jVectorStore", query: str, k: int | None = None) -> list[str]:
-    """检索相关进化 SQL 示例，返回完整文本。"""
-    docs = await store.similarity_search(query, k=k or settings.few_shot_top_k)
-    return [_get_full_text(d) for d in docs]
 
 
 async def search_runtime_rules(

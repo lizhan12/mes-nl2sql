@@ -159,6 +159,56 @@ class TableBatchAddResponse(BaseModel):
     message: str = Field("", description="操作结果消息")
 
 
+# ── 通用知识库模型 ──
+
+
+class GenericKnowledgeFieldDef(BaseModel):
+    """通用知识库字段定义。"""
+
+    name: str = Field(..., min_length=1, description="字段名")
+    value: str = Field("", description="字段值")
+    embed: bool = Field(False, description="是否参与 embedding")
+
+
+class GenericKnowledgeItem(BaseModel):
+    """通用知识库条目。"""
+
+    item_id: str = Field("", description="条目 ID，为空时自动生成")
+    label: str = Field("", description="显示标签")
+    fields: list[GenericKnowledgeFieldDef] = Field(default_factory=list)
+    created_at: str = ""
+
+
+class GenericKnowledgeItemCreate(BaseModel):
+    """创建通用知识库条目请求。"""
+
+    kb_name: str = Field(..., min_length=1, description="知识库名称")
+    item: GenericKnowledgeItem
+
+
+class GenericKnowledgeItemUpdate(BaseModel):
+    """更新通用知识库条目请求。"""
+
+    label: str = Field("", description="显示标签")
+    fields: list[GenericKnowledgeFieldDef] = Field(default_factory=list)
+
+
+class GenericKBSummary(BaseModel):
+    """知识库摘要信息。"""
+
+    kb_name: str
+    label: str
+    item_count: int
+    field_names: list[str]
+
+
+class GenericKBCreateRequest(BaseModel):
+    """创建知识库请求。"""
+
+    kb_name: str = Field(..., min_length=1, description="知识库名称（唯一标识）")
+    label: str = Field("", description="显示标签，为空时使用 kb_name")
+
+
 # ── 字段剪裁模型 ──
 
 
@@ -183,6 +233,10 @@ class KnowledgeSearchRequest(BaseModel):
     )
     top_k: int = Field(10, ge=1, le=50, description="每种检索返回数量上限")
     similarity_threshold: float = Field(0.55, ge=0.0, le=1.0, description="相似度阈值")
+    use_rerank: bool = Field(False, description="是否对结果启用 Rerank 重排（基于配置 RERANK_MODEL）")
+    rerank_top_n: int | None = Field(
+        None, ge=1, le=50, description="Rerank 后返回前 N 条；为空则使用 settings.rerank_top_n"
+    )
 
 
 class SchemaSearchItem(BaseModel):
@@ -202,6 +256,7 @@ class FewShotSearchItem(BaseModel):
     question: str
     full_text: str
     score: float
+    type: str = ""
 
 
 class FieldSearchItem(BaseModel):
@@ -226,27 +281,17 @@ class RuntimeRuleSearchItem(BaseModel):
     score: float = 0.0
 
 
-class EvolvedFewShotSearchItem(BaseModel):
-    """进化 few-shot 检索结果条目。"""
-
-    full_text: str
-    scenario: str = ""
-    question: str = ""
-    score: float = 0.0
-
-
 class KnowledgeSearchResult(BaseModel):
     """知识库检索结果。"""
 
     query: str
+    embedding_model: str = Field(default="", description="当前使用的 Embedding 模型")
+    rerank_model: str = Field(default="", description="当前使用的 Rerank 模型")
     schema_results: list[SchemaSearchItem] = Field(default_factory=list)
     few_shot_results: list[FewShotSearchItem] = Field(default_factory=list)
     field_results: list[FieldSearchItem] = Field(default_factory=list)
     keyword_tables: list[str] = Field(default_factory=list, description="关键词匹配的表名列表")
     runtime_rule_results: list[RuntimeRuleSearchItem] = Field(default_factory=list, description="运行时规则检索结果")
-    evolved_few_shot_results: list[EvolvedFewShotSearchItem] = Field(
-        default_factory=list, description="进化 few-shot 检索结果"
-    )
 
 
 class SyncFromNeo4jResponse(BaseModel):
@@ -266,6 +311,7 @@ class FewShotItem(BaseModel):
     """FewShot 示例项。"""
 
     id: str = Field("", description="FewShot ID")
+    type: str = Field("manual", description="来源类型: manual / evolved")
     scenario: str = Field("", description="场景")
     question: str = Field("", description="用户问题")
     full_text: str = Field("", description="完整文本")
@@ -278,36 +324,11 @@ class FewShotCreateRequest(BaseModel):
     scenario: str = Field(..., min_length=1, description="场景")
     question: str = Field(..., min_length=1, description="用户问题")
     sql: str = Field(..., min_length=1, description="SQL 语句")
+    type: str = Field("manual", description="来源类型: manual / evolved")
 
 
 class FewShotUpdateRequest(BaseModel):
     """更新 FewShot 请求。"""
-
-    scenario: str = Field(..., min_length=1, description="场景")
-    question: str = Field(..., min_length=1, description="用户问题")
-    sql: str = Field(..., min_length=1, description="SQL 语句")
-
-
-class EvolvedFewShotItem(BaseModel):
-    """EvolvedFewShot 示例项。"""
-
-    id: str = Field("", description="EvolvedFewShot ID")
-    scenario: str = Field("", description="场景")
-    question: str = Field("", description="用户问题")
-    full_text: str = Field("", description="完整文本")
-    enabled: bool = Field(True, description="是否启用")
-
-
-class EvolvedFewShotCreateRequest(BaseModel):
-    """创建 EvolvedFewShot 请求。"""
-
-    scenario: str = Field(..., min_length=1, description="场景")
-    question: str = Field(..., min_length=1, description="用户问题")
-    sql: str = Field(..., min_length=1, description="SQL 语句")
-
-
-class EvolvedFewShotUpdateRequest(BaseModel):
-    """更新 EvolvedFewShot 请求。"""
 
     scenario: str = Field(..., min_length=1, description="场景")
     question: str = Field(..., min_length=1, description="用户问题")

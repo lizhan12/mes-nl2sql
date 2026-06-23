@@ -21,6 +21,7 @@ from src.api.graph import router as graph_router
 from src.api.harness import router as harness_router
 from src.api.knowledge import router as knowledge_router
 from src.api.knowledge_few_shots import router as knowledge_few_shots_router
+from src.api.knowledge_generic import router as knowledge_generic_router
 from src.api.knowledge_runtime_rules import router as knowledge_runtime_rules_router
 from src.api.trace import router as trace_router
 from src.api.users import router as users_router
@@ -62,6 +63,7 @@ app.include_router(harness_router)
 app.include_router(graph_router)
 app.include_router(knowledge_router)
 app.include_router(knowledge_few_shots_router)
+app.include_router(knowledge_generic_router)
 app.include_router(knowledge_runtime_rules_router)
 app.include_router(trace_router)
 app.include_router(auth_router)

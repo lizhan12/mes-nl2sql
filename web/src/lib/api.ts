@@ -1,11 +1,11 @@
 import type {
-  AutoLabelResponse,
   DedupSimilarItem,
-  EvolveOnlineResponse,
-  EvolvedFewShotItem,
   FeedbackRecord,
   FeedbackResponse,
   FewShotItem,
+  GenericKBSummary,
+  GenericKnowledgeFieldDef,
+  GenericKnowledgeItem,
   HarnessActionResponse,
   HarnessCandidate,
   HarnessFailureCase,
@@ -100,24 +100,11 @@ export function deleteFailureCase(failureCaseId: number): Promise<HarnessActionR
   });
 }
 
-export function analyzeFailures(limit = 200): Promise<HarnessActionResponse> {
-  return requestJson<HarnessActionResponse>(`/admin/harness/analyze-failures?limit=${limit}&sync_failures=true`, {
-    method: "POST",
-  });
-}
-
-export function autoLabelFailures(limit = 50, generateModel = "", evalModel = ""): Promise<AutoLabelResponse> {
+export function analyzeFailures(limit = 200, generateModel = "", evalModel = ""): Promise<HarnessActionResponse> {
   const params = new URLSearchParams({ limit: String(limit), sync_failures: "true" });
   if (generateModel) params.set("generate_model", generateModel);
   if (evalModel) params.set("eval_model", evalModel);
-  return requestJson<AutoLabelResponse>(`/admin/harness/auto-label-failures?${params}`, {
-    method: "POST",
-  });
-}
-
-export function evolveOnline(limit = 200): Promise<EvolveOnlineResponse> {
-  const params = new URLSearchParams({ limit: String(limit), sync_failures: "true" });
-  return requestJson<EvolveOnlineResponse>(`/admin/harness/evolve-online?${params}`, {
+  return requestJson<HarnessActionResponse>(`/admin/harness/analyze-failures?${params}`, {
     method: "POST",
   });
 }
@@ -429,6 +416,8 @@ export function searchKnowledge(
   searchTypes: string[] = ["schema", "few_shot", "fields"],
   topK = 10,
   similarityThreshold = 0.55,
+  useRerank = false,
+  rerankTopN: number | null = null,
 ): Promise<KnowledgeSearchResult> {
   return requestJson<KnowledgeSearchResult>("/api/knowledge/search", {
     method: "POST",
@@ -437,6 +426,8 @@ export function searchKnowledge(
       search_types: searchTypes,
       top_k: topK,
       similarity_threshold: similarityThreshold,
+      use_rerank: useRerank,
+      rerank_top_n: rerankTopN,
     }),
   });
 }
@@ -470,12 +461,13 @@ export function createFewShot(
   scenario: string,
   question: string,
   sql: string,
+  type: string = "manual",
   force = false,
 ): Promise<FewShotItem> {
   const params = force ? "?force=true" : "";
   return requestJson<FewShotItem>(`/api/knowledge/few-shots${params}`, {
     method: "POST",
-    body: JSON.stringify({ scenario, question, sql }),
+    body: JSON.stringify({ scenario, question, sql, type }),
   });
 }
 
@@ -484,12 +476,13 @@ export function updateFewShot(
   scenario: string,
   question: string,
   sql: string,
+  type?: string,
 ): Promise<{ message: string; id: string }> {
   return requestJson<{ message: string; id: string }>(
     `/api/knowledge/few-shots/${encodeURIComponent(fewShotId)}`,
     {
       method: "PUT",
-      body: JSON.stringify({ scenario, question, sql }),
+      body: JSON.stringify({ scenario, question, sql, type }),
     },
   );
 }
@@ -507,59 +500,6 @@ export function toggleFewShot(
 ): Promise<{ message: string; enabled: boolean }> {
   return requestJson<{ message: string; enabled: boolean }>(
     `/api/knowledge/few-shots/${encodeURIComponent(fewShotId)}/enabled`,
-    { method: "PATCH", body: JSON.stringify({ enabled }) },
-  );
-}
-
-// ── EvolvedFewShot 管理 API ────────────────────────────────────────
-
-export function fetchEvolvedFewShots(): Promise<EvolvedFewShotItem[]> {
-  return requestJson<EvolvedFewShotItem[]>("/api/knowledge/evolved-few-shots");
-}
-
-export function createEvolvedFewShot(
-  scenario: string,
-  question: string,
-  sql: string,
-  force = false,
-): Promise<EvolvedFewShotItem> {
-  const params = force ? "?force=true" : "";
-  return requestJson<EvolvedFewShotItem>(`/api/knowledge/evolved-few-shots${params}`, {
-    method: "POST",
-    body: JSON.stringify({ scenario, question, sql }),
-  });
-}
-
-export function updateEvolvedFewShot(
-  evolvedId: string,
-  scenario: string,
-  question: string,
-  sql: string,
-): Promise<{ message: string; id: string }> {
-  return requestJson<{ message: string; id: string }>(
-    `/api/knowledge/evolved-few-shots/${encodeURIComponent(evolvedId)}`,
-    {
-      method: "PUT",
-      body: JSON.stringify({ scenario, question, sql }),
-    },
-  );
-}
-
-export function deleteEvolvedFewShot(
-  evolvedId: string,
-): Promise<{ message: string; id: string }> {
-  return requestJson<{ message: string; id: string }>(
-    `/api/knowledge/evolved-few-shots/${encodeURIComponent(evolvedId)}`,
-    { method: "DELETE" },
-  );
-}
-
-export function toggleEvolvedFewShot(
-  evolvedId: string,
-  enabled: boolean,
-): Promise<{ message: string; enabled: boolean }> {
-  return requestJson<{ message: string; enabled: boolean }>(
-    `/api/knowledge/evolved-few-shots/${encodeURIComponent(evolvedId)}/enabled`,
     { method: "PATCH", body: JSON.stringify({ enabled }) },
   );
 }
@@ -724,4 +664,64 @@ export function resetUserPassword(userId: number, newPassword: string): Promise<
 
 export function deleteUser(userId: number): Promise<{ message: string }> {
   return requestJson<{ message: string }>(`/api/users/${userId}`, { method: "DELETE" });
+}
+
+// ── 通用知识库 ──────────────────────────────────────────────────
+
+export function listGenericKBs(): Promise<GenericKBSummary[]> {
+  return requestJson<GenericKBSummary[]>("/api/knowledge/generic/kbs");
+}
+
+export function createGenericKB(kbName: string, label: string): Promise<GenericKBSummary> {
+  return requestJson<GenericKBSummary>("/api/knowledge/generic/kbs", {
+    method: "POST",
+    body: JSON.stringify({ kb_name: kbName, label }),
+  });
+}
+
+export function deleteGenericKB(kbName: string): Promise<{ message: string; deleted: number }> {
+  return requestJson<{ message: string; deleted: number }>(
+    `/api/knowledge/generic/kbs/${encodeURIComponent(kbName)}`,
+    { method: "DELETE" },
+  );
+}
+
+export function listGenericItems(kbName: string): Promise<GenericKnowledgeItem[]> {
+  return requestJson<GenericKnowledgeItem[]>(`/api/knowledge/generic/kbs/${encodeURIComponent(kbName)}/items`);
+}
+
+export function createGenericItem(
+  kbName: string,
+  label: string,
+  fields: GenericKnowledgeFieldDef[],
+): Promise<GenericKnowledgeItem> {
+  return requestJson<GenericKnowledgeItem>(
+    `/api/knowledge/generic/kbs/${encodeURIComponent(kbName)}/items`,
+    {
+      method: "POST",
+      body: JSON.stringify({ kb_name: kbName, item: { label, fields } }),
+    },
+  );
+}
+
+export function updateGenericItem(
+  kbName: string,
+  itemId: string,
+  label: string,
+  fields: GenericKnowledgeFieldDef[],
+): Promise<GenericKnowledgeItem> {
+  return requestJson<GenericKnowledgeItem>(
+    `/api/knowledge/generic/kbs/${encodeURIComponent(kbName)}/items/${encodeURIComponent(itemId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ label, fields }),
+    },
+  );
+}
+
+export function deleteGenericItem(kbName: string, itemId: string): Promise<{ message: string }> {
+  return requestJson<{ message: string }>(
+    `/api/knowledge/generic/kbs/${encodeURIComponent(kbName)}/items/${encodeURIComponent(itemId)}`,
+    { method: "DELETE" },
+  );
 }

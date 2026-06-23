@@ -13,18 +13,52 @@ GROUP BY pl.pdline_name
 ORDER BY 完工数 DESC;
 ---
 场景：SN追溯查询
-用户问题：查询SN号为 SN202400001 的过站履历
+用户问题：查询SN的过站履历
 SQL：
-SELECT 
-  ss.sn,
-  st.process_name AS 工序,
-  st.hold_flag AS 是否通过,
-  st.create_time AS 过站时间,
-  st.create_user_id AS 操作人
-FROM t_pd_sn_status ss
-LEFT JOIN t_pd_sn_travel st ON ss.sn = st.sn
-WHERE ss.sn = 'SN202400001'
-ORDER BY st.create_time ASC;
+SELECT A
+	.ID,
+	A.sn,
+	A.csn,
+	A.work_order,
+	A.part_no,
+	A.old_sn,
+	A.pdline_code,
+	A.terminal_name,
+	A.stage_code,
+	A.node_id,
+	A.process_name,
+	A.current_phase,
+	A.current_status,
+	A.current_qty,
+	A.in_pdline_time,
+	A.out_pdline_time,
+	A.panel_no,
+	A.inner_box_no,
+	A.box_no,
+	A.carton_no,
+	A.pallet_no,
+	A.container_no,
+	A.qc_no,
+	A.qc_result,
+	A.route_end,
+	A.remark,
+	A.panel_seq,
+	A.lot_no,
+	A.carrier_no,
+	A.advance_plan_no,
+	A.hold_flag,
+	b.user_name AS create_user_id,
+	A.create_time,
+	C.user_name AS update_user_id,
+	A.update_time 
+FROM
+	t_pd_sn_travel
+	A LEFT JOIN t_basic_user b ON A.create_user_id = b.
+	ID LEFT JOIN t_basic_user C ON A.update_user_id = C.ID 
+WHERE
+	1 = 1 
+ORDER BY
+	A.create_time DESC
 ---
 场景：不良统计分析
 用户问题：本周各不良代码的数量统计

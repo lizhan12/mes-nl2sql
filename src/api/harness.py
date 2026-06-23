@@ -7,13 +7,12 @@ from fastapi import APIRouter, HTTPException
 from src.core.config import settings
 from src.harness.online_service import (
     analyze_failures_online_service,
-    auto_label_failures_online_service,
     delete_candidate_service,
     delete_failure_case_service,
-    evolve_online_service,
     label_failure_case_service,
     list_candidates_service,
     list_failure_cases_service,
+    pre_publish_check_service,
     publish_approved_service,
     review_candidate_service,
 )
@@ -76,41 +75,23 @@ async def delete_harness_failure_case(failure_case_id: int):
 
 
 @router.post("/analyze-failures")
-async def analyze_harness_failures(limit: int = 200, sync_failures: bool = True):
-    """分析失败案例并生成候选规则。"""
-    if not settings.enable_online_harness:
-        return {"error": "线上 Harness 未启用"}
-    result = await asyncio.to_thread(analyze_failures_online_service, limit, sync_failures)
-    return result
-
-
-@router.post("/auto-label-failures")
-async def auto_label_harness_failures(
-    limit: int = 50,
+async def analyze_harness_failures(
+    limit: int = 200,
     sync_failures: bool = True,
     generate_model: str = "",
     eval_model: str = "",
 ):
-    """LLM 自动标注 + 多维度评估失败案例。"""
+    """分析失败案例并生成候选规则（含 LLM 回退 + 重试成功评估）。"""
     if not settings.enable_online_harness:
         return {"error": "线上 Harness 未启用"}
     result = await asyncio.to_thread(
-        auto_label_failures_online_service,
+        analyze_failures_online_service,
         limit,
         sync_failures,
         settings.execution_database_url,
         generate_model or None,
         eval_model or None,
     )
-    return result
-
-
-@router.post("/evolve-online")
-async def evolve_harness_online(limit: int = 200, sync_failures: bool = True, include_liked: bool = True):
-    """从线上数据库日志生成并发布运行时知识。"""
-    if not settings.enable_online_harness:
-        return {"error": "线上 Harness 未启用"}
-    result = await evolve_online_service(limit, sync_failures, include_liked)
     return result
 
 
@@ -148,7 +129,6 @@ async def pre_publish_check_api():
     """发布前去重检查：检查所有 approved 候选是否与已有知识库重复。"""
     if not settings.enable_online_harness:
         return {"error": "线上 Harness 未启用"}
-    from src.harness.online_service import pre_publish_check_service
 
     result = await pre_publish_check_service()
     return result

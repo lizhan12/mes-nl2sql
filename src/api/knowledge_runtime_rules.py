@@ -1,7 +1,5 @@
 """RuntimeRule 运行时规则管理接口。"""
 
-import json
-
 from fastapi import APIRouter, HTTPException, Query
 
 from src.models.schemas import (
@@ -25,23 +23,10 @@ async def list_runtime_rules_api():
 
 @router.post("/runtime-rules", response_model=RuntimeRuleItem)
 async def create_runtime_rule_api(
-    request: RuntimeRuleCreateRequest, force: bool = Query(False, description="强制创建（跳过重复检查）")
+    request: RuntimeRuleCreateRequest, force: bool = Query(True, description="已废弃，始终覆盖已存在的同 normalized_question 规则")
 ):
-    """Create a new RuntimeRule."""
-    from src.services.knowledge_service import check_runtime_rule_dedup, create_runtime_rule
-
-    if not force:
-        dedup = await check_runtime_rule_dedup(request.normalized_question)
-        if dedup["has_duplicate"]:
-            if dedup["exact_match"]:
-                raise HTTPException(
-                    status_code=409,
-                    detail="已存在完全相同的 RuntimeRule 规则",
-                )
-            raise HTTPException(
-                status_code=409,
-                detail=json.dumps({"duplicate_items": dedup["similar_items"]}, ensure_ascii=False),
-            )
+    """创建或覆盖 RuntimeRule（若同 normalized_question 已存在则直接覆盖）。"""
+    from src.services.knowledge_service import create_runtime_rule
 
     try:
         result = await create_runtime_rule(

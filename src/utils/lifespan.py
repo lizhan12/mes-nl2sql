@@ -15,7 +15,6 @@ from src.graph.workflow import build_workflow
 from src.harness.repository import get_online_harness_repository
 from src.services.user_repository import get_user_repository
 from src.services.vector_store import (
-    build_neo4j_evolved_few_shot_store,
     build_neo4j_few_shot_store,
     build_neo4j_runtime_rule_store,
     build_neo4j_schema_store,
@@ -37,7 +36,6 @@ async def lifespan(app: FastAPI):
     logger.info("正在初始化向量库（Neo4j）...")
     schema_store = await build_neo4j_schema_store(force_rebuild=force_rebuild)
     few_shot_store = await build_neo4j_few_shot_store(force_rebuild=force_rebuild)
-    evolved_few_shot_store = await build_neo4j_evolved_few_shot_store(force_rebuild=force_rebuild)
     runtime_rule_store = await build_neo4j_runtime_rule_store(force_rebuild=force_rebuild)
     logger.info("向量库初始化完成")
 
@@ -47,7 +45,7 @@ async def lifespan(app: FastAPI):
         await init_neo4j_graph()
 
     logger.info("正在编译 LangGraph 工作流...")
-    app.state.workflow_app = build_workflow(schema_store, few_shot_store, evolved_few_shot_store, runtime_rule_store)
+    app.state.workflow_app = build_workflow(schema_store, few_shot_store, runtime_rule_store)
     logger.info("服务就绪，等待请求")
 
     if settings.enable_online_harness and settings.harness_auto_init_db:

@@ -375,11 +375,11 @@ async def count_graph() -> tuple[int, int]:
 
 # ── 向量索引 ────────────────────────────────────────────────────────
 
-_VECTOR_DIMENSIONS = 1024  # bge-large-zh-v1.5
+# 向量维度由 settings.embedding_dimensions 控制，通过 .env 的 EMBEDDING_DIMENSIONS 配置
 
 
 async def ensure_vector_indexes() -> None:
-    """确保 Neo4j 中存在所需的向量索引（schema + few_shot + evolved_few_shot + runtime_rule）。"""
+    """确保 Neo4j 中存在所需的向量索引（schema + few_shot + runtime_rule）。"""
     driver = await _get_driver()
     async with driver.session() as session:
         try:
@@ -392,7 +392,7 @@ async def ensure_vector_indexes() -> None:
                     `vector.similarity_function`: 'cosine'
                 }}
                 """,
-                {"dim": _VECTOR_DIMENSIONS},
+                {"dim": settings.embedding_dimensions},
             )
             logger.info("向量索引 schema_embedding_idx 已就绪")
         except Exception as e:
@@ -408,27 +408,11 @@ async def ensure_vector_indexes() -> None:
                     `vector.similarity_function`: 'cosine'
                 }}
                 """,
-                {"dim": _VECTOR_DIMENSIONS},
+                {"dim": settings.embedding_dimensions},
             )
             logger.info("向量索引 few_shot_embedding_idx 已就绪")
         except Exception as e:
             logger.warning("创建 few_shot_embedding_idx 失败: %s", e)
-
-        try:
-            await session.run(
-                """
-                CREATE VECTOR INDEX evolved_few_shot_embedding_idx IF NOT EXISTS
-                FOR (f:EvolvedFewShot) ON (f.question_embedding)
-                OPTIONS {indexConfig: {
-                    `vector.dimensions`: $dim,
-                    `vector.similarity_function`: 'cosine'
-                }}
-                """,
-                {"dim": _VECTOR_DIMENSIONS},
-            )
-            logger.info("向量索引 evolved_few_shot_embedding_idx 已就绪")
-        except Exception as e:
-            logger.warning("创建 evolved_few_shot_embedding_idx 失败: %s", e)
 
         try:
             await session.run(
@@ -440,11 +424,27 @@ async def ensure_vector_indexes() -> None:
                     `vector.similarity_function`: 'cosine'
                 }}
                 """,
-                {"dim": _VECTOR_DIMENSIONS},
+                {"dim": settings.embedding_dimensions},
             )
             logger.info("向量索引 runtime_rule_embedding_idx 已就绪")
         except Exception as e:
             logger.warning("创建 runtime_rule_embedding_idx 失败: %s", e)
+
+        try:
+            await session.run(
+                """
+                CREATE VECTOR INDEX generic_knowledge_embedding_idx IF NOT EXISTS
+                FOR (g:GenericKnowledge) ON (g.embedding)
+                OPTIONS {indexConfig: {
+                    `vector.dimensions`: $dim,
+                    `vector.similarity_function`: 'cosine'
+                }}
+                """,
+                {"dim": settings.embedding_dimensions},
+            )
+            logger.info("向量索引 generic_knowledge_embedding_idx 已就绪")
+        except Exception as e:
+            logger.warning("创建 generic_knowledge_embedding_idx 失败: %s", e)
 
 
 # ── 向量数据写入 ────────────────────────────────────────────────────
@@ -502,7 +502,8 @@ async def batch_set_few_shot_embeddings(items: list[dict]) -> int:
             SET f.question_embedding = item.embedding,
                 f.scenario = item.scenario,
                 f.question = item.question,
-                f.full_text = item.full_text
+                f.full_text = item.full_text,
+                f.type = 'manual'
             RETURN count(f) AS updated
             """,
             {"batch": items},
@@ -513,12 +514,14 @@ async def batch_set_few_shot_embeddings(items: list[dict]) -> int:
 
 
 async def clear_few_shot_nodes() -> int:
-    """删除所有 FewShot 节点。"""
+    """删除手动创建的 FewShot 节点（保留 Harness 进化的节点）。"""
     driver = await _get_driver()
     async with driver.session() as session:
-        result = await session.run("MATCH (f:FewShot) DETACH DELETE f RETURN count(f) AS deleted")
+        result = await session.run(
+            "MATCH (f:FewShot) WHERE f.type IS NULL OR f.type = 'manual' DETACH DELETE f RETURN count(f) AS deleted"
+        )
         count = (await result.single())["deleted"]
-    logger.info("已删除 %d 个 FewShot 节点", count)
+    logger.info("已删除 %d 个手动 FewShot 节点（保留进化节点）", count)
     return count
 
 
@@ -535,84 +538,12 @@ async def schema_has_embeddings() -> bool:
 
 
 async def few_shot_has_embeddings() -> bool:
-    """检查 FewShot 节点是否已有数据。"""
+    """检查 FewShot 手动节点是否已有数据（忽略进化节点）。"""
     driver = await _get_driver()
     async with driver.session() as session:
-        result = await session.run("MATCH (f:FewShot) RETURN count(f) AS c")
+        result = await session.run("MATCH (f:FewShot) WHERE f.type IS NULL OR f.type = 'manual' RETURN count(f) AS c")
         rec = await result.single()
         return bool(rec and rec["c"] > 0)
-
-
-async def evolved_few_shot_has_embeddings() -> bool:
-    """检查 EvolvedFewShot 节点是否已有向量数据。"""
-    driver = await _get_driver()
-    async with driver.session() as session:
-        result = await session.run(
-            "MATCH (f:EvolvedFewShot) WHERE f.question_embedding IS NOT NULL RETURN count(f) AS c"
-        )
-        rec = await result.single()
-        return bool(rec and rec["c"] > 0)
-
-
-async def get_evolved_few_shot_without_embeddings() -> list[dict]:
-    """查询缺失向量化的 EvolvedFewShot 节点。
-
-    Returns:
-        [{"id": str, "question": str, "scenario": str, "full_text": str}, ...]
-    """
-    driver = await _get_driver()
-    async with driver.session() as session:
-        result = await session.run(
-            """
-            MATCH (f:EvolvedFewShot)
-            WHERE f.question_embedding IS NULL
-            RETURN f.id AS id, f.question AS question,
-                   f.scenario AS scenario, f.full_text AS full_text
-            ORDER BY f.id
-            """
-        )
-        return [
-            {
-                "id": rec["id"],
-                "question": rec["question"] or "",
-                "scenario": rec["scenario"] or "",
-                "full_text": rec["full_text"] or "",
-            }
-            async for rec in result
-        ]
-
-
-async def batch_set_evolved_few_shot_embeddings(batch: list[dict]) -> int:
-    """批量设置 EvolvedFewShot 节点的向量。
-
-    Args:
-        batch: [{"id", "embedding", "scenario", "question", "full_text"}]
-
-    Returns:
-        成功写入的记录数
-    """
-    driver = await _get_driver()
-    total = 0
-    async with driver.session() as session:
-        for item in batch:
-            await session.run(
-                """
-                MERGE (f:EvolvedFewShot {id: $id})
-                SET f.question_embedding = $embedding,
-                    f.scenario = $scenario,
-                    f.question = $question,
-                    f.full_text = $full_text
-                """,
-                {
-                    "id": item["id"],
-                    "embedding": item["embedding"],
-                    "scenario": item.get("scenario", ""),
-                    "question": item.get("question", ""),
-                    "full_text": item.get("full_text", ""),
-                },
-            )
-            total += 1
-    return total
 
 
 async def runtime_rule_has_embeddings() -> bool:
@@ -686,7 +617,6 @@ async def ensure_harness_knowledge_indexes() -> None:
 
     节点标签:
       - RuntimeRule: 运行时规则
-      - EvolvedFewShot: 进化 few-shot 示例
       - KnowledgeVersion: 知识版本记录
     """
     driver = await _get_driver()
@@ -696,12 +626,9 @@ async def ensure_harness_knowledge_indexes() -> None:
             "FOR (r:RuntimeRule) REQUIRE r.normalized_question IS UNIQUE"
         )
         await session.run(
-            "CREATE CONSTRAINT few_shot_id_unique IF NOT EXISTS FOR (f:EvolvedFewShot) REQUIRE f.id IS UNIQUE"
-        )
-        await session.run(
             "CREATE CONSTRAINT knowledge_version_unique IF NOT EXISTS FOR (v:KnowledgeVersion) REQUIRE v.id IS UNIQUE"
         )
-    logger.info("Harness 知识索引（RuntimeRule / EvolvedFewShot / KnowledgeVersion）已就绪")
+    logger.info("Harness 知识索引（RuntimeRule / KnowledgeVersion）已就绪")
 
 
 async def publish_harness_knowledge(
@@ -730,7 +657,7 @@ async def publish_harness_knowledge(
     async with driver.session() as session:
         # 1. 清空旧数据
         await session.run("MATCH (r:RuntimeRule) DETACH DELETE r")
-        await session.run("MATCH (f:EvolvedFewShot) DETACH DELETE f")
+        await session.run("MATCH (f:FewShot {type: 'evolved'}) DETACH DELETE f")
         await session.run("MATCH (v:KnowledgeVersion) DETACH DELETE v")
         logger.info("已清空 Harness 知识旧数据")
 
@@ -779,8 +706,10 @@ async def publish_harness_knowledge(
 
         # 3. 写入进化 few-shot
         few_shot_count = 0
+        logger.info("publish_harness_knowledge: few_shot_text 长度=%d, strip后非空=%s", len(few_shot_text), bool(few_shot_text.strip()))
         if few_shot_text.strip():
             chunks = [c.strip() for c in few_shot_text.split("\n---\n") if c.strip()]
+            logger.info("publish_harness_knowledge: few_shot chunks 数量=%d", len(chunks))
             for i, chunk in enumerate(chunks):
                 # 从 chunk 中提取场景和问题
                 question = ""
@@ -794,14 +723,15 @@ async def publish_harness_knowledge(
 
                 await session.run(
                     """
-                    MERGE (f:EvolvedFewShot {id: $fid})
+                    MERGE (f:FewShot {id: $fid})
                     SET f.question = $question,
                         f.scenario = $scenario,
                         f.full_text = $full_text,
+                        f.type = 'evolved',
                         f.created_at = $created_at
                     """,
                     {
-                        "fid": f"efs_{i}",
+                        "fid": f"few_evolved_{i}",
                         "question": question,
                         "scenario": scenario,
                         "full_text": chunk,
@@ -908,8 +838,8 @@ async def load_published_few_shot_text() -> str:
     async with driver.session() as session:
         result = await session.run(
             """
-            MATCH (f:EvolvedFewShot)
-            WHERE COALESCE(f.enabled, true) = true
+            MATCH (f:FewShot)
+            WHERE f.type = 'evolved' AND COALESCE(f.enabled, true) = true
             RETURN f.full_text AS full_text
             ORDER BY f.id
             """
@@ -991,7 +921,7 @@ async def ensure_field_indexes() -> None:
                     `vector.similarity_function`: 'cosine'
                 }}
                 """,
-                {"dim": _VECTOR_DIMENSIONS},
+                {"dim": settings.embedding_dimensions},
             )
             logger.info("向量索引 field_embedding_idx 已就绪")
         except Exception as e:
@@ -1116,3 +1046,214 @@ def _safe_str(value: object, default: str = "") -> str:
     if value is None:
         return default
     return str(value)
+
+
+# ── 通用知识库 CRUD ──────────────────────────────────────────────────
+
+
+async def create_generic_knowledge(
+    kb_name: str,
+    item_id: str,
+    label: str,
+    fields_json: str,
+    embed_fields_json: str,
+    embed_text: str,
+    embedding: list[float],
+    full_text: str,
+) -> None:
+    """创建一个 GenericKnowledge 节点。"""
+    driver = await _get_driver()
+    from datetime import datetime
+
+    now = datetime.now().isoformat()
+    async with driver.session() as session:
+        await session.run(
+            """
+            MERGE (g:GenericKnowledge {kb_name: $kb_name, item_id: $item_id})
+            SET g.label = $label,
+                g.fields = $fields_json,
+                g.embed_fields = $embed_fields_json,
+                g.embed_text = $embed_text,
+                g.embedding = $embedding,
+                g.full_text = $full_text,
+                g.created_at = $created_at
+            """,
+            {
+                "kb_name": kb_name,
+                "item_id": item_id,
+                "label": label,
+                "fields_json": fields_json,
+                "embed_fields_json": embed_fields_json,
+                "embed_text": embed_text,
+                "embedding": embedding,
+                "full_text": full_text,
+                "created_at": now,
+            },
+        )
+    logger.info("GenericKnowledge 创建/更新: %s/%s", kb_name, item_id)
+
+
+async def update_generic_knowledge(
+    kb_name: str,
+    item_id: str,
+    label: str,
+    fields_json: str,
+    embed_fields_json: str,
+    embed_text: str,
+    embedding: list[float],
+    full_text: str,
+) -> bool:
+    """更新一个 GenericKnowledge 节点。"""
+    driver = await _get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            """
+            MATCH (g:GenericKnowledge {kb_name: $kb_name, item_id: $item_id})
+            SET g.label = $label,
+                g.fields = $fields_json,
+                g.embed_fields = $embed_fields_json,
+                g.embed_text = $embed_text,
+                g.embedding = $embedding,
+                g.full_text = $full_text
+            RETURN count(g) AS updated
+            """,
+            {
+                "kb_name": kb_name,
+                "item_id": item_id,
+                "label": label,
+                "fields_json": fields_json,
+                "embed_fields_json": embed_fields_json,
+                "embed_text": embed_text,
+                "embedding": embedding,
+                "full_text": full_text,
+            },
+        )
+        rec = await result.single()
+    return bool(rec and rec["updated"] > 0)
+
+
+async def delete_generic_knowledge(kb_name: str, item_id: str) -> bool:
+    """删除一个 GenericKnowledge 节点。"""
+    driver = await _get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            """
+            MATCH (g:GenericKnowledge {kb_name: $kb_name, item_id: $item_id})
+            DELETE g
+            RETURN count(g) AS deleted
+            """,
+            {"kb_name": kb_name, "item_id": item_id},
+        )
+        rec = await result.single()
+    return bool(rec and rec["deleted"] > 0)
+
+
+async def delete_generic_kb(kb_name: str) -> int:
+    """删除一个知识库下的所有 GenericKnowledge 节点。返回删除数量。"""
+    driver = await _get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            """
+            MATCH (g:GenericKnowledge {kb_name: $kb_name})
+            DELETE g
+            RETURN count(g) AS deleted
+            """,
+            {"kb_name": kb_name},
+        )
+        rec = await result.single()
+    deleted = int(rec["deleted"]) if rec else 0
+    logger.info("GenericKnowledge 知识库删除: %s, 共 %d 条", kb_name, deleted)
+    return deleted
+
+
+async def list_generic_knowledge_by_kb(kb_name: str) -> list[dict]:
+    """列出某个知识库下所有条目。"""
+    driver = await _get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            """
+            MATCH (g:GenericKnowledge {kb_name: $kb_name})
+            RETURN g.item_id AS item_id,
+                   g.label AS label,
+                   g.fields AS fields,
+                   g.embed_fields AS embed_fields,
+                   g.full_text AS full_text,
+                   g.created_at AS created_at
+            ORDER BY g.created_at
+            """,
+            {"kb_name": kb_name},
+        )
+        items = []
+        async for rec in result:
+            fields_raw = rec["fields"] or "[]"
+            if isinstance(fields_raw, str):
+                try:
+                    fields = json.loads(fields_raw)
+                except (json.JSONDecodeError, TypeError):
+                    fields = []
+            else:
+                fields = fields_raw if isinstance(fields_raw, list) else []
+            items.append(
+                {
+                    "item_id": _safe_str(rec["item_id"]),
+                    "label": _safe_str(rec["label"]),
+                    "fields": fields,
+                    "embed_fields": json.loads(rec["embed_fields"]) if isinstance(rec["embed_fields"], str) else (rec["embed_fields"] or []),
+                    "full_text": _safe_str(rec["full_text"]),
+                    "created_at": _safe_str(rec["created_at"]),
+                }
+            )
+    return items
+
+
+async def list_generic_knowledge_kbs() -> list[dict]:
+    """聚合查询所有知识库及其条目数。"""
+    driver = await _get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            """
+            MATCH (g:GenericKnowledge)
+            WITH g.kb_name AS kb_name, count(g) AS item_count,
+                 collect(DISTINCT g.label) AS labels
+            RETURN kb_name, item_count, labels
+            ORDER BY kb_name
+            """
+        )
+        kbs = []
+        async for rec in result:
+            labels = rec["labels"] or []
+            kbs.append(
+                {
+                    "kb_name": _safe_str(rec["kb_name"]),
+                    "label": _safe_str(labels[0]) if labels else _safe_str(rec["kb_name"]),
+                    "item_count": rec["item_count"],
+                }
+            )
+    return kbs
+
+
+async def get_generic_kb_field_names(kb_name: str) -> list[str]:
+    """获取某个知识库所有条目中出现过的字段名（去重）。"""
+    driver = await _get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            """
+            MATCH (g:GenericKnowledge {kb_name: $kb_name})
+            RETURN g.fields AS fields
+            """,
+            {"kb_name": kb_name},
+        )
+        field_set: set[str] = set()
+        async for rec in result:
+            fields_raw = rec["fields"] or "[]"
+            if isinstance(fields_raw, str):
+                try:
+                    fields = json.loads(fields_raw)
+                except (json.JSONDecodeError, TypeError):
+                    fields = []
+            else:
+                fields = fields_raw if isinstance(fields_raw, list) else []
+            for f in fields:
+                if isinstance(f, dict) and f.get("name"):
+                    field_set.add(f["name"])
+    return sorted(field_set)

@@ -452,7 +452,7 @@ async def list_few_shots() -> list[dict]:
         async with driver.session() as session:
             result = await session.run("""
                 MATCH (f:FewShot)
-                RETURN f.id AS id, f.scenario AS scenario,
+                RETURN f.id AS id, f.type AS type, f.scenario AS scenario,
                        f.question AS question, f.full_text AS full_text,
                        COALESCE(f.enabled, true) AS enabled
                 ORDER BY f.id
@@ -460,6 +460,7 @@ async def list_few_shots() -> list[dict]:
             return [
                 {
                     "id": rec["id"] or "",
+                    "type": rec["type"] or "manual",
                     "scenario": rec["scenario"] or "",
                     "question": rec["question"] or "",
                     "full_text": rec["full_text"] or "",
@@ -500,27 +501,6 @@ async def check_few_shot_dedup(question: str) -> dict:
         )
         records = [rec async for rec in result]
         for rec in records:
-            similar_items.append(
-                {
-                    "key": str(rec["id"] or ""),
-                    "question": str(rec["question"] or ""),
-                    "score": 1.0,
-                    "match_type": "exact",
-                    "existing_item": {
-                        "id": str(rec["id"] or ""),
-                        "scenario": str(rec["scenario"] or ""),
-                        "question": str(rec["question"] or ""),
-                        "full_text": str(rec["full_text"] or ""),
-                    },
-                }
-            )
-
-        # 检查 EvolvedFewShot 节点精确匹配
-        result = await session.run(
-            "MATCH (f:EvolvedFewShot) WHERE f.question = $question RETURN f.id AS id, f.question AS question, f.scenario AS scenario, f.full_text AS full_text",
-            {"question": question},
-        )
-        async for rec in result:
             similar_items.append(
                 {
                     "key": str(rec["id"] or ""),
@@ -577,34 +557,6 @@ async def check_few_shot_dedup(question: str) -> dict:
                     }
                 )
 
-            # 在 EvolvedFewShot 节点上做向量相似度搜索
-            result = await session.run(
-                """
-                MATCH (f:EvolvedFewShot)
-                WHERE f.question_embedding IS NOT NULL
-                WITH f, vector.similarity.cosine(f.question_embedding, $query_vec) AS score
-                WHERE score >= $threshold
-                RETURN f.id AS id, f.question AS question, f.scenario AS scenario, f.full_text AS full_text, score
-                ORDER BY score DESC
-                LIMIT 3
-                """,
-                {"query_vec": query_vec, "threshold": threshold},
-            )
-            async for rec in result:
-                similar_items.append(
-                    {
-                        "key": str(rec["id"] or ""),
-                        "question": str(rec["question"] or ""),
-                        "score": float(rec["score"]),
-                        "match_type": "vector",
-                        "existing_item": {
-                            "id": str(rec["id"] or ""),
-                            "scenario": str(rec["scenario"] or ""),
-                            "question": str(rec["question"] or ""),
-                            "full_text": str(rec["full_text"] or ""),
-                        },
-                    }
-                )
     except Exception as exc:
         logger.warning("FewShot 向量去重检查失败: %s", exc)
 
@@ -707,15 +659,12 @@ async def check_runtime_rule_dedup(normalized_question: str) -> dict:
     }
 
 
-async def create_few_shot(scenario: str, question: str, sql: str) -> dict:
-    """创建新的 FewShot 示例。"""
+async def create_few_shot(scenario: str, question: str, sql: str, few_shot_type: str = "manual") -> dict:
+    """创建或覆盖 FewShot 示例（若同 question 已存在则覆盖）。"""
     import uuid
 
     from src.services.neo4j_graph import _get_driver
     from src.services.vector_store import _build_few_shot_embed_text, _get_embeddings
-
-    # 生成唯一 ID
-    few_shot_id = f"few_{uuid.uuid4().hex[:8]}"
 
     # 构建 full_text
     full_text = f"场景：{scenario}\n用户问题：{question}\nSQL：\n{sql}"
@@ -725,22 +674,29 @@ async def create_few_shot(scenario: str, question: str, sql: str) -> dict:
     embed_text = _build_few_shot_embed_text({"scenario": scenario, "question": question})
     embedding = embeddings.embed_query(embed_text)
 
-    # 写入 Neo4j
+    # 写入 Neo4j：先查找同 question 的已有节点，存在则复用 ID 覆盖，否则新建
     driver = await _get_driver()
     async with driver.session() as session:
+        result = await session.run(
+            "MATCH (f:FewShot {question: $question}) RETURN f.id AS id LIMIT 1",
+            {"question": question},
+        )
+        rec = await result.single()
+        few_shot_id = str(rec["id"]) if rec else f"few_{uuid.uuid4().hex[:8]}"
+
         await session.run(
             """
-            CREATE (f:FewShot {
-                id: $id,
-                scenario: $scenario,
-                question: $question,
-                full_text: $full_text,
-                question_embedding: $embedding,
-                enabled: true
-            })
+            MERGE (f:FewShot {id: $id})
+            SET f.type = $type,
+                f.scenario = $scenario,
+                f.question = $question,
+                f.full_text = $full_text,
+                f.question_embedding = $embedding,
+                f.enabled = true
             """,
             {
                 "id": few_shot_id,
+                "type": few_shot_type,
                 "scenario": scenario,
                 "question": question,
                 "full_text": full_text,
@@ -748,8 +704,8 @@ async def create_few_shot(scenario: str, question: str, sql: str) -> dict:
             },
         )
 
-    logger.info("已创建 FewShot: %s", few_shot_id)
-    return {"id": few_shot_id, "scenario": scenario, "question": question, "full_text": full_text}
+    logger.info("已创建/覆盖 FewShot: %s (type=%s)", few_shot_id, few_shot_type)
+    return {"id": few_shot_id, "type": few_shot_type, "scenario": scenario, "question": question, "full_text": full_text}
 
 
 async def update_few_shot(few_shot_id: str, scenario: str, question: str, sql: str) -> bool:
@@ -826,160 +782,6 @@ async def toggle_few_shot(few_shot_id: str, enabled: bool) -> bool:
 
     if updated:
         logger.info("已%s FewShot: %s", "启用" if enabled else "禁用", few_shot_id)
-    return bool(updated)
-
-
-# ── EvolvedFewShot CRUD ──────────────────────────────────────────────
-
-
-async def list_evolved_few_shots() -> list[dict]:
-    """从 Neo4j 加载所有 EvolvedFewShot 示例。"""
-    try:
-        from src.services.neo4j_graph import _get_driver
-
-        driver = await _get_driver()
-        async with driver.session() as session:
-            result = await session.run("""
-                MATCH (f:EvolvedFewShot)
-                RETURN f.id AS id, f.scenario AS scenario,
-                       f.question AS question, f.full_text AS full_text,
-                       COALESCE(f.enabled, true) AS enabled
-                ORDER BY f.id
-            """)
-            return [
-                {
-                    "id": rec["id"] or "",
-                    "scenario": rec["scenario"] or "",
-                    "question": rec["question"] or "",
-                    "full_text": rec["full_text"] or "",
-                    "enabled": rec["enabled"] if rec["enabled"] is not None else True,
-                }
-                async for rec in result
-            ]
-    except Exception as exc:
-        logger.error("从 Neo4j 加载 EvolvedFewShot 列表失败: %s", exc)
-        return []
-
-
-async def create_evolved_few_shot(scenario: str, question: str, sql: str) -> dict:
-    """创建新的 EvolvedFewShot 示例。"""
-    import uuid
-
-    from src.services.neo4j_graph import _get_driver
-    from src.services.vector_store import _build_few_shot_embed_text, _get_embeddings
-
-    # 生成唯一 ID
-    evolved_id = f"evolved_{uuid.uuid4().hex[:8]}"
-
-    # 构建 full_text
-    full_text = f"场景：{scenario}\n用户问题：{question}\nSQL：\n{sql}"
-
-    # 生成 embedding
-    embeddings = _get_embeddings()
-    embed_text = _build_few_shot_embed_text({"scenario": scenario, "question": question})
-    embedding = embeddings.embed_query(embed_text)
-
-    # 写入 Neo4j
-    driver = await _get_driver()
-    async with driver.session() as session:
-        await session.run(
-            """
-            CREATE (f:EvolvedFewShot {
-                id: $id,
-                scenario: $scenario,
-                question: $question,
-                full_text: $full_text,
-                question_embedding: $embedding,
-                enabled: true
-            })
-            """,
-            {
-                "id": evolved_id,
-                "scenario": scenario,
-                "question": question,
-                "full_text": full_text,
-                "embedding": embedding,
-            },
-        )
-
-    logger.info("已创建 EvolvedFewShot: %s", evolved_id)
-    return {"id": evolved_id, "scenario": scenario, "question": question, "full_text": full_text}
-
-
-async def update_evolved_few_shot(evolved_id: str, scenario: str, question: str, sql: str) -> bool:
-    """更新 EvolvedFewShot 示例。"""
-    from src.services.neo4j_graph import _get_driver
-    from src.services.vector_store import _build_few_shot_embed_text, _get_embeddings
-
-    # 构建 full_text
-    full_text = f"场景：{scenario}\n用户问题：{question}\nSQL：\n{sql}"
-
-    # 重新生成 embedding
-    embeddings = _get_embeddings()
-    embed_text = _build_few_shot_embed_text({"scenario": scenario, "question": question})
-    embedding = embeddings.embed_query(embed_text)
-
-    # 更新 Neo4j
-    driver = await _get_driver()
-    async with driver.session() as session:
-        result = await session.run(
-            """
-            MATCH (f:EvolvedFewShot {id: $id})
-            SET f.scenario = $scenario,
-                f.question = $question,
-                f.full_text = $full_text,
-                f.question_embedding = $embedding
-            RETURN count(f) AS updated
-            """,
-            {
-                "id": evolved_id,
-                "scenario": scenario,
-                "question": question,
-                "full_text": full_text,
-                "embedding": embedding,
-            },
-        )
-        rec = await result.single()
-        updated = rec["updated"] if rec else 0
-
-    if updated:
-        logger.info("已更新 EvolvedFewShot: %s", evolved_id)
-    return bool(updated)
-
-
-async def delete_evolved_few_shot(evolved_id: str) -> bool:
-    """删除 EvolvedFewShot 示例。"""
-    from src.services.neo4j_graph import _get_driver
-
-    driver = await _get_driver()
-    async with driver.session() as session:
-        result = await session.run(
-            "MATCH (f:EvolvedFewShot {id: $id}) DETACH DELETE f RETURN count(f) AS deleted",
-            {"id": evolved_id},
-        )
-        rec = await result.single()
-        deleted = rec["deleted"] if rec else 0
-
-    if deleted:
-        logger.info("已删除 EvolvedFewShot: %s", evolved_id)
-    return bool(deleted)
-
-
-async def toggle_evolved_few_shot(evolved_id: str, enabled: bool) -> bool:
-    """切换 EvolvedFewShot 启用/禁用状态。"""
-    from src.services.neo4j_graph import _get_driver
-
-    driver = await _get_driver()
-    async with driver.session() as session:
-        result = await session.run(
-            "MATCH (f:EvolvedFewShot {id: $id}) SET f.enabled = $enabled RETURN count(f) AS updated",
-            {"id": evolved_id, "enabled": enabled},
-        )
-        rec = await result.single()
-        updated = rec["updated"] if rec else 0
-
-    if updated:
-        logger.info("已%s EvolvedFewShot: %s", "启用" if enabled else "禁用", evolved_id)
     return bool(updated)
 
 
@@ -1060,7 +862,7 @@ async def create_runtime_rule(
     required_joins: list[str] | None = None,
     source: str = "manual",
 ) -> dict:
-    """创建新的 RuntimeRule 规则。"""
+    """创建或覆盖 RuntimeRule 规则（若同 normalized_question 已存在则覆盖）。"""
     import json
 
     from src.services.neo4j_graph import _get_driver
@@ -1075,21 +877,19 @@ async def create_runtime_rule(
     embeddings = _get_embeddings()
     embedding = embeddings.embed_query(normalized_question[:500])
 
-    # 写入 Neo4j
+    # 写入 Neo4j（MERGE by normalized_question，存在则覆盖）
     driver = await _get_driver()
     async with driver.session() as session:
         await session.run(
             """
-            CREATE (r:RuntimeRule {
-                normalized_question: $normalized_question,
-                question: $question,
-                preferred_main_table: $preferred_main_table,
-                required_tables: $required_tables,
-                required_joins: $required_joins,
-                source: $source,
-                question_embedding: $embedding,
-                enabled: true
-            })
+            MERGE (r:RuntimeRule {normalized_question: $normalized_question})
+            SET r.question = $question,
+                r.preferred_main_table = $preferred_main_table,
+                r.required_tables = $required_tables,
+                r.required_joins = $required_joins,
+                r.source = $source,
+                r.question_embedding = $embedding,
+                r.enabled = true
             """,
             {
                 "normalized_question": normalized_question,
@@ -1102,7 +902,7 @@ async def create_runtime_rule(
             },
         )
 
-    logger.info("已创建 RuntimeRule: %s", normalized_question)
+    logger.info("已创建/覆盖 RuntimeRule: %s", normalized_question)
     return {
         "normalized_question": normalized_question,
         "question": question,
@@ -1419,3 +1219,158 @@ def extract_tables_from_text(raw_text: str) -> dict:
 
     logger.info("LLM 抽取完成: %d 张表, %d 条关系", len(validated_tables), len(validated_relations))
     return {"tables": validated_tables, "relations": validated_relations}
+
+
+# ── 通用知识库服务 ──────────────────────────────────────────────────
+
+from src.core.config import settings
+from src.models.schemas import GenericKnowledgeFieldDef, GenericKBSummary, GenericKnowledgeItem
+from src.services import neo4j_graph
+
+_EMBED_MAX_CHARS = settings.embedding_max_chars
+
+
+def _build_generic_embed_text(fields: list[GenericKnowledgeFieldDef]) -> tuple[str, list[str]]:
+    """构建通用知识库的 embedding 文本。
+
+    策略：先拼接所有选中字段名作为语义锚点，再拼接字段值，超出 EMBED_MAX_CHARS 时截断。
+
+    Returns:
+        (embed_text, embed_field_names)
+    """
+    embed_fields = [f for f in fields if f.embed]
+    if not embed_fields:
+        return "", []
+    # 语义锚点：字段名
+    anchor = " ".join(f.name for f in embed_fields)
+    # 字段值
+    values = " ".join(f.value for f in embed_fields if f.value)
+    text = f"{anchor} {values}".strip()
+    if len(text) > _EMBED_MAX_CHARS:
+        text = text[:_EMBED_MAX_CHARS]
+    return text, [f.name for f in embed_fields]
+
+
+def _build_generic_full_text(label: str, fields: list[GenericKnowledgeFieldDef]) -> str:
+    """构建通用知识库条目的完整展示文本。"""
+    parts = [f"{f.name}:{f.value}" for f in fields if f.name]
+    prefix = f"[{label}] " if label else ""
+    return prefix + " ".join(parts)
+
+
+async def list_generic_kbs() -> list[GenericKBSummary]:
+    """列出所有通用知识库。"""
+    raw_kbs = await neo4j_graph.list_generic_knowledge_kbs()
+    result = []
+    for kb in raw_kbs:
+        field_names = await neo4j_graph.get_generic_kb_field_names(kb["kb_name"])
+        result.append(
+            GenericKBSummary(
+                kb_name=kb["kb_name"],
+                label=kb["label"],
+                item_count=kb["item_count"],
+                field_names=field_names,
+            )
+        )
+    return result
+
+
+async def list_generic_items(kb_name: str) -> list[GenericKnowledgeItem]:
+    """列出某个知识库下所有条目。"""
+    raw_items = await neo4j_graph.list_generic_knowledge_by_kb(kb_name)
+    result = []
+    for item in raw_items:
+        fields = [
+            GenericKnowledgeFieldDef(
+                name=f.get("name", ""),
+                value=f.get("value", ""),
+                embed=f.get("name") in (item.get("embed_fields") or []),
+            )
+            for f in item["fields"]
+            if isinstance(f, dict)
+        ]
+        result.append(
+            GenericKnowledgeItem(
+                item_id=item["item_id"],
+                label=item["label"],
+                fields=fields,
+                created_at=item.get("created_at", ""),
+            )
+        )
+    return result
+
+
+async def create_generic_item(kb_name: str, item: GenericKnowledgeItem) -> GenericKnowledgeItem:
+    """创建通用知识库条目。"""
+    # 生成 item_id
+    if not item.item_id:
+        import uuid
+
+        item.item_id = f"{kb_name}_{uuid.uuid4().hex[:8]}"
+
+    # 构建 embedding 文本
+    embed_text, embed_field_names = _build_generic_embed_text(item.fields)
+    embedding: list[float] = []
+    if embed_text:
+        embeddings = _get_embeddings()
+        embedding = embeddings.embed_query(embed_text)
+
+    # 构建 full_text
+    full_text = _build_generic_full_text(item.label, item.fields)
+
+    # 序列化
+    fields_json = json.dumps(
+        [{"name": f.name, "value": f.value, "embed": f.embed} for f in item.fields],
+        ensure_ascii=False,
+    )
+    embed_fields_json = json.dumps(embed_field_names, ensure_ascii=False)
+
+    await neo4j_graph.create_generic_knowledge(
+        kb_name=kb_name,
+        item_id=item.item_id,
+        label=item.label,
+        fields_json=fields_json,
+        embed_fields_json=embed_fields_json,
+        embed_text=embed_text,
+        embedding=embedding,
+        full_text=full_text,
+    )
+    return item
+
+
+async def update_generic_item(kb_name: str, item_id: str, label: str, fields: list[GenericKnowledgeFieldDef]) -> bool:
+    """更新通用知识库条目。"""
+    embed_text, embed_field_names = _build_generic_embed_text(fields)
+    embedding: list[float] = []
+    if embed_text:
+        embeddings = _get_embeddings()
+        embedding = embeddings.embed_query(embed_text)
+
+    full_text = _build_generic_full_text(label, fields)
+
+    fields_json = json.dumps(
+        [{"name": f.name, "value": f.value, "embed": f.embed} for f in fields],
+        ensure_ascii=False,
+    )
+    embed_fields_json = json.dumps(embed_field_names, ensure_ascii=False)
+
+    return await neo4j_graph.update_generic_knowledge(
+        kb_name=kb_name,
+        item_id=item_id,
+        label=label,
+        fields_json=fields_json,
+        embed_fields_json=embed_fields_json,
+        embed_text=embed_text,
+        embedding=embedding,
+        full_text=full_text,
+    )
+
+
+async def delete_generic_item(kb_name: str, item_id: str) -> bool:
+    """删除通用知识库条目。"""
+    return await neo4j_graph.delete_generic_knowledge(kb_name, item_id)
+
+
+async def delete_generic_kb(kb_name: str) -> int:
+    """删除整个通用知识库（含其下所有条目）。返回删除的条目数。"""
+    return await neo4j_graph.delete_generic_kb(kb_name)

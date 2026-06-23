@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DataSet } from "vis-data";
 import { Network } from "vis-network";
 
@@ -78,6 +79,38 @@ function getModuleColor(mod: string): string {
   return MODULE_COLORS[mod] || "bg-gray-100 text-gray-700 border-gray-200";
 }
 
+// ── PostgreSQL 类型映射 ─────────────────────────────────────────────
+function normalizePostgresType(rawType: string): string {
+  // 带长度的类型: character varying(40) -> varchar(40)
+  const match = rawType.match(/^([a-z_ ]+)\((\d+)\)$/i);
+  if (match) {
+    const baseType = match[1].trim();
+    const length = match[2];
+    const normalizedBase = TYPE_MAP[baseType.toLowerCase()] || baseType;
+    return `${normalizedBase}(${length})`;
+  }
+
+  // 无长度的类型
+  return TYPE_MAP[rawType.toLowerCase()] || rawType;
+}
+
+const TYPE_MAP: Record<string, string> = {
+  "character varying": "varchar",
+  "character": "char",
+  "timestamp without time zone": "timestamp",
+  "timestamp with time zone": "timestamptz",
+  "time without time zone": "time",
+  "time with time zone": "timetz",
+  "double precision": "double",
+  "integer": "int",
+  "smallint": "smallint",
+  "bigint": "bigint",
+  "boolean": "bool",
+  "text": "text",
+  "numeric": "numeric",
+  "date": "date",
+};
+
 // ── 空字段行模板 ──────────────────────────────────────────────────
 function emptyField(): TableFieldInfo {
   return { name: "", type: "", comment: "" };
@@ -86,6 +119,7 @@ function emptyField(): TableFieldInfo {
 // ── 组件 ──────────────────────────────────────────────────────────
 export default function KnowledgePage() {
   const { isDark } = useTheme();
+  const [searchParams] = useSearchParams();
 
   // 列表
   const [tables, setTables] = useState<TableKnowledgeSummary[]>([]);
@@ -113,6 +147,7 @@ export default function KnowledgePage() {
 
   // 从DB同步字段
   const [syncingFields, setSyncingFields] = useState(false);
+  const [syncModeModalOpen, setSyncModeModalOpen] = useState(false);
 
   // 关系编辑弹窗
   const [relationModalOpen, setRelationModalOpen] = useState(false);
@@ -242,6 +277,16 @@ export default function KnowledgePage() {
   useEffect(() => {
     loadList();
   }, [loadList]);
+
+  // ── 从 URL 参数自动选中表 ──
+  useEffect(() => {
+    const tableParam = searchParams.get("table");
+    if (!tableParam) return;
+    // 设置搜索词以过滤列表
+    setSearchTerm(tableParam);
+    // 直接加载该表详情
+    loadDetail(tableParam);
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 加载图数据（一次性） ──
   useEffect(() => {
@@ -487,32 +532,45 @@ export default function KnowledgePage() {
   };
 
   // ── 从数据库同步字段 ──
-  const syncFieldsFromDB = async () => {
+  const syncFieldsFromDB = async (mode: "replace" | "merge") => {
     if (!editData) return;
     setSyncingFields(true);
+    setSyncModeModalOpen(false);
     try {
       const dbCols = await fetchTableColumnsFromDB(editData.table_name);
-      // 合并：DB 字段同步类型和注释，保留 DB 中不存在但用户手动添加的字段
-      const existingMap = new Map(editData.fields.map((f) => [f.name.toLowerCase(), f]));
-      const merged: TableFieldInfo[] = [];
-      for (const col of dbCols) {
-        const existing = existingMap.get(col.name.toLowerCase());
-        if (existing) {
-          merged.push({
-            ...existing,
-            type: col.type || existing.type,
-            comment: col.comment || existing.comment,
-          });
-          existingMap.delete(col.name.toLowerCase());
-        } else {
-          merged.push({ name: col.name, type: col.type, comment: col.comment });
+
+      if (mode === "replace") {
+        // 全部覆盖：直接用 DB 字段替换
+        const replaced: TableFieldInfo[] = dbCols.map((col) => ({
+          name: col.name,
+          type: normalizePostgresType(col.type),
+          comment: col.comment,
+        }));
+        setEditData({ ...editData, fields: replaced });
+      } else {
+        // 合并模式：保留用户手动添加的字段，更新已有字段的类型和注释
+        const existingMap = new Map(editData.fields.map((f) => [f.name.toLowerCase(), f]));
+        const merged: TableFieldInfo[] = [];
+        for (const col of dbCols) {
+          const existing = existingMap.get(col.name.toLowerCase());
+          const normalizedType = normalizePostgresType(col.type);
+          if (existing) {
+            merged.push({
+              ...existing,
+              type: normalizedType || existing.type,
+              comment: col.comment || existing.comment,
+            });
+            existingMap.delete(col.name.toLowerCase());
+          } else {
+            merged.push({ name: col.name, type: normalizedType, comment: col.comment });
+          }
         }
+        // 保留 DB 中不存在但用户手动添加的字段
+        for (const f of existingMap.values()) {
+          merged.push(f);
+        }
+        setEditData({ ...editData, fields: merged });
       }
-      // 保留 DB 中不存在但用户手动添加的字段
-      for (const f of existingMap.values()) {
-        merged.push(f);
-      }
-      setEditData({ ...editData, fields: merged });
     } catch (e) {
       alert(`同步失败: ${e}`);
     } finally {
@@ -722,7 +780,23 @@ export default function KnowledgePage() {
   }, [graphData, selectedTable]);
 
   return (
-    <div className="flex h-screen flex-col bg-[var(--bg-default)]">
+    <div className="flex h-full flex-col bg-[var(--bg-default)]">
+      {/* ── 顶部标题栏 ── */}
+      <header className="flex items-center justify-between border-b border-[var(--border-default)] px-5 py-2.5">
+        <div className="flex items-center gap-3">
+          <Database size={18} className="text-[var(--accent)]" />
+          <h1 className="text-sm font-semibold text-[var(--text-primary)]">知识库管理</h1>
+          <span className="text-[11px] text-[var(--text-tertiary)]">{tables.length} 张表</span>
+        </div>
+        <button
+          onClick={openAddTableModal}
+          className="inline-flex items-center gap-1 rounded bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+        >
+          <Plus size={13} />
+          添加表
+        </button>
+      </header>
+
       {/* ── 主体 ── */}
       <div className="flex flex-1 overflow-hidden">
         {/* ── 左侧列表 ── */}
@@ -750,14 +824,6 @@ export default function KnowledgePage() {
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
-            {/* 添加表按钮 */}
-            <button
-              onClick={openAddTableModal}
-              className="inline-flex w-full items-center justify-center gap-1 rounded bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
-            >
-              <Plus size={13} />
-              添加表
-            </button>
           </div>
 
           {/* 表列表 */}
@@ -926,7 +992,7 @@ export default function KnowledgePage() {
                         <span className="text-[11px] font-medium text-[var(--text-secondary)]">关键字段</span>
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={syncFieldsFromDB}
+                            onClick={() => setSyncModeModalOpen(true)}
                             disabled={syncingFields}
                             className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--accent)] disabled:opacity-50"
                           >
@@ -1617,6 +1683,55 @@ export default function KnowledgePage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 同步模式选择对话框 ── */}
+      {syncModeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-[400px] rounded-lg border border-[var(--border-default)] bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">选择同步模式</h3>
+              <button
+                onClick={() => setSyncModeModalOpen(false)}
+                className="rounded p-1 text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <p className="text-xs text-[var(--text-secondary)]">
+                从数据库同步字段时,请选择同步方式:
+              </p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => syncFieldsFromDB("replace")}
+                  disabled={syncingFields}
+                  className="w-full rounded border border-[var(--border-default)] p-3 text-left hover:border-[var(--accent)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-[var(--text-primary)]">全部覆盖</span>
+                    <span className="text-[10px] rounded bg-[var(--bg-raised)] px-1.5 py-0.5 text-[var(--text-tertiary)]">推荐</span>
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                    用数据库字段完全替换当前列表,删除所有手动添加的字段
+                  </p>
+                </button>
+                <button
+                  onClick={() => syncFieldsFromDB("merge")}
+                  disabled={syncingFields}
+                  className="w-full rounded border border-[var(--border-default)] p-3 text-left hover:border-[var(--accent)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-[var(--text-primary)]">合并模式</span>
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                    保留用户手动添加的字段,只更新已有字段的类型和注释
+                  </p>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -182,12 +182,12 @@ function RuntimeRuleEditModal({
           </label>
           <label className="block space-y-1">
             <span className="text-[11px] font-medium text-[var(--text-secondary)]">所需 JOIN（逗号分隔）</span>
-            <input
-              type="text"
+            <textarea
               value={requiredJoins}
               onChange={(e) => setRequiredJoins(e.target.value)}
               placeholder="例如：t_production_line.id = t_quality_inspection.line_id"
-              className="w-full rounded border border-[var(--border-default)] bg-[var(--bg-default)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+              rows={4}
+              className="w-full rounded border border-[var(--border-default)] bg-[var(--bg-default)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none resize-y"
             />
           </label>
           <label className="block space-y-1">

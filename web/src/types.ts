@@ -66,31 +66,6 @@ export interface HarnessActionResponse {
   [key: string]: JsonValue;
 }
 
-export interface AutoLabelResponse {
-  synced_failures: number;
-  open_failures: number;
-  auto_approved: number;
-  medium_confidence: number;
-  low_confidence: number;
-  skipped: number;
-  total_processed: number;
-  marked_auto_labeled?: number;
-  details: Array<{
-    case_id: number;
-    question: string;
-    confidence: number;
-    level: string;
-    needs_review: boolean;
-  }>;
-}
-
-export interface EvolveOnlineResponse {
-  synced_failures: number;
-  promotable_requests: number;
-  published_rules: number;
-  version: string;
-}
-
 export interface FeedbackRequest {
   request_id: string;
   rating: "up" | "down";
@@ -277,6 +252,28 @@ export interface TableKnowledgeUpdate {
   scenarios: string[];
 }
 
+// ── 通用知识库 ────────────────────────────────────────────────────
+
+export interface GenericKnowledgeFieldDef {
+  name: string;
+  value: string;
+  embed: boolean;
+}
+
+export interface GenericKnowledgeItem {
+  item_id: string;
+  label: string;
+  fields: GenericKnowledgeFieldDef[];
+  created_at: string;
+}
+
+export interface GenericKBSummary {
+  kb_name: string;
+  label: string;
+  item_count: number;
+  field_names: string[];
+}
+
 // ── 知识库检索 ────────────────────────────────────────────────────
 
 export interface SchemaSearchItem {
@@ -292,6 +289,7 @@ export interface FewShotSearchItem {
   question: string;
   full_text: string;
   score: number;
+  type: string;
 }
 
 export interface FieldSearchItem {
@@ -312,21 +310,15 @@ export interface RuntimeRuleSearchItem {
   score: number;
 }
 
-export interface EvolvedFewShotSearchItem {
-  full_text: string;
-  scenario: string;
-  question: string;
-  score: number;
-}
-
 export interface KnowledgeSearchResult {
   query: string;
+  embedding_model: string;
+  rerank_model: string;
   schema_results: SchemaSearchItem[];
   few_shot_results: FewShotSearchItem[];
   field_results: FieldSearchItem[];
   keyword_tables: string[];
   runtime_rule_results: RuntimeRuleSearchItem[];
-  evolved_few_shot_results: EvolvedFewShotSearchItem[];
 }
 
 export interface SyncFromNeo4jResult {
@@ -345,14 +337,7 @@ export interface FewShotItem {
   question: string;
   full_text: string;
   enabled: boolean;
-}
-
-export interface EvolvedFewShotItem {
-  id: string;
-  scenario: string;
-  question: string;
-  full_text: string;
-  enabled: boolean;
+  type: string;
 }
 
 // ── RuntimeRule 管理 ──────────────────────────────────────────────

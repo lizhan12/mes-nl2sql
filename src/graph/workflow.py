@@ -24,16 +24,15 @@ from src.graph.state import GraphState
 _MAX_RETRIES = 3
 
 
-def build_workflow(schema_store, few_shot_store, evolved_few_shot_store=None, runtime_rule_store=None):
+def build_workflow(schema_store, few_shot_store, runtime_rule_store=None):
     """构建并编译 LangGraph 工作流。
 
     Args:
         schema_store: 表结构 Neo4jVectorStore
         few_shot_store: SQL 示例 Neo4jVectorStore
-        evolved_few_shot_store: 进化示例 Neo4jVectorStore (可选)
         runtime_rule_store: 运行时规则 Neo4jVectorStore (可选)
     """
-    init_stores(schema_store, few_shot_store, evolved_few_shot_store, runtime_rule_store)
+    init_stores(schema_store, few_shot_store, runtime_rule_store)
 
     workflow = StateGraph(GraphState)
 

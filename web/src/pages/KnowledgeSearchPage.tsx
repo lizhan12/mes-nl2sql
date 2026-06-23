@@ -1,4 +1,4 @@
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, Sparkles } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -43,7 +43,7 @@ function SchemaResultCard({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate("/knowledge")}
+            onClick={() => navigate(`/knowledge?table=${encodeURIComponent(item.table_name)}`)}
             className="font-mono text-xs font-medium text-[var(--accent)] hover:underline"
             title="跳转到表管理查看详情"
           >
@@ -122,6 +122,8 @@ function FewShotResultCard({
 export default function KnowledgeSearchPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchTypes, setSearchTypes] = useState<string[]>(["schema", "few_shot", "fields"]);
+  const [useRerank, setUseRerank] = useState(false);
+  const [rerankTopN, setRerankTopN] = useState<number | "">("");
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [searchResult, setSearchResult] = useState<KnowledgeSearchResult | null>(null);
@@ -137,14 +139,21 @@ export default function KnowledgeSearchPage() {
     setExpandedSchemaIdx(new Set());
     setExpandedFewShotIdx(new Set());
     try {
-      const result = await searchKnowledge(searchQuery, searchTypes);
+      const result = await searchKnowledge(
+        searchQuery,
+        searchTypes,
+        10,
+        0.55,
+        useRerank,
+        useRerank && typeof rerankTopN === "number" && rerankTopN > 0 ? rerankTopN : null,
+      );
       setSearchResult(result);
     } catch (e) {
       setSearchError(String(e));
     } finally {
       setSearchLoading(false);
     }
-  }, [searchQuery, searchTypes]);
+  }, [searchQuery, searchTypes, useRerank, rerankTopN]);
 
   const toggleSearchType = (type: string) => {
     setSearchTypes((prev) =>
@@ -207,14 +216,13 @@ export default function KnowledgeSearchPage() {
           </div>
 
           {/* 检索类型选择 */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-[11px] font-medium text-[var(--text-tertiary)]">检索类型：</span>
             {[
               { key: "schema", label: "表结构" },
               { key: "few_shot", label: "SQL 示例" },
               { key: "fields", label: "字段级" },
               { key: "runtime_rule", label: "运行时规则" },
-              { key: "evolved_few_shot", label: "进化示例" },
             ].map(({ key, label }) => (
               <button
                 key={key}
@@ -228,12 +236,64 @@ export default function KnowledgeSearchPage() {
                 {label}
               </button>
             ))}
+
+            {/* Rerank 开关 */}
+            <div className="ml-2 flex items-center gap-2 border-l border-[var(--border-default)] pl-3">
+              <button
+                onClick={() => setUseRerank((v) => !v)}
+                className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  useRerank
+                    ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                    : "border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--text-tertiary)]"
+                }`}
+                title="启用硅基流动 Rerank 模型（Qwen3-Reranker-4B）进行二次精排"
+              >
+                <Sparkles size={11} className={useRerank ? "" : "opacity-60"} />
+                Rerank
+              </button>
+              {useRerank && (
+                <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]">
+                  <span>Top-N</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={rerankTopN}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "") {
+                        setRerankTopN("");
+                      } else {
+                        const n = Number(v);
+                        setRerankTopN(Number.isFinite(n) && n > 0 ? n : "");
+                      }
+                    }}
+                    placeholder="默认"
+                    className="w-16 rounded border border-[var(--border-default)] bg-[var(--bg-default)] px-1.5 py-0.5 text-center text-[11px] text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 错误提示 */}
           {searchError && (
             <div className="rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
               {searchError}
+            </div>
+          )}
+
+          {/* 模型信息 */}
+          {searchResult && (
+            <div className="flex items-center gap-3 text-[11px] text-[var(--text-tertiary)]">
+              <span>
+                Embedding: <span className="font-mono text-[var(--text-secondary)]">{searchResult.embedding_model || "—"}</span>
+              </span>
+              {searchResult.rerank_model && (
+                <span>
+                  Rerank: <span className="font-mono text-[var(--text-secondary)]">{searchResult.rerank_model}</span>
+                </span>
+              )}
             </div>
           )}
 
@@ -383,53 +443,12 @@ export default function KnowledgeSearchPage() {
                 </Panel>
               )}
 
-              {/* 进化示例检索结果 */}
-              {searchResult.evolved_few_shot_results.length > 0 && (
-                <Panel title={`进化示例检索（${searchResult.evolved_few_shot_results.length}）`}>
-                  <div className="space-y-3">
-                    {searchResult.evolved_few_shot_results.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="rounded border border-[var(--border-default)] bg-[var(--bg-raised)] p-3"
-                      >
-                        <div className="mb-2">
-                          <div className="mb-1 flex items-center justify-between">
-                            <div className="text-[11px] font-medium text-[var(--text-secondary)]">
-                              场景
-                            </div>
-                            <span className="font-mono text-[11px] text-[var(--text-tertiary)]">
-                              相似度: {item.score.toFixed(4)}
-                            </span>
-                          </div>
-                          <div className="text-xs text-[var(--text-primary)]">{item.scenario}</div>
-                        </div>
-                        <div className="mb-2">
-                          <div className="mb-1 text-[11px] font-medium text-[var(--text-secondary)]">
-                            用户问题
-                          </div>
-                          <div className="text-xs text-[var(--text-primary)]">{item.question}</div>
-                        </div>
-                        <div>
-                          <div className="mb-1 text-[11px] font-medium text-[var(--text-secondary)]">
-                            SQL
-                          </div>
-                          <pre className="max-h-60 overflow-auto rounded bg-[var(--bg-subtle)] p-2 font-mono text-[10px] text-[var(--text-primary)]">
-                            {item.full_text}
-                          </pre>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Panel>
-              )}
-
               {/* 无结果 */}
               {searchResult.schema_results.length === 0 &&
                 searchResult.few_shot_results.length === 0 &&
                 searchResult.field_results.length === 0 &&
                 searchResult.keyword_tables.length === 0 &&
-                searchResult.runtime_rule_results.length === 0 &&
-                searchResult.evolved_few_shot_results.length === 0 && (
+                searchResult.runtime_rule_results.length === 0 && (
                   <Empty message="未检索到相关结果，请尝试其他查询" />
                 )}
             </div>

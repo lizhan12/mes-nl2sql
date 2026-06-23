@@ -64,6 +64,8 @@ class OnlineHarnessRepository:
             final_sql TEXT NOT NULL DEFAULT '',
             error_text TEXT NOT NULL DEFAULT '',
             retry_count INTEGER NOT NULL DEFAULT 0,
+            user_rating SMALLINT,
+            user_feedback TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 
@@ -137,6 +139,11 @@ class OnlineHarnessRepository:
                 cur,
                 "ALTER TABLE nl2sql_request_log ADD COLUMN IF NOT EXISTS failure_case_synced BOOLEAN NOT NULL DEFAULT FALSE",
             )
+            _safe_add_column(cur, "ALTER TABLE nl2sql_failure_case ADD COLUMN IF NOT EXISTS user_rating SMALLINT")
+            _safe_add_column(
+                cur,
+                "ALTER TABLE nl2sql_failure_case ADD COLUMN IF NOT EXISTS user_feedback TEXT NOT NULL DEFAULT ''",
+            )
             conn.commit()
 
     def log_request(self, payload: dict[str, Any]) -> str:
@@ -194,7 +201,8 @@ class OnlineHarnessRepository:
 
     def sync_failure_cases(self) -> int:
         query = """
-        SELECT id, query_text, generated_sql, final_sql, execution_success, safe, error_text, execution_error, retry_count
+        SELECT id, query_text, generated_sql, final_sql, execution_success, safe, error_text, execution_error, retry_count,
+               user_rating, user_feedback
         FROM nl2sql_request_log
         WHERE failure_case_synced = FALSE
           AND (execution_success = FALSE OR safe = FALSE OR retry_count > 0)
@@ -220,9 +228,11 @@ class OnlineHarnessRepository:
                     cur.execute(
                         """
                         INSERT INTO nl2sql_failure_case (
-                            request_log_id, query_text, failure_type, generated_sql, final_sql, error_text, retry_count
+                            request_log_id, query_text, failure_type, generated_sql, final_sql, error_text, retry_count,
+                            user_rating, user_feedback
                         ) VALUES (
-                            %(request_log_id)s, %(query_text)s, %(failure_type)s, %(generated_sql)s, %(final_sql)s, %(error_text)s, %(retry_count)s
+                            %(request_log_id)s, %(query_text)s, %(failure_type)s, %(generated_sql)s, %(final_sql)s, %(error_text)s, %(retry_count)s,
+                            %(user_rating)s, %(user_feedback)s
                         )
                         ON CONFLICT (request_log_id) DO NOTHING
                         """,
@@ -234,6 +244,8 @@ class OnlineHarnessRepository:
                             "final_sql": row["final_sql"],
                             "error_text": error_text,
                             "retry_count": row["retry_count"],
+                            "user_rating": row.get("user_rating"),
+                            "user_feedback": str(row.get("user_feedback", "")),
                         },
                     )
                 except psycopg.errors.Error:
@@ -248,9 +260,11 @@ class OnlineHarnessRepository:
                             cur2.execute(
                                 """
                                 INSERT INTO nl2sql_failure_case (
-                                    request_log_id, query_text, failure_type, generated_sql, final_sql, error_text, retry_count
+                                    request_log_id, query_text, failure_type, generated_sql, final_sql, error_text, retry_count,
+                                    user_rating, user_feedback
                                 ) VALUES (
-                                    %(request_log_id)s, %(query_text)s, %(failure_type)s, %(generated_sql)s, %(final_sql)s, %(error_text)s, %(retry_count)s
+                                    %(request_log_id)s, %(query_text)s, %(failure_type)s, %(generated_sql)s, %(final_sql)s, %(error_text)s, %(retry_count)s,
+                                    %(user_rating)s, %(user_feedback)s
                                 )
                                 """,
                                 {
@@ -261,6 +275,8 @@ class OnlineHarnessRepository:
                                     "final_sql": row["final_sql"],
                                     "error_text": error_text,
                                     "retry_count": row["retry_count"],
+                                    "user_rating": row.get("user_rating"),
+                                    "user_feedback": str(row.get("user_feedback", "")),
                                 },
                             )
                     conn.commit()

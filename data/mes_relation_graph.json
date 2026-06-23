@@ -255,6 +255,16 @@
       "desc": "SN不良→料号",
       "confidence": "high",
       "note": ""
+    },
+    {
+      "to": "t_pd_sn_defect_detail",
+      "from_field": "id",
+      "to_field": "defect_id",
+      "join": "t_pd_sn_defect.id=t_pd_defect_detail.defect_id",
+      "join_type": "LEFT",
+      "desc": "维修产品信息->维修产品详细",
+      "confidence": "high",
+      "note": ""
     }
   ],
   "t_pd_sn_travel": [

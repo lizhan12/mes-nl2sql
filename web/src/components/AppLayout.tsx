@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   Database,
   GitBranch,
   Layers,
@@ -6,20 +7,23 @@ import {
   LogOut,
   Moon,
   Network,
+  Plus,
   Save,
   ScrollText,
   Search,
   ShieldCheck,
   Sun,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
-import { downloadSyncedFiles, syncKnowledgeFromNeo4j } from "@/lib/api";
+import { createGenericKB, deleteGenericKB, downloadSyncedFiles, listGenericKBs, syncKnowledgeFromNeo4j } from "@/lib/api";
+import type { GenericKBSummary } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -34,7 +38,7 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const NAV_GROUPS: NavGroup[] = [
+const STATIC_NAV_GROUPS: NavGroup[] = [
   {
     title: "监控",
     items: [
@@ -67,6 +71,73 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [syncingToLocal, setSyncingToLocal] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
+  const [genericKBs, setGenericKBs] = useState<GenericKBSummary[]>([]);
+  const [showCreateKB, setShowCreateKB] = useState(false);
+  const [newKbName, setNewKbName] = useState("");
+  const [newKbLabel, setNewKbLabel] = useState("");
+  const [creatingKB, setCreatingKB] = useState(false);
+  const [showDeleteKB, setShowDeleteKB] = useState(false);
+  const [deletingKB, setDeletingKB] = useState<string | null>(null);
+
+  const refreshKBs = () => {
+    listGenericKBs()
+      .then(setGenericKBs)
+      .catch(() => setGenericKBs([]));
+  };
+
+  // 加载通用知识库列表
+  useEffect(() => { refreshKBs(); }, []);
+
+  async function handleCreateKB() {
+    if (!newKbName.trim()) return;
+    setCreatingKB(true);
+    try {
+      await createGenericKB(newKbName.trim(), newKbLabel.trim());
+      setShowCreateKB(false);
+      setNewKbName("");
+      setNewKbLabel("");
+      await refreshKBs();
+      navigate(`/knowledge/generic/${encodeURIComponent(newKbName.trim())}`);
+    } catch (e) {
+      alert(`创建失败: ${e}`);
+    } finally {
+      setCreatingKB(false);
+    }
+  }
+
+  async function handleDeleteKB(kbName: string) {
+    if (!window.confirm(`确认删除知识库 “${kbName}” 及其下所有条目？此操作不可恢复。`)) return;
+    setDeletingKB(kbName);
+    try {
+      await deleteGenericKB(kbName);
+      if (window.location.pathname.startsWith(`/console/knowledge/generic/${encodeURIComponent(kbName)}`)) {
+        navigate("/console/knowledge");
+      }
+      await refreshKBs();
+      setShowDeleteKB(false);
+    } catch (e) {
+      alert(`删除失败: ${e}`);
+    } finally {
+      setDeletingKB(null);
+    }
+  }
+
+  // 构建动态导航
+  const navGroups = useMemo(() => {
+    const groups = STATIC_NAV_GROUPS.map((g) => ({ ...g, items: [...g.items] }));
+    // 在知识库分组末尾追加动态知识库
+    const kbGroup = groups.find((g) => g.title === "知识库");
+    if (kbGroup && genericKBs.length > 0) {
+      for (const kb of genericKBs) {
+        kbGroup.items.push({
+          to: `/knowledge/generic/${encodeURIComponent(kb.kb_name)}`,
+          label: kb.label || kb.kb_name,
+          icon: <BookOpen className="h-4 w-4" />,
+        });
+      }
+    }
+    return groups;
+  }, [genericKBs]);
 
   async function handleSyncToLocal() {
     if (!window.confirm("将 Neo4j 数据同步到本地文件，覆盖 mes_knowledge_base.txt、dify_few_shot.txt、mes_relation_graph.json。确认？")) return;
@@ -128,7 +199,7 @@ export function AppLayout() {
 
         {/* 导航分组 */}
         <nav className="flex-1 overflow-y-auto py-3">
-          {NAV_GROUPS.map((group) => {
+          {navGroups.map((group) => {
             const visibleItems = group.items.filter((item) => !item.adminOnly || isAdmin);
             if (visibleItems.length === 0) return null;
             return (
@@ -158,6 +229,29 @@ export function AppLayout() {
                     {!collapsed && <span>{item.label}</span>}
                   </NavLink>
                 ))}
+                {/* 知识库分组底部：新增/删除知识库按钮 */}
+                {group.title === "知识库" && !collapsed && (
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateKB(true)}
+                      className="flex flex-1 items-center gap-2.5 px-4 py-1.5 text-[11px] text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--accent)]"
+                    >
+                      <Plus size={14} />
+                      <span>新增知识库</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteKB(true)}
+                      disabled={genericKBs.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-tertiary)]"
+                      title={genericKBs.length === 0 ? "暂无可删除的知识库" : "删除知识库"}
+                    >
+                      <Trash2 size={14} />
+                      <span>删除</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -244,10 +338,115 @@ export function AppLayout() {
         </header>
 
         {/* 页面内容 */}
-        <main className="flex-1 overflow-auto p-4">
+        <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
       </div>
+
+      {/* 新增知识库对话框 */}
+      {showCreateKB && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-[380px] rounded-lg border border-[var(--border-default)] bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">新增知识库</h3>
+              <button onClick={() => setShowCreateKB(false)} className="rounded p-1 text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <label className="block space-y-1">
+                <span className="text-[11px] font-medium text-[var(--text-secondary)]">
+                  知识库名称 <span className="text-[var(--error)]">*</span>
+                </span>
+                <input
+                  type="text"
+                  value={newKbName}
+                  onChange={(e) => setNewKbName(e.target.value)}
+                  placeholder="如: Person"
+                  className="w-full rounded border border-[var(--border-default)] bg-[var(--bg-default)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                  autoFocus
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-[11px] font-medium text-[var(--text-secondary)]">显示名称</span>
+                <input
+                  type="text"
+                  value={newKbLabel}
+                  onChange={(e) => setNewKbLabel(e.target.value)}
+                  placeholder="默认为知识库名称"
+                  className="w-full rounded border border-[var(--border-default)] bg-[var(--bg-default)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                />
+              </label>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setShowCreateKB(false)} className="rounded px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">取消</button>
+              <button
+                onClick={handleCreateKB}
+                disabled={creatingKB || !newKbName.trim()}
+                className="inline-flex items-center gap-1 rounded bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {creatingKB ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                创建
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 删除知识库对话框 */}
+      {showDeleteKB && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-[420px] max-h-[80vh] flex flex-col rounded-lg border border-[var(--border-default)] bg-white p-5 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">删除知识库</h3>
+              <button onClick={() => setShowDeleteKB(false)} className="rounded p-1 text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]">
+                <X size={16} />
+              </button>
+            </div>
+            <p className="mb-3 text-[11px] text-[var(--text-tertiary)]">
+              选择要删除的知识库，该知识库下的所有条目将被一并删除，操作不可恢复。
+            </p>
+            <div className="flex-1 overflow-y-auto rounded border border-[var(--border-default)]">
+              {genericKBs.length === 0 ? (
+                <div className="px-3 py-6 text-center text-[11px] text-[var(--text-tertiary)]">
+                  暂无可删除的知识库
+                </div>
+              ) : (
+                genericKBs.map((kb) => {
+                  const isDeleting = deletingKB === kb.kb_name;
+                  return (
+                    <div
+                      key={kb.kb_name}
+                      className="flex items-center justify-between border-b border-[var(--border-default)] px-3 py-2 last:border-b-0 hover:bg-[var(--bg-hover)]"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-medium text-[var(--text-primary)]">
+                          {kb.label || kb.kb_name}
+                        </div>
+                        <div className="truncate font-mono text-[10px] text-[var(--text-tertiary)]">
+                          {kb.kb_name} · {kb.item_count} 条
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteKB(kb.kb_name)}
+                        disabled={deletingKB !== null}
+                        className="ml-2 inline-flex items-center gap-1 rounded border border-[var(--error)] px-2 py-1 text-[11px] text-[var(--error)] transition-colors hover:bg-[var(--error-glow)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                        删除
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button onClick={() => setShowDeleteKB(false)} className="rounded px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
