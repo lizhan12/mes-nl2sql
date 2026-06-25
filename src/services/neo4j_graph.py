@@ -199,33 +199,74 @@ async def replace_all_graph(graph: dict[str, list[dict]]) -> int:
 
 
 async def add_edge(from_table: str, to_table: str, edge: dict) -> None:
-    """添加一条 JOIN_REL 边。"""
+    """添加或覆盖一条 JOIN_REL 边。
+
+    若 from+to+from_field+to_field 完全相同的边已存在，则覆盖其属性；
+    否则创建新边（允许同对表之间存在不同字段的多条 JOIN）。
+    """
     driver = await _get_driver()
     async with driver.session() as session:
         await session.run("MERGE (t:Table {name: $name})", {"name": from_table})
         await session.run("MERGE (t:Table {name: $name})", {"name": to_table})
-        await session.run(
+        # 先查找同 from+to+from_field+to_field 的已有边
+        existing = await session.run(
             """
-            MATCH (a:Table {name: $from}), (b:Table {name: $to})
-            MERGE (a)-[r:JOIN_REL]->(b)
-            SET r.from_field = $from_field, r.to_field = $to_field,
-                r.join_condition = $join, r.join_type = $join_type,
-                r.description = $desc, r.confidence = $confidence,
-                r.note = $note
+            MATCH (a:Table {name: $from})-[r:JOIN_REL]->(b:Table {name: $to})
+            WHERE r.from_field = $from_field AND r.to_field = $to_field
+            RETURN count(r) AS cnt
             """,
             {
                 "from": from_table,
                 "to": to_table,
                 "from_field": edge.get("from_field", ""),
                 "to_field": edge.get("to_field", ""),
-                "join": edge.get("join", ""),
-                "join_type": edge.get("join_type", "JOIN"),
-                "desc": edge.get("desc", ""),
-                "confidence": edge.get("confidence", "high"),
-                "note": edge.get("note", ""),
             },
         )
-    logger.info("Neo4j 添加边: %s → %s", from_table, to_table)
+        rec = await existing.single()
+        if rec and rec["cnt"] > 0:
+            # 覆盖已有边
+            await session.run(
+                """
+                MATCH (a:Table {name: $from})-[r:JOIN_REL]->(b:Table {name: $to})
+                WHERE r.from_field = $from_field AND r.to_field = $to_field
+                SET r.join_condition = $join, r.join_type = $join_type,
+                    r.description = $desc, r.confidence = $confidence, r.note = $note
+                """,
+                {
+                    "from": from_table,
+                    "to": to_table,
+                    "from_field": edge.get("from_field", ""),
+                    "to_field": edge.get("to_field", ""),
+                    "join": edge.get("join", ""),
+                    "join_type": edge.get("join_type", "JOIN"),
+                    "desc": edge.get("desc", ""),
+                    "confidence": edge.get("confidence", "high"),
+                    "note": edge.get("note", ""),
+                },
+            )
+        else:
+            # 创建新边
+            await session.run(
+                """
+                MATCH (a:Table {name: $from}), (b:Table {name: $to})
+                CREATE (a)-[r:JOIN_REL]->(b)
+                SET r.from_field = $from_field, r.to_field = $to_field,
+                    r.join_condition = $join, r.join_type = $join_type,
+                    r.description = $desc, r.confidence = $confidence, r.note = $note
+                """,
+                {
+                    "from": from_table,
+                    "to": to_table,
+                    "from_field": edge.get("from_field", ""),
+                    "to_field": edge.get("to_field", ""),
+                    "join": edge.get("join", ""),
+                    "join_type": edge.get("join_type", "JOIN"),
+                    "desc": edge.get("desc", ""),
+                    "confidence": edge.get("confidence", "high"),
+                    "note": edge.get("note", ""),
+                },
+            )
+    logger.info("Neo4j 添加/覆盖边: %s → %s (%s→%s)", from_table, to_table, edge.get("from_field", ""), edge.get("to_field", ""))
 
 
 async def delete_edge(from_table: str, to_table: str) -> None:
@@ -486,7 +527,9 @@ async def batch_set_few_shot_embeddings(items: list[dict]) -> int:
 
     Args:
         items: [{"id": str, "embedding": list[float], "scenario": str,
-                  "question": str, "full_text": str}, ...]
+                  "question": str, "full_text": str,
+                  "archive_key": str, "object_entity": str,
+                  "action_type": str, "domain": str}, ...]
 
     Returns:
         创建/更新的节点数
@@ -503,6 +546,10 @@ async def batch_set_few_shot_embeddings(items: list[dict]) -> int:
                 f.scenario = item.scenario,
                 f.question = item.question,
                 f.full_text = item.full_text,
+                f.archive_key = item.archive_key,
+                f.object_entity = item.object_entity,
+                f.action_type = item.action_type,
+                f.domain = item.domain,
                 f.type = 'manual'
             RETURN count(f) AS updated
             """,
@@ -511,6 +558,28 @@ async def batch_set_few_shot_embeddings(items: list[dict]) -> int:
         count = (await result.single())["updated"]
     logger.info("批量写入 %d 个 FewShot 节点的 question_embedding", count)
     return count
+
+
+async def find_few_shot_by_archive_key(archive_key: str) -> dict | None:
+    """按 archive_key 精确查找 FewShot 节点。"""
+    driver = await _get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            "MATCH (f:FewShot {archive_key: $archive_key}) RETURN f.full_text AS full_text, f.scenario AS scenario, f.question AS question, f.archive_key AS archive_key, f.object_entity AS object_entity, f.action_type AS action_type, f.domain AS domain LIMIT 1",
+            {"archive_key": archive_key},
+        )
+        rec = await result.single()
+        if not rec:
+            return None
+        return {
+            "full_text": rec["full_text"] or "",
+            "scenario": rec["scenario"] or "",
+            "question": rec["question"] or "",
+            "archive_key": rec["archive_key"] or "",
+            "object_entity": rec.get("object_entity") or "",
+            "action_type": rec.get("action_type") or "",
+            "domain": rec.get("domain") or "",
+        }
 
 
 async def clear_few_shot_nodes() -> int:
@@ -721,12 +790,22 @@ async def publish_harness_knowledge(
                     elif line.startswith("用户问题："):
                         question = line[len("用户问题：") :].strip()
 
+                # 提取结构化实体并构建 archive_key
+                from src.graph.entity_lexicon import build_archive_key, extract_structural_entities
+
+                structural = extract_structural_entities(question)
+                archive_key = build_archive_key(structural)
+
                 await session.run(
                     """
                     MERGE (f:FewShot {id: $fid})
                     SET f.question = $question,
                         f.scenario = $scenario,
                         f.full_text = $full_text,
+                        f.archive_key = $archive_key,
+                        f.object_entity = $object_entity,
+                        f.action_type = $action_type,
+                        f.domain = $domain,
                         f.type = 'evolved',
                         f.created_at = $created_at
                     """,
@@ -735,6 +814,10 @@ async def publish_harness_knowledge(
                         "question": question,
                         "scenario": scenario,
                         "full_text": chunk,
+                        "archive_key": archive_key,
+                        "object_entity": structural.get("object_entity", ""),
+                        "action_type": structural.get("action_type", ""),
+                        "domain": structural.get("domain", ""),
                         "created_at": now,
                     },
                 )
@@ -1036,6 +1119,202 @@ async def get_table_fields(table_name: str) -> list[dict]:
             }
             async for rec in result
         ]
+
+
+# ── 知识图谱单点查询 ────────────────────────────────────────────────
+
+
+async def get_table_ddl(table_name: str) -> dict | None:
+    """从 Neo4j 获取表的 DDL 定义（Table 元数据 + Field 节点）。
+
+    Returns:
+        {"table_name": str, "module": str, "business_meaning": str,
+         "fields": [{"name": str, "type": str, "comment": str, "is_pk": bool}, ...],
+         "ddl": str} 或 None
+    """
+    driver = await _get_driver()
+    async with driver.session() as session:
+        # 获取 Table 节点元数据
+        table_result = await session.run(
+            """
+            MATCH (t:Table {name: $table_name})
+            RETURN t.module AS module,
+                   t.business_meaning AS business_meaning,
+                   t.full_text AS full_text
+            """,
+            {"table_name": table_name},
+        )
+        table_rec = await table_result.single()
+        if not table_rec:
+            return None
+
+        # 获取 Field 节点
+        fields = await get_table_fields(table_name)
+
+        # 生成 DDL
+        module = _safe_str(table_rec["module"])
+        business_meaning = _safe_str(table_rec["business_meaning"])
+        ddl_lines = [f"-- 表名: {table_name}"]
+        if module:
+            ddl_lines.append(f"-- 模块: {module}")
+        if business_meaning:
+            ddl_lines.append(f"-- 业务含义: {business_meaning}")
+        ddl_lines.append("")
+
+        if fields:
+            ddl_lines.append(f"CREATE TABLE {table_name} (")
+            col_defs: list[str] = []
+            for f in fields:
+                col_def = f"    {f['name']} {f['type']}"
+                if f.get("is_pk"):
+                    col_def += " PRIMARY KEY"
+                if f.get("comment"):
+                    col_def += f"  -- {f['comment']}"
+                col_defs.append(col_def)
+            ddl_lines.append(",\n".join(col_defs))
+            ddl_lines.append(");")
+        else:
+            ddl_lines.append(f"-- 无字段信息")
+
+        ddl = "\n".join(ddl_lines)
+
+    return {
+        "table_name": table_name,
+        "module": module,
+        "business_meaning": business_meaning,
+        "fields": fields,
+        "ddl": ddl,
+    }
+
+
+async def get_table_neighbors(table_name: str) -> dict:
+    """获取某表的邻居表（通过 JOIN_REL 关系）。
+
+    同时返回出边（本表→邻居）和入边（邻居→本表）。
+
+    Returns:
+        {"table_name": str,
+         "outgoing": [{"neighbor": str, "from_field": str, "to_field": str,
+                        "join_condition": str, "join_type": str, "description": str,
+                        "confidence": str}, ...],
+         "incoming": [{"neighbor": str, "from_field": str, "to_field": str,
+                        "join_condition": str, "join_type": str, "description": str,
+                        "confidence": str}, ...]}
+    """
+    driver = await _get_driver()
+
+    async with driver.session() as session:
+        # 出边：本表作为源表
+        out_result = await session.run(
+            """
+            MATCH (a:Table {name: $table_name})-[r:JOIN_REL]->(b:Table)
+            RETURN b.name AS neighbor,
+                   r.from_field AS from_field, r.to_field AS to_field,
+                   r.join_condition AS join_condition,
+                   r.join_type AS join_type, r.description AS description,
+                   r.confidence AS confidence
+            ORDER BY b.name
+            """,
+            {"table_name": table_name},
+        )
+        outgoing = [
+            {
+                "neighbor": rec["neighbor"],
+                "from_field": _safe_str(rec["from_field"]),
+                "to_field": _safe_str(rec["to_field"]),
+                "join_condition": _safe_str(rec["join_condition"]),
+                "join_type": _safe_str(rec["join_type"], "JOIN"),
+                "description": _safe_str(rec["description"]),
+                "confidence": _safe_str(rec["confidence"], "high"),
+            }
+            async for rec in out_result
+        ]
+
+        # 入边：本表作为目标表
+        in_result = await session.run(
+            """
+            MATCH (a:Table)-[r:JOIN_REL]->(b:Table {name: $table_name})
+            RETURN a.name AS neighbor,
+                   r.from_field AS from_field, r.to_field AS to_field,
+                   r.join_condition AS join_condition,
+                   r.join_type AS join_type, r.description AS description,
+                   r.confidence AS confidence
+            ORDER BY a.name
+            """,
+            {"table_name": table_name},
+        )
+        incoming = [
+            {
+                "neighbor": rec["neighbor"],
+                "from_field": _safe_str(rec["from_field"]),
+                "to_field": _safe_str(rec["to_field"]),
+                "join_condition": _safe_str(rec["join_condition"]),
+                "join_type": _safe_str(rec["join_type"], "JOIN"),
+                "description": _safe_str(rec["description"]),
+                "confidence": _safe_str(rec["confidence"], "high"),
+            }
+            async for rec in in_result
+        ]
+
+    return {
+        "table_name": table_name,
+        "outgoing": outgoing,
+        "incoming": incoming,
+    }
+
+
+async def find_graph_path(from_table: str, to_table: str, max_depth: int = 5) -> dict | None:
+    """使用 Neo4j shortestPath 查找两张表之间的最短 JOIN 路径。
+
+    Args:
+        from_table: 起始表名
+        to_table: 目标表名
+        max_depth: 最大路径深度（默认 5）
+
+    Returns:
+        {"from_table": str, "to_table": str,
+         "path": [{"from": str, "to": str, "from_field": str, "to_field": str,
+                    "join_condition": str, "join_type": str, "description": str}, ...],
+         "depth": int} 或 None（无路径）
+    """
+    driver = await _get_driver()
+
+    async with driver.session() as session:
+        result = await session.run(
+            """
+            MATCH path = shortestPath(
+                (a:Table {name: $from_table})-[*..` + str(max_depth) + `]-(b:Table {name: $to_table})
+            )
+            RETURN path
+            LIMIT 1
+            """,
+            {"from_table": from_table, "to_table": to_table},
+        )
+        rec = await result.single()
+        if not rec:
+            return None
+
+        path = rec["path"]
+        edges: list[dict] = []
+        for rel in path.relationships:
+            edges.append(
+                {
+                    "from": path.nodes[rel.start_node].get("name", ""),
+                    "to": path.nodes[rel.end_node].get("name", ""),
+                    "from_field": _safe_str(rel.get("from_field")),
+                    "to_field": _safe_str(rel.get("to_field")),
+                    "join_condition": _safe_str(rel.get("join_condition")),
+                    "join_type": _safe_str(rel.get("join_type"), "JOIN"),
+                    "description": _safe_str(rel.get("description")),
+                }
+            )
+
+    return {
+        "from_table": from_table,
+        "to_table": to_table,
+        "path": edges,
+        "depth": len(edges),
+    }
 
 
 # ── 工具 ────────────────────────────────────────────────────────────

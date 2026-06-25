@@ -71,6 +71,14 @@ async def delete_runtime_rule_api(normalized_question: str):
     return {"message": f"RuntimeRule {normalized_question} 已删除", "normalized_question": normalized_question}
 
 
+@router.get("/runtime-rules/published")
+async def list_published_runtime_rules():
+    """全量拉取 Neo4j 中已发布的 RuntimeRule（直接读图，不经过本地文件缓存）。"""
+    from src.services.neo4j_graph import load_published_rules
+
+    return await load_published_rules()
+
+
 @router.patch("/runtime-rules/{normalized_question:path}/enabled")
 async def toggle_runtime_rule_api(normalized_question: str, request: ToggleEnabledRequest):
     """切换 RuntimeRule 启用/禁用状态。"""

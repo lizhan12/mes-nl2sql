@@ -8,7 +8,9 @@
 启动时检查 Neo4j 中是否已有数据，避免重复 embedding。
 """
 
+import asyncio
 import logging
+import math
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -355,8 +357,10 @@ class _DirectEmbeddings(Embeddings):
     """直接调用 OpenAI 兼容 API 的 embedding，绕过 langchain_openai 的 token 分块问题。"""
 
     def __init__(self) -> None:
+        # 本地 vLLM 等服务可能不需要 API Key，传入占位符避免 OpenAI 客户端报错
+        api_key = settings.embedding_key or "EMPTY"
         self._client = OpenAI(
-            api_key=settings.embedding_key,
+            api_key=api_key,
             base_url=settings.embedding_base_url,
         )
         self._model = settings.embedding_model
@@ -378,11 +382,43 @@ def _get_embeddings() -> _DirectEmbeddings:
     return _DirectEmbeddings()
 
 
-# ---- Rerank（硅基流动 /v1/rerank）----
+# ---- Rerank（vLLM Qwen3-Reranker / 硅基流动）----
 
 
 _RERANK_BATCH_SIZE = 64  # 单次请求最大文档数，避免超长请求
 _RERANK_TEXT_MAX_CHARS = 4000  # 单条文档最大字符数，超出截断
+
+# Qwen3-Reranker 官方 prompt 模板（来自 HuggingFace Qwen/Qwen3-Reranker-8B）
+# 关键经验：vLLM 的 /generative_scoring 端点不会自动应用此模板，导致 rerank 失败。
+# 改用 /v1/completions + 手工拼 prompt + 解析 logprob 方式，效果正确。
+_QWEN3_RERANKER_INSTRUCT = (
+    "Given a web search query, retrieve relevant passages that answer the query"
+)
+# few_shot / runtime_rule 属于"查询相似度"匹配而非"文档相关性"，
+# 用这个 instruct 引导模型判断两段查询是否语义相似。
+_QWEN3_SIMILARITY_INSTRUCT = (
+    "Given a query, determine if the following query is semantically "
+    "similar and asks about the same type of information"
+)
+_QWEN3_RERANKER_PROMPT_TEMPLATE = (
+    "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n"
+    "<|im_start|>user\n"
+    "<Instruct>: {instruct}\n"
+    "<Query>: {query}\n"
+    "<Document>: {doc}<|im_end|>\n"
+    "<|im_start|>assistant\n<think>\n\n</think>\n\n"
+)
+# 解析 yes/no logprob 时考虑中英文多种变体（vLLM tokenizer 行为）
+_YES_TOKEN_KEYS: tuple[str, ...] = (
+    "是", " yes", "Yes", "yes", "YES",
+    " correct", "Correct", "True", " true",
+)
+_NO_TOKEN_KEYS: tuple[str, ...] = (
+    "没有", " no", "No", "no", "NO",
+    " none", "None", "无关", " 未", " 不", "无", "0",
+)
+# 兜底 logprob：当 top tokens 全是 yes/no 一类时，另一类用此值表示"极不可能"
+_LOGPROB_FALLBACK = -20.0
 
 
 def _truncate_for_rerank(text: str, max_chars: int = _RERANK_TEXT_MAX_CHARS) -> str:
@@ -393,17 +429,127 @@ def _truncate_for_rerank(text: str, max_chars: int = _RERANK_TEXT_MAX_CHARS) -> 
     return text if len(text) <= max_chars else text[:max_chars]
 
 
+async def _rerank_siliconflow(
+    query: str,
+    batch_docs: list[str],
+    api_key: str,
+    url: str,
+    headers: dict,
+) -> list[dict]:
+    """硅基流动 /v1/rerank 协议。"""
+    payload = {
+        "model": settings.rerank_model,
+        "query": query,
+        "documents": batch_docs,
+        "top_n": len(batch_docs),
+        "return_documents": False,
+    }
+    async with httpx.AsyncClient(timeout=settings.rerank_timeout) as client:
+        resp = await client.post(url, headers=headers, json=payload)
+    if resp.status_code != 200:
+        raise RuntimeError(f"rerank HTTP {resp.status_code}: {resp.text[:300]}")
+    data = resp.json()
+    return data.get("results", [])
+
+
+def _parse_logprob_score(top_tokens: dict) -> float:
+    """从 vLLM top_logprobs 解析 yes/no 概率。
+
+    Returns:
+        P(yes) ∈ [0, 1]
+    """
+    yes_lp = max((top_tokens[k] for k in _YES_TOKEN_KEYS if k in top_tokens), default=None)
+    no_lp = max((top_tokens[k] for k in _NO_TOKEN_KEYS if k in top_tokens), default=None)
+    if yes_lp is None:
+        yes_lp = _LOGPROB_FALLBACK
+    if no_lp is None:
+        no_lp = _LOGPROB_FALLBACK
+    p_yes = math.exp(yes_lp)
+    p_no = math.exp(no_lp)
+    return p_yes / (p_yes + p_no)
+
+
+async def _rerank_vllm(
+    query: str,
+    batch_docs: list[str],
+    api_key: str,
+    base_url: str,
+    headers: dict,
+    instruct: str | None = None,
+) -> list[dict]:
+    """vLLM Qwen3-Reranker 协议（用 /v1/completions + 官方 prompt）。
+
+    为什么不直接用 /generative_scoring：vLLM 该端点内部 prompt 模板与 Qwen3-Reranker
+    官方 prompt 不一致，导致 rerank 评分失真（前 2 名完全跑偏）。改用 completions
+    端点 + 手工构造官方 prompt + 解析 yes/no logprob 解决。
+
+    Args:
+        instruct: 自定义 instruct；None 时用默认的文档相关性 instruct。
+    """
+    _instruct = instruct if instruct is not None else _QWEN3_RERANKER_INSTRUCT
+    root = base_url.rstrip("/")
+    if root.endswith("/v1"):
+        root = root[: -len("/v1")]
+    url = f"{root}/v1/completions"
+    # 单 batch 大小限制：避免单次 prompt 超过模型上下文（max_model_len=8192）
+    _MAX_PER_BATCH = 16
+
+    async with httpx.AsyncClient(timeout=settings.rerank_timeout) as client:
+        scored: list[dict] = []
+        for start in range(0, len(batch_docs), _MAX_PER_BATCH):
+            sub = batch_docs[start : start + _MAX_PER_BATCH]
+            tasks = []
+            for _i, doc in enumerate(sub):
+                prompt = _QWEN3_RERANKER_PROMPT_TEMPLATE.format(
+                    instruct=_instruct, query=query, doc=doc,
+                )
+                payload = {
+                    "model": settings.rerank_model,
+                    "prompt": prompt,
+                    "max_tokens": 1,
+                    "temperature": 0.0,
+                    "logprobs": 20,
+                }
+                tasks.append(
+                    client.post(url, headers=headers, json=payload)
+                )
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+            for i, resp in enumerate(responses):
+                if isinstance(resp, Exception):
+                    raise RuntimeError(f"vllm rerank HTTP error: {resp}")
+                if resp.status_code != 200:
+                    raise RuntimeError(
+                        f"vllm rerank HTTP {resp.status_code}: {resp.text[:300]}"
+                    )
+                data = resp.json()
+                try:
+                    top = data["choices"][0]["logprobs"]["top_logprobs"][0]
+                except (KeyError, IndexError, TypeError) as exc:
+                    raise RuntimeError(f"vllm rerank bad response: {data}") from exc
+                score = _parse_logprob_score(top)
+                scored.append({"index": start + i, "score": score})
+        return scored
+
+
 async def rerank_documents(
     query: str,
     documents: list[str],
     top_n: int | None = None,
+    *,
+    vllm_instruct: str | None = None,
 ) -> list[tuple[int, float]]:
-    """调用硅基流动 Rerank 接口对文档列表重排。
+    """调用 Rerank 接口对文档列表重排。
+
+    协议自动选择：
+      - siliconflow: 走 /v1/rerank（标准协议）
+      - vllm:        走 /v1/completions + Qwen3-Reranker 官方 prompt
 
     Args:
         query: 用户查询文本
         documents: 候选文档纯文本列表（与外部结果集下标一一对应）
         top_n: 返回前 N 条；None 时使用 settings.rerank_top_n；<=0 表示不截断
+        vllm_instruct: 仅 vllm 模式生效：自定义 rerank instruct；
+            None 时用默认文档相关性 instruct。
 
     Returns:
         [(original_index, relevance_score), ...] 按 rerank 分数降序排列
@@ -418,42 +564,36 @@ async def rerank_documents(
         return [(i, 0.0) for i in range(len(documents))]
 
     base_url = settings.rerank_base_url.rstrip("/")
-    url = f"{base_url}/rerank"
-    if not url.endswith("/v1/rerank"):
-        url = f"{url}/rerank" if url.endswith("/v1") else f"{url}/v1/rerank"
-
-    truncated = [_truncate_for_rerank(d) for d in documents]
-    n = len(truncated)
-    target_n = top_n if (top_n is not None and top_n > 0) else settings.rerank_top_n
-    target_n = min(target_n, n) if target_n > 0 else n
+    mode = settings.rerank_mode
 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
 
-    async def _call_one_batch(batch_docs: list[str]) -> list[dict]:
-        payload = {
-            "model": settings.rerank_model,
-            "query": query,
-            "documents": batch_docs,
-            "top_n": len(batch_docs),
-            "return_documents": False,
-        }
-        async with httpx.AsyncClient(timeout=settings.rerank_timeout) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-        if resp.status_code != 200:
-            raise RuntimeError(f"rerank HTTP {resp.status_code}: {resp.text[:300]}")
-        data = resp.json()
-        return data.get("results", [])
+    # 构造协议相关参数
+    if mode == "siliconflow":
+        url = f"{base_url}/rerank"
+        if not url.endswith("/v1/rerank"):
+            url = f"{url}/rerank" if url.endswith("/v1") else f"{url}/v1/rerank"
+        async def call_batch(batch: list[str]) -> list[dict]:
+            return await _rerank_siliconflow(query, batch, api_key, url, headers)
+    else:  # vllm
+        async def call_batch(batch: list[str]) -> list[dict]:
+            return await _rerank_vllm(query, batch, api_key, base_url, headers, vllm_instruct)
+
+    truncated = [_truncate_for_rerank(d) for d in documents]
+    n = len(truncated)
+    target_n = top_n if (top_n is not None and top_n > 0) else settings.rerank_top_n
+    target_n = min(target_n, n) if target_n > 0 else n
 
     # 长列表分批：每批独立打分后按原 index 合并，最后统一按 score 排序
     try:
         merged: list[tuple[int, float]] = []
         for start in range(0, n, _RERANK_BATCH_SIZE):
             batch = truncated[start : start + _RERANK_BATCH_SIZE]
-            results = await _call_one_batch(batch)
-            # 兼容 SiliconFlow 字段名 relevance_score / 其他实现 score
+            results = await call_batch(batch)
+            # 兼容 SiliconFlow (relevance_score) / vLLM (score) 字段名
             scored: list[tuple[int, float]] = []
             for r in results:
                 idx = r.get("index")
@@ -472,7 +612,7 @@ async def rerank_documents(
         merged.sort(key=lambda x: x[1], reverse=True)
         return merged[:target_n]
     except Exception as exc:
-        logger.warning("rerank 调用失败，回退到原排序: %s", exc)
+        logger.warning("rerank 调用失败（mode=%s），回退到原排序: %s", mode, exc)
         return [(i, 0.0) for i in range(len(documents))]
 
 
@@ -625,7 +765,10 @@ async def search_few_shot(store: "Neo4jVectorStore", query: str, k: int | None =
 
 async def search_few_shot_with_meta(store: "Neo4jVectorStore", query: str, k: int | None = None) -> list[Document]:
     """检索相关 SQL 示例，返回完整 Document（含 page_content + metadata）。"""
-    return await store.similarity_search(query, k=k or settings.few_shot_top_k)
+    docs_with_scores = await store.similarity_search_with_score(query, k=k or settings.few_shot_top_k)
+    for doc, score in docs_with_scores:
+        doc.metadata["_score"] = float(score)
+    return [doc for doc, _ in docs_with_scores]
 
 
 def _get_full_text(doc: Document) -> str:

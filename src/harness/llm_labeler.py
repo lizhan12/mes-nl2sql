@@ -17,7 +17,7 @@ from src.core.config import settings
 from src.harness.runner import build_probe_sql, parse_tables
 from src.services.db_pool import execution_connection
 from src.services.llm import get_llm
-from src.utils.sql_validator import validate_sql
+from src.utils import validate_sql
 
 # ── LLM 生成修正 SQL 的 Prompt ───────────────────────────────────
 

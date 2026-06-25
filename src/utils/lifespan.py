@@ -1,4 +1,4 @@
-"""应用生命周期管理：启动时初始化向量库、LangGraph 工作流及各类数据表。
+"""应用生命周期管理：启动时初始化向量库、知识库及各类数据表。
 
 作为公共工具供 main.py 使用，避免入口文件堆积初始化逻辑。
 """
@@ -11,7 +11,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from src.core.config import settings
-from src.graph.workflow import build_workflow
 from src.harness.repository import get_online_harness_repository
 from src.services.user_repository import get_user_repository
 from src.services.vector_store import (
@@ -19,24 +18,42 @@ from src.services.vector_store import (
     build_neo4j_runtime_rule_store,
     build_neo4j_schema_store,
 )
-from src.trace.repository import get_trace_repository
 
 logger = logging.getLogger(__name__)
 
 # 强制重建向量库（重新 embedding）：命令行 --rebuild 或环境变量 FORCE_REBUILD
 force_rebuild: bool = "--rebuild" in sys.argv or os.environ.get("FORCE_REBUILD", "").lower() in ("1", "true", "yes")
 
+# 全局向量库实例（启动时初始化，供 API 层直接访问）
+_schema_store = None
+_few_shot_store = None
+_runtime_rule_store = None
+
+
+def get_schema_store():
+    """获取 schema 向量库实例。"""
+    return _schema_store
+
+
+def get_few_shot_store():
+    """获取 few_shot 向量库实例。"""
+    return _few_shot_store
+
+
+def get_runtime_rule_store():
+    """获取 runtime_rule 向量库实例。"""
+    return _runtime_rule_store
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期：启动时初始化向量库和 LangGraph 工作流。
+    """应用生命周期：启动时初始化向量库和知识库基础设施。"""
+    global _schema_store, _few_shot_store, _runtime_rule_store
 
-    编译后的 LangGraph app 会挂载到 app.state.workflow_app，供工作流路由通过 Request 访问。
-    """
     logger.info("正在初始化向量库（Neo4j）...")
-    schema_store = await build_neo4j_schema_store(force_rebuild=force_rebuild)
-    few_shot_store = await build_neo4j_few_shot_store(force_rebuild=force_rebuild)
-    runtime_rule_store = await build_neo4j_runtime_rule_store(force_rebuild=force_rebuild)
+    _schema_store = await build_neo4j_schema_store(force_rebuild=force_rebuild)
+    _few_shot_store = await build_neo4j_few_shot_store(force_rebuild=force_rebuild)
+    _runtime_rule_store = await build_neo4j_runtime_rule_store(force_rebuild=force_rebuild)
     logger.info("向量库初始化完成")
 
     if settings.use_neo4j_for_graph:
@@ -44,8 +61,6 @@ async def lifespan(app: FastAPI):
 
         await init_neo4j_graph()
 
-    logger.info("正在编译 LangGraph 工作流...")
-    app.state.workflow_app = build_workflow(schema_store, few_shot_store, runtime_rule_store)
     logger.info("服务就绪，等待请求")
 
     if settings.enable_online_harness and settings.harness_auto_init_db:
@@ -62,11 +77,6 @@ async def lifespan(app: FastAPI):
     logger.info("正在初始化用户数据表...")
     get_user_repository().ensure_tables()
     logger.info("用户数据表初始化完成")
-
-    if settings.trace_enabled:
-        logger.info("正在初始化 Trace 追踪数据表...")
-        get_trace_repository().ensure_tables()
-        logger.info("Trace 追踪数据表初始化完成")
 
     yield
 

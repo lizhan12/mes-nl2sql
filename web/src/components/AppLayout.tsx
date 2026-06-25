@@ -43,7 +43,6 @@ const STATIC_NAV_GROUPS: NavGroup[] = [
     title: "监控",
     items: [
       { to: "/graph", label: "表关系图", icon: <Network className="h-4 w-4" /> },
-      { to: "/trace", label: "追踪追踪", icon: <ScrollText className="h-4 w-4" /> },
     ],
   },
   {
@@ -52,6 +51,7 @@ const STATIC_NAV_GROUPS: NavGroup[] = [
       { to: "/knowledge", label: "表知识库", icon: <Database className="h-4 w-4" /> },
       { to: "/few-shot", label: "FewShot", icon: <Layers className="h-4 w-4" /> },
       { to: "/rule", label: "运行时规则", icon: <GitBranch className="h-4 w-4" /> },
+      { to: "/entity-lexicon", label: "实体词典", icon: <BookOpen className="h-4 w-4" /> },
       { to: "/knowledge-search", label: "检索查询", icon: <Search className="h-4 w-4" /> },
     ],
   },

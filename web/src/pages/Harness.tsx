@@ -34,11 +34,13 @@ import {
   listFailureCases,
   listFeedback,
   prePublishCheck,
+  previewEntityExtract,
   publishApproved,
   reviewCandidate,
 } from "@/lib/api";
 import type {
   DedupSimilarItem,
+  EntityExtractPreview,
   FeedbackRecord,
   HarnessCandidate,
   HarnessFailureCase,
@@ -252,6 +254,7 @@ export default function Harness() {
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [reviewingCandidate, setReviewingCandidate] = useState<HarnessCandidate | null>(null);
   const [reviewNote, setReviewNote] = useState("");
+  const [structuralPreview, setStructuralPreview] = useState<EntityExtractPreview | null>(null);
 
   // Publish
   const [publishVersion, setPublishVersion] = useState(`web-${new Date().toISOString().slice(0, 10)}`);
@@ -450,10 +453,20 @@ export default function Harness() {
     setLabelModalOpen(true);
   }
 
-  function openReviewModal(c: HarnessCandidate) {
+  async function openReviewModal(c: HarnessCandidate) {
     setReviewingCandidate(c);
     setReviewNote("");
+    setStructuralPreview(null);
     setReviewModalOpen(true);
+    // 获取结构化抽取预览
+    if (c.question_example) {
+      try {
+        const result = await previewEntityExtract(c.question_example);
+        setStructuralPreview(result);
+      } catch {
+        // 预览失败不影响审核
+      }
+    }
   }
 
   function statusTone(s: string): "success" | "error" | "warning" | "loading" | "neutral" {
@@ -1116,6 +1129,17 @@ export default function Harness() {
                     language="text"
                     maxHeightClassName="max-h-32"
                   />
+                ) : null}
+                {structuralPreview ? (
+                  <div className="rounded border border-[var(--border-default)] bg-[var(--bg-overlay)] p-3 text-xs">
+                    <div className="font-medium text-[var(--text-primary)] mb-1.5">结构化抽取预览</div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <div><span className="text-[var(--text-tertiary)]">实体词：</span>{structuralPreview.structural.object_entity || "(无)"}</div>
+                      <div><span className="text-[var(--text-tertiary)]">动作：</span>{structuralPreview.structural.action_type}</div>
+                      <div><span className="text-[var(--text-tertiary)]">域：</span>{structuralPreview.structural.domain || "(无)"}</div>
+                      <div className="font-mono text-[11px]"><span className="text-[var(--text-tertiary)]">Key：</span>{structuralPreview.archive_key}</div>
+                    </div>
+                  </div>
                 ) : null}
               </div>
               <div className="mt-4">

@@ -5,34 +5,6 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class NL2SQLRequest(BaseModel):
-    """自然语言查询请求。"""
-
-    query: str = Field(..., min_length=1, description="用户的自然语言查询问题")
-    thread_id: str = Field("", description="可选：对话线程ID，用于多轮记忆")
-    streaming: bool | None = Field(None, description="是否启用 LLM 流式输出，None 则使用全局配置")
-    user_id: str = Field("", description="用户标识，来自前端 localStorage")
-
-
-class NL2SQLResponse(BaseModel):
-    """NL2SQL 响应。"""
-
-    query: str = Field(..., description="原始用户问题")
-    sql: str = Field("", description="生成的 SQL（单条模式）")
-    sqls: list[str] = Field(default_factory=list, description="生成的所有 SQL（多条模式）")
-    safe: bool = Field(True, description="SQL 是否通过安全校验")
-    error: str = Field("", description="错误信息")
-    tables_used: list[str] = Field(default_factory=list, description="使用的表名列表")
-    join_hints: str = Field("", description="JOIN 提示信息")
-    execution_result: dict | None = Field(None, description="SQL 执行结果（单条模式）")
-    execution_results: list[dict] = Field(default_factory=list, description="多条 SQL 执行结果")
-    retry_count: int = Field(0, description="重试次数")
-    request_id: str = Field("", description="请求唯一标识")
-    knowledge_version: str = Field("", description="命中的运行时知识版本")
-    multi_sql: bool = Field(False, description="是否多 SQL 查询")
-    sub_queries: list[dict] = Field(default_factory=list, description="子问题列表")
-
-
 class HealthResponse(BaseModel):
     """健康检查响应。"""
 
@@ -209,17 +181,6 @@ class GenericKBCreateRequest(BaseModel):
     label: str = Field("", description="显示标签，为空时使用 kb_name")
 
 
-# ── 字段剪裁模型 ──
-
-
-class FieldPruningResult(BaseModel):
-    """字段剪裁结果。"""
-
-    table_name: str
-    kept_fields: list[str]  # 保留的字段名列表（按原始顺序）
-    all_fields: list[str]  # 全部字段名列表
-
-
 # ── 知识库检索模型 ──
 
 
@@ -257,6 +218,11 @@ class FewShotSearchItem(BaseModel):
     full_text: str
     score: float
     type: str = ""
+    match_type: str = Field("vector", description="匹配方式: archive_key_exact / vector")
+    archive_key: str = Field("", description="结构化归档主键")
+    object_entity: str = Field("", description="实体词")
+    action_type: str = Field("", description="动作类型")
+    domain: str = Field("", description="领域")
 
 
 class FieldSearchItem(BaseModel):
@@ -281,12 +247,22 @@ class RuntimeRuleSearchItem(BaseModel):
     score: float = 0.0
 
 
+class StructuralEntities(BaseModel):
+    """结构化实体提取结果。"""
+
+    object_entity: str = Field("", description="实体词")
+    action_type: str = Field("", description="动作类型")
+    domain: str = Field("", description="领域")
+    archive_key: str = Field("", description="归档主键")
+
+
 class KnowledgeSearchResult(BaseModel):
     """知识库检索结果。"""
 
     query: str
     embedding_model: str = Field(default="", description="当前使用的 Embedding 模型")
     rerank_model: str = Field(default="", description="当前使用的 Rerank 模型")
+    structural_entities: StructuralEntities = Field(default_factory=StructuralEntities, description="结构化实体提取结果")
     schema_results: list[SchemaSearchItem] = Field(default_factory=list)
     few_shot_results: list[FewShotSearchItem] = Field(default_factory=list)
     field_results: list[FieldSearchItem] = Field(default_factory=list)
@@ -464,3 +440,78 @@ class PasswordResetRequest(BaseModel):
     """重置密码请求。"""
 
     new_password: str = Field(..., min_length=6, max_length=128, description="新密码")
+
+
+# ── 知识图谱单点查询模型 ──
+
+
+class TableFieldWithPK(BaseModel):
+    """表字段信息（含主键标记）。"""
+
+    name: str
+    type: str
+    comment: str
+    is_pk: bool = False
+
+
+class TableDDLResponse(BaseModel):
+    """表 DDL 响应。"""
+
+    table_name: str
+    module: str
+    business_meaning: str
+    fields: list[TableFieldWithPK]
+    ddl: str = ""
+
+
+class TableFieldsResponse(BaseModel):
+    """表字段列表响应。"""
+
+    table_name: str
+    fields: list[TableFieldWithPK]
+    field_count: int
+
+
+class NeighborEdge(BaseModel):
+    """邻居边信息。"""
+
+    neighbor: str
+    from_field: str
+    to_field: str
+    join_condition: str
+    join_type: str
+    description: str
+    confidence: str
+
+
+class TableNeighborsResponse(BaseModel):
+    """表邻居关系响应。"""
+
+    table_name: str
+    outgoing: list[NeighborEdge]
+    incoming: list[NeighborEdge]
+    total_neighbors: int
+
+
+class PathEdge(BaseModel):
+    """路径中的一条边。"""
+
+    from_table: str = Field(..., alias="from")
+    to_table: str = Field(..., alias="to")
+    from_field: str
+    to_field: str
+    join_condition: str
+    join_type: str
+    description: str
+
+    model_config = {"populate_by_name": True}
+
+
+class GraphPathResponse(BaseModel):
+    """图路径查找响应。"""
+
+    from_table: str
+    to_table: str
+    path: list[PathEdge]
+    depth: int
+    found: bool = True

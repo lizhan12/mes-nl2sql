@@ -21,5 +21,6 @@ temp_*
 tests/
 logs/
 .trae/
+.qoder/
 .server.pid
 docs/

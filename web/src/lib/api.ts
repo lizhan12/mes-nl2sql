@@ -1,5 +1,7 @@
 import type {
   DedupSimilarItem,
+  EntityExtractPreview,
+  EntityLexiconData,
   FeedbackRecord,
   FeedbackResponse,
   FewShotItem,
@@ -11,9 +13,6 @@ import type {
   HarnessFailureCase,
   HarnessListResponse,
   KnowledgeSearchResult,
-  Nl2SqlResponse,
-  PageResponse,
-  Message,
   PrePublishCheckResponse,
   RuntimeRuleItem,
   SyncFromNeo4jResult,
@@ -64,13 +63,6 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     throw new Error(detail);
   }
   return data;
-}
-
-export function runNl2Sql(query: string): Promise<Nl2SqlResponse> {
-  return requestJson<Nl2SqlResponse>("/nl2sql", {
-    method: "POST",
-    body: JSON.stringify({ query }),
-  });
 }
 
 export async function listFailureCases(status?: string, limit = 50): Promise<HarnessFailureCase[]> {
@@ -152,13 +144,6 @@ export function listFeedback(limit = 100): Promise<FeedbackRecord[]> {
   return requestJson<{ items: FeedbackRecord[] }>(
     `/admin/harness/feedback?limit=${limit}`,
   ).then((data) => data.items);
-}
-
-export function fetchPage(sql: string, page: number, pageSize = 20): Promise<PageResponse> {
-  return requestJson<PageResponse>("/execute/page", {
-    method: "POST",
-    body: JSON.stringify({ sql, page, page_size: pageSize }),
-  });
 }
 
 export interface GraphEdge {
@@ -266,78 +251,6 @@ export function deleteGraphEdge(edgeId: number): Promise<GraphEdgeMutationRespon
   return requestJson<GraphEdgeMutationResponse>(`/api/graph/edges/${edgeId}`, {
     method: "DELETE",
   });
-}
-
-// ── 聊天历史 ────────────────────────────────────────────────────────
-
-export interface ChatHistoryItem {
-  thread_id: string;
-  first_query: string;
-  message_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
-interface ChatHistoryListResponse {
-  sessions: ChatHistoryItem[];
-}
-
-interface ChatThreadResponse {
-  thread_id: string;
-  user_id: string;
-  messages: Message[];
-}
-
-export function fetchChatHistory(userId: string): Promise<ChatHistoryItem[]> {
-  return requestJson<ChatHistoryListResponse>(
-    `/chat/history?user_id=${encodeURIComponent(userId)}`,
-  ).then((r) => r.sessions);
-}
-
-export function loadChatThread(userId: string, threadId: string): Promise<ChatThreadResponse> {
-  return requestJson<ChatThreadResponse>(
-    `/chat/history/${threadId}?user_id=${encodeURIComponent(userId)}`,
-  );
-}
-
-// ── Trace API ──────────────────────────────────────────────────────
-
-import type { RecentTrace, TraceSpan, TraceStats } from "@/types";
-
-interface TraceResponse {
-  trace_id: string;
-  spans: TraceSpan[];
-  count: number;
-}
-
-interface ThreadTraceResponse {
-  thread_id: string;
-  spans: TraceSpan[];
-  count: number;
-}
-
-interface RecentTracesResponse {
-  traces: RecentTrace[];
-  count: number;
-}
-
-export function fetchRecentTraces(limit = 50): Promise<RecentTracesResponse> {
-  return requestJson<RecentTracesResponse>(`/api/trace/recent?limit=${limit}`);
-}
-
-export function fetchTrace(traceId: string): Promise<TraceResponse> {
-  return requestJson<TraceResponse>(`/api/trace/${traceId}`);
-}
-
-export function fetchThreadTraces(threadId: string): Promise<ThreadTraceResponse> {
-  return requestJson<ThreadTraceResponse>(`/api/trace/thread/${threadId}`);
-}
-
-export function fetchTraceStats(node?: string, days?: number): Promise<TraceStats> {
-  const params = new URLSearchParams();
-  if (node) params.set("node", node);
-  if (days) params.set("days", String(days));
-  return requestJson<TraceStats>(`/api/trace/stats?${params}`);
 }
 
 // ── 知识库管理 API ─────────────────────────────────────────────────
@@ -723,5 +636,24 @@ export function deleteGenericItem(kbName: string, itemId: string): Promise<{ mes
   return requestJson<{ message: string }>(
     `/api/knowledge/generic/kbs/${encodeURIComponent(kbName)}/items/${encodeURIComponent(itemId)}`,
     { method: "DELETE" },
+  );
+}
+
+// ── 实体词典 API ──────────────────────────────────────────────────
+
+export function fetchEntityLexicon(): Promise<EntityLexiconData> {
+  return requestJson<EntityLexiconData>("/api/knowledge/entity-lexicon");
+}
+
+export function updateEntityLexicon(data: EntityLexiconData): Promise<{ status: string }> {
+  return requestJson<{ status: string }>("/api/knowledge/entity-lexicon", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export function previewEntityExtract(query: string): Promise<EntityExtractPreview> {
+  return requestJson<EntityExtractPreview>(
+    `/api/knowledge/entity-lexicon/preview?query=${encodeURIComponent(query)}`,
   );
 }

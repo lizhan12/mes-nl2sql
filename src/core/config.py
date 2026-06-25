@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     rerank_model: str = "Qwen/Qwen3-Reranker-4B"
     rerank_top_n: int = 8  # rerank 后默认返回前 N 条
     rerank_timeout: float = 30.0  # 单次 rerank 请求超时（秒）
+    # 协议类型：vllm（/generative_scoring 端点，本地 vLLM 部署） | siliconflow（/v1/rerank 标准协议）
+    # 为空时根据 base_url 自动判断：含 siliconflow.cn 走 siliconflow，其余走 vllm
+    rerank_provider: str = ""
 
     # ---- Database ----
     database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/mes"
@@ -98,13 +101,28 @@ class Settings(BaseSettings):
 
     @property
     def embedding_key(self) -> str:
-        """Embedding API key，若未单独设置则复用 LLM key."""
-        return self.embedding_api_key or self.openai_api_key
+        """Embedding API key."""
+        return self.embedding_api_key
 
     @property
     def rerank_key(self) -> str:
         """Rerank API key，若未单独设置则复用 embedding_key."""
         return self.rerank_api_key or self.embedding_key
+
+    @property
+    def rerank_mode(self) -> str:
+        """Rerank 协议类型。优先取显式配置；为空时按 base_url 自动推断。
+
+        - siliconflow: 硅基流动 /v1/rerank（标准协议）
+        - vllm: 本地 vLLM 部署 /generative_scoring（生成式 rerank 协议）
+        """
+        explicit = (self.rerank_provider or "").strip().lower()
+        if explicit in {"vllm", "siliconflow"}:
+            return explicit
+        # 自动推断：base_url 含 siliconflow.cn 视为硅基流动，否则按 vllm 处理
+        if "siliconflow.cn" in self.rerank_base_url:
+            return "siliconflow"
+        return "vllm"
 
     @property
     def app_database_url(self) -> str:

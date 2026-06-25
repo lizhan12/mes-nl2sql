@@ -663,11 +663,16 @@ async def create_few_shot(scenario: str, question: str, sql: str, few_shot_type:
     """创建或覆盖 FewShot 示例（若同 question 已存在则覆盖）。"""
     import uuid
 
+    from src.graph.entity_lexicon import extract_structural_entities, build_archive_key
     from src.services.neo4j_graph import _get_driver
     from src.services.vector_store import _build_few_shot_embed_text, _get_embeddings
 
     # 构建 full_text
     full_text = f"场景：{scenario}\n用户问题：{question}\nSQL：\n{sql}"
+
+    # 提取结构化实体
+    structural = extract_structural_entities(question)
+    archive_key = build_archive_key(structural)
 
     # 生成 embedding
     embeddings = _get_embeddings()
@@ -692,7 +697,11 @@ async def create_few_shot(scenario: str, question: str, sql: str, few_shot_type:
                 f.question = $question,
                 f.full_text = $full_text,
                 f.question_embedding = $embedding,
-                f.enabled = true
+                f.enabled = true,
+                f.archive_key = $archive_key,
+                f.object_entity = $object_entity,
+                f.action_type = $action_type,
+                f.domain = $domain
             """,
             {
                 "id": few_shot_id,
@@ -701,20 +710,29 @@ async def create_few_shot(scenario: str, question: str, sql: str, few_shot_type:
                 "question": question,
                 "full_text": full_text,
                 "embedding": embedding,
+                "archive_key": archive_key,
+                "object_entity": structural["object_entity"],
+                "action_type": structural["action_type"],
+                "domain": structural["domain"],
             },
         )
 
     logger.info("已创建/覆盖 FewShot: %s (type=%s)", few_shot_id, few_shot_type)
-    return {"id": few_shot_id, "type": few_shot_type, "scenario": scenario, "question": question, "full_text": full_text}
+    return {"id": few_shot_id, "type": few_shot_type, "scenario": scenario, "question": question, "full_text": full_text, "archive_key": archive_key, "object_entity": structural["object_entity"], "action_type": structural["action_type"], "domain": structural["domain"]}
 
 
 async def update_few_shot(few_shot_id: str, scenario: str, question: str, sql: str) -> bool:
     """更新 FewShot 示例。"""
+    from src.graph.entity_lexicon import extract_structural_entities, build_archive_key
     from src.services.neo4j_graph import _get_driver
     from src.services.vector_store import _build_few_shot_embed_text, _get_embeddings
 
     # 构建 full_text
     full_text = f"场景：{scenario}\n用户问题：{question}\nSQL：\n{sql}"
+
+    # 提取结构化实体
+    structural = extract_structural_entities(question)
+    archive_key = build_archive_key(structural)
 
     # 重新生成 embedding
     embeddings = _get_embeddings()
@@ -730,7 +748,11 @@ async def update_few_shot(few_shot_id: str, scenario: str, question: str, sql: s
             SET f.scenario = $scenario,
                 f.question = $question,
                 f.full_text = $full_text,
-                f.question_embedding = $embedding
+                f.question_embedding = $embedding,
+                f.archive_key = $archive_key,
+                f.object_entity = $object_entity,
+                f.action_type = $action_type,
+                f.domain = $domain
             RETURN count(f) AS updated
             """,
             {
@@ -739,6 +761,10 @@ async def update_few_shot(few_shot_id: str, scenario: str, question: str, sql: s
                 "question": question,
                 "full_text": full_text,
                 "embedding": embedding,
+                "archive_key": archive_key,
+                "object_entity": structural["object_entity"],
+                "action_type": structural["action_type"],
+                "domain": structural["domain"],
             },
         )
         rec = await result.single()

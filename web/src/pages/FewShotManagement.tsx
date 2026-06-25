@@ -6,10 +6,11 @@ import {
   createFewShot,
   deleteFewShot,
   fetchFewShots,
+  previewEntityExtract,
   toggleFewShot,
   updateFewShot,
 } from "@/lib/api";
-import type { DedupSimilarItem, FewShotItem } from "@/types";
+import type { DedupSimilarItem, EntityExtractPreview, FewShotItem } from "@/types";
 
 // ── 去重确认弹窗 ─────────────────────────────────────────────────
 
@@ -359,6 +360,30 @@ export default function FewShotManagement() {
                       <div className="text-xs font-medium text-[var(--text-primary)]">
                         {item.question}
                       </div>
+                      {(item.object_entity || item.action_type || item.domain || item.archive_key) && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {item.object_entity && (
+                            <span className="text-[10px] text-[var(--text-secondary)]">
+                              实体: {item.object_entity}
+                            </span>
+                          )}
+                          {item.action_type && (
+                            <span className="text-[10px] text-[var(--text-secondary)]">
+                              动作: {item.action_type}
+                            </span>
+                          )}
+                          {item.domain && (
+                            <span className="rounded bg-green-100 px-1 py-0.5 text-[10px] font-medium text-green-700">
+                              {item.domain}
+                            </span>
+                          )}
+                          {item.archive_key && (
+                            <span className="font-mono text-[10px] text-[var(--text-tertiary)]">
+                              {item.archive_key}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-1">
                       <label className="relative inline-flex cursor-pointer items-center" title={item.enabled !== false ? "禁用" : "启用"}>

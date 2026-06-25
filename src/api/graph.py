@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from src.core.config import settings
 from src.models.schemas import GraphEdgeCreate
-from src.services.bfs import _get_graph as load_relation_graph
+from src.services.neo4j_graph import load_graph_from_neo4j as load_relation_graph
 
 router = APIRouter(prefix="/api/graph")
 

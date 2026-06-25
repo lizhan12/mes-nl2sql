@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import Home from "@/pages/Home";
+import EntityLexiconPage from "@/pages/EntityLexiconPage";
 import FewShotManagement from "@/pages/FewShotManagement";
 import GenericKnowledgePage from "@/pages/GenericKnowledgePage";
 import GraphPage from "@/pages/GraphPage";
@@ -12,7 +13,6 @@ import KnowledgePage from "@/pages/KnowledgePage";
 import KnowledgeSearchPage from "@/pages/KnowledgeSearchPage";
 import LoginPage from "@/pages/LoginPage";
 import RuleManagement from "@/pages/RuleManagement";
-import TracePage from "@/pages/TracePage";
 import UserManagement from "@/pages/UserManagement";
 
 /** 未登录时重定向到登录页 */
@@ -50,12 +50,13 @@ export default function App() {
         >
           <Route path="/" element={<Home />} />
           <Route path="/graph" element={<GraphPage />} />
-          <Route path="/trace" element={<TracePage />} />
+          {/* <Route path="/trace" element={<TracePage />} /> */}
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/knowledge/generic/:kbName" element={<GenericKnowledgePage />} />
           <Route path="/knowledge-search" element={<KnowledgeSearchPage />} />
           <Route path="/few-shot" element={<FewShotManagement />} />
           <Route path="/rule" element={<RuleManagement />} />
+          <Route path="/entity-lexicon" element={<EntityLexiconPage />} />
           <Route
             path="/harness"
             element={

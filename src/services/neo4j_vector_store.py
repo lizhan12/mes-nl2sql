@@ -95,7 +95,10 @@ class Neo4jVectorStore:
                       AND COALESCE(f.enabled, true) = true
                     WITH f, vector.similarity.cosine(f.question_embedding, $query_vec) AS score
                     RETURN f.full_text AS full_text, f.scenario AS scenario,
-                           f.question AS question, score
+                           f.question AS question,
+                           f.archive_key AS archive_key, f.object_entity AS object_entity,
+                           f.action_type AS action_type, f.domain AS domain,
+                           score
                     ORDER BY score DESC
                     LIMIT $k
                     """,
@@ -109,6 +112,10 @@ class Neo4jVectorStore:
                                 "scenario": rec["scenario"] or "",
                                 "question": rec["question"] or "",
                                 "full_text": rec["full_text"] or "",
+                                "archive_key": rec["archive_key"] or "",
+                                "object_entity": rec.get("object_entity") or "",
+                                "action_type": rec.get("action_type") or "",
+                                "domain": rec.get("domain") or "",
                             },
                         ),
                         rec["score"],

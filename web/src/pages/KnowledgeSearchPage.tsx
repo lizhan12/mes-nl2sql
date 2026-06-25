@@ -1,4 +1,4 @@
-import { Loader2, Search, Sparkles } from "lucide-react";
+import { Loader2, Search, Sparkles, Target, Layers } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -9,6 +9,7 @@ import type {
   FewShotSearchItem,
   KnowledgeSearchResult,
   SchemaSearchItem,
+  StructuralEntities,
 } from "@/types";
 
 // ── 模块颜色 ──────────────────────────────────────────────────────
@@ -88,6 +89,15 @@ function FewShotResultCard({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  // 匹配方式颜色
+  const matchTypeColor =
+    item.match_type === "archive_key_exact"
+      ? "bg-green-100 text-green-800 border-green-200"
+      : "bg-blue-100 text-blue-800 border-blue-200";
+
+  const matchTypeLabel =
+    item.match_type === "archive_key_exact" ? "精确匹配" : "向量检索";
+
   return (
     <div className="rounded border border-[var(--border-default)] p-3 space-y-2">
       <div className="flex items-center justify-between">
@@ -97,17 +107,45 @@ function FewShotResultCard({
               {item.scenario}
             </span>
           )}
+          {/* 匹配方式标识 */}
+          <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${matchTypeColor}`}>
+            {matchTypeLabel}
+          </span>
           <span className="text-[11px] text-[var(--text-primary)] truncate max-w-md">
             {item.question}
           </span>
         </div>
-        <button
-          onClick={onToggle}
-          className="rounded px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-        >
-          {expanded ? "收起" : "展开"}
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[11px] text-[var(--text-tertiary)]">
+            相似度: {item.score.toFixed(4)}
+          </span>
+          <button
+            onClick={onToggle}
+            className="rounded px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+          >
+            {expanded ? "收起" : "展开"}
+          </button>
+        </div>
       </div>
+      {/* 结构化实体信息（仅精确匹配显示） */}
+      {item.match_type === "archive_key_exact" && item.archive_key && (
+        <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
+          <Target size={12} className="text-green-600" />
+          <span className="font-mono">
+            archive_key: <span className="text-[var(--accent)]">{item.archive_key}</span>
+          </span>
+          {item.object_entity && (
+            <span className="rounded bg-[var(--bg-subtle)] px-1 py-0.5">
+              实体: {item.object_entity}
+            </span>
+          )}
+          {item.action_type && (
+            <span className="rounded bg-[var(--bg-subtle)] px-1 py-0.5">
+              动作: {item.action_type}
+            </span>
+          )}
+        </div>
+      )}
       {expanded && (
         <pre className="whitespace-pre-wrap rounded border border-[var(--border-subtle)] bg-[var(--bg-subtle)] p-3 font-mono text-[11px] text-[var(--text-secondary)] overflow-x-auto">
           {item.full_text}
@@ -295,6 +333,44 @@ export default function KnowledgeSearchPage() {
                 </span>
               )}
             </div>
+          )}
+
+          {/* 结构化实体提取结果 */}
+          {searchResult && searchResult.structural_entities && (
+            <Panel title="结构化实体提取">
+              <div className="flex items-center gap-3 text-[11px]">
+                <Layers size={14} className="text-[var(--accent)]" />
+                <div className="flex flex-wrap items-center gap-2">
+                  {searchResult.structural_entities.object_entity && (
+                    <span className="rounded border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1">
+                      <span className="text-[var(--text-tertiary)]">实体：</span>
+                      <span className="font-medium text-[var(--text-primary)]">{searchResult.structural_entities.object_entity}</span>
+                    </span>
+                  )}
+                  {searchResult.structural_entities.action_type && (
+                    <span className="rounded border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1">
+                      <span className="text-[var(--text-tertiary)]">动作：</span>
+                      <span className="font-medium text-[var(--text-primary)]">{searchResult.structural_entities.action_type}</span>
+                    </span>
+                  )}
+                  {searchResult.structural_entities.domain && (
+                    <span className="rounded border border-[var(--border-default)] bg-[var(--bg-raised)] px-2 py-1">
+                      <span className="text-[var(--text-tertiary)]">领域：</span>
+                      <span className="font-medium text-[var(--text-primary)]">{searchResult.structural_entities.domain}</span>
+                    </span>
+                  )}
+                  {searchResult.structural_entities.archive_key && (
+                    <span className="rounded border border-green-300 bg-green-50 px-2 py-1">
+                      <span className="text-green-700">archive_key：</span>
+                      <span className="font-mono text-green-800">{searchResult.structural_entities.archive_key}</span>
+                    </span>
+                  )}
+                  {!searchResult.structural_entities.object_entity && !searchResult.structural_entities.action_type && (
+                    <span className="text-[var(--text-tertiary)]">未能识别实体词或动作类型</span>
+                  )}
+                </div>
+              </div>
+            </Panel>
           )}
 
           {/* 检索结果 */}

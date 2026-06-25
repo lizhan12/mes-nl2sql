@@ -14,6 +14,7 @@ from src.models.schemas import (
     KnowledgeSearchResult,
     RuntimeRuleSearchItem,
     SchemaSearchItem,
+    StructuralEntities,
     SyncFromNeo4jResponse,
     TableBatchAddRequest,
     TableBatchAddResponse,
@@ -139,14 +140,13 @@ async def update_knowledge_table(table_name: str, data: TableKnowledgeUpdate):
 @router.get("/tables/{table_name}/columns")
 async def get_table_columns_from_db(table_name: str):
     """从数据库获取表的真实列名列表（含类型和注释信息）。"""
-    from src.graph.nodes import _get_table_columns
-
-    cols = _get_table_columns(table_name)
-    if cols is None:
-        raise HTTPException(status_code=404, detail=f"表 {table_name} 不存在或无法获取列信息")
     from src.services.db_pool import execution_connection
 
     with execution_connection() as conn, conn.cursor() as cur:
+        # 先检查表是否存在
+        cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (table_name,))
+        if cur.fetchone() is None:
+            raise HTTPException(status_code=404, detail=f"表 {table_name} 不存在或无法获取列信息")
         cur.execute(
             """
             SELECT
@@ -186,8 +186,14 @@ async def search_knowledge(request: KnowledgeSearchRequest):
     当 use_rerank=True 时，调用硅基流动 Rerank 模型（配置项 RERANK_MODEL）
     对各路向量召回结果按 query 重新打分并截断到 rerank_top_n。
     Rerank 失败时回退到原排序，保证检索可用性。
+
+    FewShot 检索策略：
+      1. 先提取结构化实体，构建 archive_key
+      2. 尝试 archive_key 精确匹配（match_type='archive_key_exact'）
+      3. 精确匹配失败时，回退向量检索（match_type='vector'）
     """
-    import src.graph.nodes as nodes
+    from src.graph.entity_lexicon import build_archive_key, extract_structural_entities
+    from src.services.neo4j_graph import find_few_shot_by_archive_key
     from src.services.vector_store import (
         keyword_search_schema,
         rerank_documents,
@@ -195,11 +201,22 @@ async def search_knowledge(request: KnowledgeSearchRequest):
         search_fields,
         search_schema_with_meta,
     )
+    from src.utils.lifespan import get_few_shot_store, get_schema_store
 
-    schema_store = nodes._schema_store
-    few_shot_store = nodes._few_shot_store
+    schema_store = get_schema_store()
+    few_shot_store = get_few_shot_store()
     if not schema_store or not few_shot_store:
         raise HTTPException(status_code=503, detail="向量库尚未初始化，请稍后重试")
+
+    # ── 结构化实体提取 ──
+    structural = extract_structural_entities(request.query)
+    archive_key = build_archive_key(structural)
+    structural_entities = StructuralEntities(
+        object_entity=structural.get("object_entity", ""),
+        action_type=structural.get("action_type", ""),
+        domain=structural.get("domain", ""),
+        archive_key=archive_key,
+    )
 
     search_types = request.search_types
     threshold = request.similarity_threshold
@@ -236,15 +253,47 @@ async def search_knowledge(request: KnowledgeSearchRequest):
                 )
 
         if "few_shot" in search_types:
+            # ── archive_key 精确匹配优先 ──
+            exact_match_found = False
+            if structural_entities.object_entity and structural_entities.action_type:
+                exact = await find_few_shot_by_archive_key(archive_key)
+                if exact:
+                    few_shot_results.append(
+                        FewShotSearchItem(
+                            scenario=exact.get("scenario", ""),
+                            question=exact.get("question", ""),
+                            full_text=exact.get("full_text", ""),
+                            score=1.0,  # 精确匹配分数为 1.0
+                            match_type="archive_key_exact",
+                            archive_key=archive_key,
+                            object_entity=structural_entities.object_entity,
+                            action_type=structural_entities.action_type,
+                            domain=structural_entities.domain,
+                        )
+                    )
+                    exact_match_found = True
+                    logger.info("FewShot archive_key 精确匹配: %s", archive_key)
+
+            # ── 向量检索（精确匹配失败或补充召回）─
             docs = await search_few_shot_with_meta(few_shot_store, request.query, k=recall_k)
             for doc in docs:
                 meta = doc.metadata
+                # 如果精确匹配已找到，跳过相同的结果
+                if exact_match_found and meta.get("archive_key") == archive_key:
+                    continue
+                # similarity_search_with_relevance_scores 返回 (doc, relevance_score)
+                raw_score = doc.metadata.get("_score", 0.0) if hasattr(doc, "metadata") else 0.0
                 few_shot_results.append(
                     FewShotSearchItem(
                         scenario=meta.get("scenario", ""),
                         question=meta.get("question", ""),
                         full_text=meta.get("full_text", doc.page_content),
-                        score=0.0,
+                        score=round(raw_score, 4) if raw_score else 0.0,
+                        match_type="vector",
+                        archive_key=meta.get("archive_key", ""),
+                        object_entity=meta.get("object_entity", ""),
+                        action_type=meta.get("action_type", ""),
+                        domain=meta.get("domain", ""),
                     )
                 )
 
@@ -266,7 +315,9 @@ async def search_knowledge(request: KnowledgeSearchRequest):
 
         if "runtime_rule" in search_types:
             try:
-                runtime_rule_store = nodes._runtime_rule_store
+                from src.utils.lifespan import get_runtime_rule_store
+
+                runtime_rule_store = get_runtime_rule_store()
                 if runtime_rule_store:
                     from src.services.vector_store import search_runtime_rules
 
@@ -296,6 +347,7 @@ async def search_knowledge(request: KnowledgeSearchRequest):
 
         # ── Rerank 重排 ──
         # 仅对 4 类语义召回结果做 rerank，关键词命中的表名（keyword_tables）保留原样
+        # 注意：archive_key_exact 匹配的结果不参与 rerank，保持 score=1.0
         if use_rerank:
             await _apply_rerank(
                 request.query,
@@ -315,44 +367,94 @@ async def search_knowledge(request: KnowledgeSearchRequest):
         runtime_rule_results: list[RuntimeRuleSearchItem],
         top_n: int | None,
     ) -> None:
-        """对各路结果独立调用 rerank，按新分数降序并截断到 top_n。"""
+        """对各路结果独立调用 rerank，按新分数降序并截断到 top_n。
 
-        async def _rerank_and_apply(items: list, text_fn, score_attr: str = "score") -> None:
+        注意：FewShot 中 match_type='archive_key_exact' 的结果不参与 rerank，保持 score=1.0。
+        """
+
+        # few_shot / runtime_rule：评估"查询语义相似度"而非"文档相关性"
+        _SIM_INSTRUCT = (
+            "Given a query, determine if the following query is semantically "
+            "similar and asks about the same type of information"
+        )
+
+        async def _rerank_and_apply(
+            items: list, text_fn, score_attr: str = "score",
+            exclude_match_type: str | None = None,
+            *,
+            vllm_instruct: str | None = None,
+        ) -> None:
             if not items:
                 return
-            texts = [text_fn(it) for it in items]
+            # 分离需要 rerank 和不需要 rerank 的结果
+            if exclude_match_type:
+                exact_items = [it for it in items if getattr(it, "match_type", "") == exclude_match_type]
+                rerank_items = [it for it in items if getattr(it, "match_type", "") != exclude_match_type]
+            else:
+                exact_items = []
+                rerank_items = items
+
+            if not rerank_items:
+                return
+
+            texts = [text_fn(it) for it in rerank_items]
             try:
-                ranked = await rerank_documents(query, texts, top_n=top_n)
+                ranked = await rerank_documents(query, texts, top_n=top_n, vllm_instruct=vllm_instruct)
             except Exception as exc:
                 logger.warning("rerank 失败（%s），保留原排序: %s", score_attr, exc)
                 return
             # ranked 已按新分降序；截断到 keep_idx 顺序并写回新分
             new_score_map = dict(ranked)
-            reordered = [items[i] for i, _ in ranked]
+            reordered = [rerank_items[i] for i, _ in ranked]
             for new_pos, (orig_idx, _) in enumerate(ranked):
                 setattr(reordered[new_pos], score_attr, round(new_score_map[orig_idx], 4))
+            # 合并：精确匹配结果在前（score=1.0），rerank 结果在后
             items.clear()
+            items.extend(exact_items)
             items.extend(reordered)
 
-        # 表结构：rerank 文本使用 business_meaning + full_text 摘要
-        await _rerank_and_apply(
-            schema_results,
-            lambda it: (it.business_meaning or "") + "\n" + (it.full_text or ""),
-        )
-        # SQL 示例：使用 question + scenario
+        # 表结构：rerank 文本只用 business_meaning + 适用场景（从 full_text 末尾）
+        # 关键经验：Qwen3-Reranker 是生成式 rerank，对长文本+字段噪音敏感。
+        # full_text 里"关键字段：(几十个字段名/类型)"对语义匹配无贡献，反而压低真相关分数。
+        # 截断到 _RERANK_TEXT_MAX = 300 字上限。
+        def _schema_rerank_text(it) -> str:
+            parts: list[str] = []
+            bm = (it.business_meaning or "").strip()
+            if bm:
+                parts.append(bm)
+            ft = it.full_text or ""
+            # 提取表名/模块（首两行）
+            for line in ft.split("\n")[:2]:
+                if line.startswith("表名") or line.startswith("模块"):
+                    parts.append(line)
+            # 提取适用场景（位于关键字段块之后，是短小的人类描述）
+            if "适用场景" in ft:
+                idx = ft.find("适用场景")
+                scenario = ft[idx : idx + 200].strip()
+                if scenario and scenario not in parts:
+                    parts.append(scenario)
+            return "\n".join(parts)[:300]
+
+        await _rerank_and_apply(schema_results, _schema_rerank_text)
+        # SQL 示例：使用 question + scenario，archive_key_exact 结果不参与 rerank
+        # 注意：few_shot 是"相似查询"匹配，用相似度 instruct 替代默认的文档相关性 instruct
         await _rerank_and_apply(
             few_shot_results,
-            lambda it: f"{it.scenario} {it.question}".strip(),
+            lambda it: f"Question: {it.question} | Category: {it.scenario or ''}".strip()[:300],
+            exclude_match_type="archive_key_exact",
+            vllm_instruct=_SIM_INSTRUCT,
         )
-        # 字段级：表名.字段名 + 注释
+        # 字段级：表名.字段名 + 注释；默认 instruct（文档相关性）适用
         await _rerank_and_apply(
             field_results,
-            lambda it: f"{it.table_name}.{it.field_name} {it.type} {it.comment}".strip(),
+            # 加入表格上下文帮助 rerank 判断
+            lambda it: f"[{it.table_name}] {it.field_name}: {it.comment}".strip()[:200],
         )
-        # 运行时规则：question + normalized_question
+        # 运行时规则：question + normalized_question；同样用相似度 instruct
         await _rerank_and_apply(
             runtime_rule_results,
-            lambda it: f"{it.question} {it.normalized_question}".strip(),
+            lambda it: f"Rule: {it.question} | Desc: {it.normalized_question or ''}".strip()[:300],
+            vllm_instruct=_SIM_INSTRUCT,
         )
         # 进化 few-shot：已合并到 few_shot_results
 
@@ -362,6 +464,7 @@ async def search_knowledge(request: KnowledgeSearchRequest):
         query=request.query,
         embedding_model=settings.embedding_model,
         rerank_model=settings.rerank_model if request.use_rerank else "",
+        structural_entities=structural_entities,
         schema_results=schema_results,
         few_shot_results=few_shot_results,
         field_results=field_results,
