@@ -8,7 +8,8 @@
 set -euo pipefail
 
 PROJ_DIR="$(cd "$(dirname "$0")" && pwd)"
-PORT=8000
+# 从 .env 读取端口，未配置时默认 8000
+PORT=$(grep -oP '^PORT=\K\d+' "$PROJ_DIR/.env" 2>/dev/null || echo "8000")
 LOG_DIR="$PROJ_DIR/logs"
 PID_FILE="$LOG_DIR/service.pid"
 LOG_FILE="$LOG_DIR/service.log"
