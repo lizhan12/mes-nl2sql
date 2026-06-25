@@ -34,16 +34,6 @@
     },
     {
       "to": "t_bd_part",
-      "from_field": "part_id",
-      "to_field": "id",
-      "join": "t_bd_part_process_component.part_id = t_bd_part.id",
-      "join_type": "LEFT JOIN",
-      "desc": "组装清单→主料号",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_bd_part",
       "from_field": "item_part_id",
       "to_field": "id",
       "join": "t_bd_part_process_component.item_part_id = t_bd_part.id",
@@ -51,19 +41,19 @@
       "desc": "组装清单→组件料号",
       "confidence": "high",
       "note": ""
+    },
+    {
+      "to": "t_bd_part",
+      "from_field": "part_id",
+      "to_field": "id",
+      "join": "t_bd_part_process_component.part_id = t_bd_part.id",
+      "join_type": "LEFT JOIN",
+      "desc": "组装清单→主料号",
+      "confidence": "high",
+      "note": ""
     }
   ],
   "t_bd_substitute": [
-    {
-      "to": "t_basic_user",
-      "from_field": "update_user_id",
-      "to_field": "id",
-      "join": "t_bd_substitute.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "替代料→更新人",
-      "confidence": "high",
-      "note": ""
-    },
     {
       "to": "t_basic_user",
       "from_field": "create_user_id",
@@ -71,6 +61,16 @@
       "join": "t_bd_substitute.create_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
       "desc": "替代料→创建人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
+      "to_field": "id",
+      "join": "t_bd_substitute.update_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "替代料→更新人",
       "confidence": "high",
       "note": ""
     },
@@ -86,11 +86,11 @@
     },
     {
       "to": "t_bd_part",
-      "from_field": "item_part_id",
+      "from_field": "sub_part_id",
       "to_field": "id",
-      "join": "t_bd_substitute.item_part_id = t_bd_part.id",
+      "join": "t_bd_substitute.sub_part_id = t_bd_part.id",
       "join_type": "LEFT JOIN",
-      "desc": "替代料→子件料号",
+      "desc": "替代料→替代料号",
       "confidence": "high",
       "note": ""
     },
@@ -106,11 +106,11 @@
     },
     {
       "to": "t_bd_part",
-      "from_field": "sub_part_id",
+      "from_field": "item_part_id",
       "to_field": "id",
-      "join": "t_bd_substitute.sub_part_id = t_bd_part.id",
+      "join": "t_bd_substitute.item_part_id = t_bd_part.id",
       "join_type": "LEFT JOIN",
-      "desc": "替代料→替代料号",
+      "desc": "替代料→子件料号",
       "confidence": "high",
       "note": ""
     }
@@ -118,21 +118,21 @@
   "t_ht_pd_wo_issue_material": [
     {
       "to": "t_basic_user",
-      "from_field": "update_user_id",
-      "to_field": "id",
-      "join": "t_ht_pd_wo_issue_material.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "历史备料→更新人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
       "from_field": "create_user_id",
       "to_field": "id",
       "join": "t_ht_pd_wo_issue_material.create_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
       "desc": "历史备料→创建人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
+      "to_field": "id",
+      "join": "t_ht_pd_wo_issue_material.update_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "历史备料→更新人",
       "confidence": "high",
       "note": ""
     },
@@ -150,21 +150,21 @@
   "t_packing_container": [
     {
       "to": "t_basic_user",
-      "from_field": "update_user_id",
-      "to_field": "id",
-      "join": "t_packing_container.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "包装容器→更新人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
       "from_field": "create_user_id",
       "to_field": "id",
       "join": "t_packing_container.create_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
       "desc": "包装容器→创建人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
+      "to_field": "id",
+      "join": "t_packing_container.update_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "包装容器→更新人",
       "confidence": "high",
       "note": ""
     },
@@ -206,21 +206,21 @@
   "t_pd_plan_need_material": [
     {
       "to": "t_basic_user",
-      "from_field": "update_user_id",
-      "to_field": "id",
-      "join": "t_pd_plan_need_material.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "用料需求→更新人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
       "from_field": "create_user_id",
       "to_field": "id",
       "join": "t_pd_plan_need_material.create_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
       "desc": "用料需求→创建人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
+      "to_field": "id",
+      "join": "t_pd_plan_need_material.update_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "用料需求→更新人",
       "confidence": "high",
       "note": ""
     },
@@ -270,21 +270,21 @@
   "t_pd_sn_travel": [
     {
       "to": "t_basic_user",
-      "from_field": "update_user_id",
-      "to_field": "id",
-      "join": "t_pd_sn_travel.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "SN履历→更新人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
       "from_field": "create_user_id",
       "to_field": "id",
       "join": "t_pd_sn_travel.create_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
       "desc": "SN履历→创建人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
+      "to_field": "id",
+      "join": "t_pd_sn_travel.update_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "SN履历→更新人",
       "confidence": "high",
       "note": ""
     }
@@ -336,21 +336,21 @@
   "t_pd_wo_issue_material": [
     {
       "to": "t_basic_user",
-      "from_field": "update_user_id",
-      "to_field": "id",
-      "join": "t_pd_wo_issue_material.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "发料→更新人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
       "from_field": "create_user_id",
       "to_field": "id",
       "join": "t_pd_wo_issue_material.create_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
       "desc": "发料→创建人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
+      "to_field": "id",
+      "join": "t_pd_wo_issue_material.update_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "发料→更新人",
       "confidence": "high",
       "note": ""
     },
@@ -400,31 +400,11 @@
   "t_qm_inspect_info": [
     {
       "to": "t_basic_user",
-      "from_field": "audit_user",
+      "from_field": "create_user_id",
       "to_field": "id",
-      "join": "t_qm_inspect_info.audit_user = t_basic_user.id",
+      "join": "t_qm_inspect_info.create_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "检验单→审核人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
-      "from_field": "test_user",
-      "to_field": "id",
-      "join": "t_qm_inspect_info.test_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→检验人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
-      "from_field": "send_user",
-      "to_field": "id",
-      "join": "t_qm_inspect_info.send_user = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "检验单→送检人",
+      "desc": "检验单→创建人",
       "confidence": "high",
       "note": ""
     },
@@ -440,11 +420,31 @@
     },
     {
       "to": "t_basic_user",
-      "from_field": "create_user_id",
+      "from_field": "send_user",
       "to_field": "id",
-      "join": "t_qm_inspect_info.create_user_id = t_basic_user.id",
+      "join": "t_qm_inspect_info.send_user = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "检验单→创建人",
+      "desc": "检验单→送检人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "test_user",
+      "to_field": "id",
+      "join": "t_qm_inspect_info.test_user = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "检验单→检验人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "audit_user",
+      "to_field": "id",
+      "join": "t_qm_inspect_info.audit_user = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "检验单→审核人",
       "confidence": "high",
       "note": ""
     },
@@ -544,21 +544,21 @@
   "t_tool_model": [
     {
       "to": "t_basic_user",
-      "from_field": "update_user_id",
-      "to_field": "id",
-      "join": "t_tool_model.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具型号→更新人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
       "from_field": "create_user_id",
       "to_field": "id",
       "join": "t_tool_model.create_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
       "desc": "治具型号→创建人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
+      "to_field": "id",
+      "join": "t_tool_model.update_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "治具型号→更新人",
       "confidence": "high",
       "note": ""
     },
@@ -586,21 +586,11 @@
   "t_tool_no": [
     {
       "to": "t_basic_user",
-      "from_field": "test_user",
+      "from_field": "instock_emp",
       "to_field": "id",
-      "join": "t_tool_no.test_user = t_basic_user.id",
+      "join": "t_tool_no.instock_emp = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "治具→测试人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
-      "from_field": "return_emp_id",
-      "to_field": "id",
-      "join": "t_tool_no.return_emp_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具→退回人",
+      "desc": "治具→入库人",
       "confidence": "high",
       "note": ""
     },
@@ -616,11 +606,21 @@
     },
     {
       "to": "t_basic_user",
-      "from_field": "instock_emp",
+      "from_field": "return_emp_id",
       "to_field": "id",
-      "join": "t_tool_no.instock_emp = t_basic_user.id",
+      "join": "t_tool_no.return_emp_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
-      "desc": "治具→入库人",
+      "desc": "治具→退回人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "test_user",
+      "to_field": "id",
+      "join": "t_tool_no.test_user = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "治具→测试人",
       "confidence": "high",
       "note": ""
     },
@@ -638,21 +638,21 @@
   "t_tool_no_attr_travel": [
     {
       "to": "t_basic_user",
-      "from_field": "update_user_id",
-      "to_field": "id",
-      "join": "t_tool_no_attr_travel.update_user_id = t_basic_user.id",
-      "join_type": "LEFT JOIN",
-      "desc": "治具保养→更新人",
-      "confidence": "high",
-      "note": ""
-    },
-    {
-      "to": "t_basic_user",
       "from_field": "create_user_id",
       "to_field": "id",
       "join": "t_tool_no_attr_travel.create_user_id = t_basic_user.id",
       "join_type": "LEFT JOIN",
       "desc": "治具保养→创建人",
+      "confidence": "high",
+      "note": ""
+    },
+    {
+      "to": "t_basic_user",
+      "from_field": "update_user_id",
+      "to_field": "id",
+      "join": "t_tool_no_attr_travel.update_user_id = t_basic_user.id",
+      "join_type": "LEFT JOIN",
+      "desc": "治具保养→更新人",
       "confidence": "high",
       "note": ""
     },

@@ -513,52 +513,46 @@ pdsn数据查询
 模块：生产执行
 业务含义：工单主表，记录生产工单的核心信息（料号、数量、状态、计划时间、产线等），是生产执行的核心驱动表
 关键字段：
-  id (varchar(40))
-  work_order (varchar(40))
-  wo_type (varchar)
-  wo_side (varchar)
-  priority_level (int4)
-  material_prepare_status (int4)
-  part_id (varchar(40))
-  stage_code (varchar(40))
-  plan_detail_id (varchar(40))
-  pdline_code (varchar(40))
-  part_route_id (varchar(2000))
-  encode_group_id (varchar(40))
-  label_group_id (varchar(40))
-  pack_rule_id (varchar(40))
-  target_qty (int4)
-  release_qty (int4)
-  input_qty (int4)
-  scrap_qty (int4)
-  output_qty (int4)
-  schedule_start_date (timestamp(6))
-  schedule_end_date (timestamp(6))
-  start_date (timestamp(6))
-  end_date (timestamp(6))
-  wo_status (int4)
-  remark (varchar(2000))
-  wo_from (varchar)
-  bom_version (varchar(40))
-  panel_qty (int4)
-  wo_group (varchar(40))
-  inventory_type (int4)
-  customer_code (varchar(40))
-  pre_wo (varchar(40))
-  split_qty (int4)
-  create_user_id (varchar(40))
-  create_time (timestamp(6))
-  update_user_id (varchar(40))
-  update_time (timestamp(6))
-  paint_json (text)
-关联关系：
-  JOIN t_bd_part ON t_pd_wo.part_id = t_bd_part.id  -- 工单→料号
-  JOIN t_pd_wo_bom ON t_pd_wo.work_order = t_pd_wo_bom.work_order  -- 工单BOM→工单(反向)
-  JOIN t_ht_pd_wo_issue_material ON t_pd_wo.work_order = t_ht_pd_wo_issue_material.work_order  -- 历史备料→工单(反向)
-  JOIN t_pd_wo_issue_material ON t_pd_wo.work_order = t_pd_wo_issue_material.work_order  -- 发料→工单(反向)
-  JOIN t_wms_wo_material_bill ON t_pd_wo.work_order = t_wms_wo_material_bill.work_order  -- 领料单→工单(反向)
-  JOIN t_wms_wo_rb ON t_pd_wo.work_order = t_wms_wo_rb.work_order  -- 退料单→工单(反向)
-适用场景：pdwo数据查询
+  id (varchar)
+  work_order (varchar) -- 工单号(订单号)
+  wo_type (varchar) -- 工单类型(0,正常;1,重工;2,委外;3,研发)
+  wo_side (varchar) -- 工单面别(0,正面;1,反面;2,整体)
+  priority_level (int) -- 工单优先级(0,正常;1,紧急;2,延后)
+  material_prepare_status (int) -- 备料状态(0,初始状态;1,首套备料中;2,备料中(低位预警发料);3,备料完成)
+  part_id (varchar) -- 料号
+  stage_code (varchar) -- 区段
+  plan_detail_id (varchar) -- 分段计划
+  pdline_code (varchar) -- 产线CODE
+  part_route_id (varchar) -- 工艺流程
+  encode_group_id (varchar) -- 编码规则集合
+  label_group_id (varchar) -- 标签集合
+  pack_rule_id (varchar) -- 包装规则ID
+  target_qty (int) -- 目标量
+  release_qty (int) -- 展开数量
+  input_qty (int) -- 投入数量
+  scrap_qty (int) -- 报废数量
+  output_qty (int) -- 产出数量
+  schedule_start_date (timestamp) -- 预计开始时间
+  schedule_end_date (timestamp) -- 预计结束时间
+  start_date (timestamp) -- 开始时间
+  end_date (timestamp) -- 结束时间
+  wo_status (int) -- 当前状态(-1,初始(ERP转入);0,排队(Queue);1,投入(WIP);2,暂停(HOLD);3,取消(Cancel);4,清尾(Clear);5,完成(Complete))
+  remark (varchar) -- 备注
+  wo_from (varchar) -- 工单来源(0,手动建立;1,ERP转入)
+  bom_version (varchar) -- BOM版本
+  panel_qty (int) -- 连扳数
+  wo_group (varchar) -- 工单组
+  inventory_type (int) -- 库存种类(0,共享;1,客户专用;2,产品专用;3,工单专用)
+  customer_code (varchar) -- 客户代码
+  pre_wo (varchar) -- 上阶工单
+  split_qty (int) -- 分批发料数量
+  create_user_id (varchar)
+  create_time (timestamp)
+  update_user_id (varchar)
+  update_time (timestamp)
+  paint_json (text) -- 工艺路线画布渲染
+适用场景：
+pdwo数据查询
 ---
 表名：t_pd_wo_bom
 模块：生产执行
@@ -901,23 +895,6 @@ qmsample数据查询
   supplier_id (character varying) -- 供应商
 适用场景：
 qmsample数据查询
----
-表名：t_test
-模块：????
-业务含义：这是一个测试表
-关键字段：
-  id (varchar(40)) -- ??id
-  create_user (varchar(40)) -- ?????
-  create_time (timestamp(0)) -- ????
-  update_user (varchar(40)) -- ?????
----
-表名：t_test_info
-模块：仓库管理
-业务含义：这是一个测试表的信息
-关键字段：
-  id (varchar(40)) -- ????id
-  info (varchar(400)) -- ??????
-  test_id (varchar(40)) -- ??id
 ---
 表名：t_tool_maintenance_info
 模块：工装管理

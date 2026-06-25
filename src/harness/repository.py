@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 import psycopg.errors
@@ -12,6 +14,34 @@ import psycopg.errors
 from src.services.db_pool import app_connection
 
 logger = logging.getLogger(__name__)
+
+
+_DEADLOCK_MAX_RETRIES = 3
+_DEADLOCK_BASE_DELAY = 0.1  # 秒，指数退避基数
+
+
+def _retry_on_deadlock(fn: Callable[[], Any], desc: str = "") -> Any:
+    """在 PostgreSQL 死锁时自动重试，最多 3 次，指数退避。
+
+    死锁常见于 SELECT JOIN 与并发 DDL（如 ADD COLUMN）同时执行时。
+    重试时从连接池取新连接，避免重用已死锁的连接。
+    """
+    import psycopg.errors as pg_errors
+
+    for attempt in range(_DEADLOCK_MAX_RETRIES):
+        try:
+            return fn()
+        except pg_errors.DeadlockDetected as exc:
+            if attempt < _DEADLOCK_MAX_RETRIES - 1:
+                delay = _DEADLOCK_BASE_DELAY * (2 ** attempt)
+                logger.warning(
+                    "死锁重试 %d/%d（%s），等待 %.2fs: %s",
+                    attempt + 1, _DEADLOCK_MAX_RETRIES, desc, delay, exc,
+                )
+                time.sleep(delay)
+            else:
+                logger.error("死锁重试耗尽（%s）: %s", desc, exc)
+                raise
 
 
 def _safe_add_column(cur: Any, ddl: str) -> None:
@@ -410,10 +440,14 @@ class OnlineHarnessRepository:
             LIMIT %(limit)s
             """
             params = {"limit": limit}
-        with app_connection() as conn, conn.cursor() as cur:
-            cur.execute(query, params)
-            rows = cur.fetchall()
-        return [dict(row) for row in rows]
+
+        def _do_query() -> list[dict[str, Any]]:
+            with app_connection() as conn, conn.cursor() as cur:
+                cur.execute(query, params)
+                rows = cur.fetchall()
+            return [dict(row) for row in rows]
+
+        return _retry_on_deadlock(_do_query, "list_failure_cases")
 
     def fetch_labeled_failure_cases(self, limit: int = 200) -> list[dict[str, Any]]:
         """获取已人工标注的失败案例（label_type = 'correct_sql'）。"""

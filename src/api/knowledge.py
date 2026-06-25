@@ -195,7 +195,9 @@ async def search_knowledge(request: KnowledgeSearchRequest):
     from src.graph.entity_lexicon import build_archive_key, extract_structural_entities
     from src.services.neo4j_graph import find_few_shot_by_archive_key
     from src.services.vector_store import (
+        get_schema_lookup,
         keyword_search_schema,
+        keyword_search_schema_with_scores,
         rerank_documents,
         search_few_shot_with_meta,
         search_fields,
@@ -231,6 +233,68 @@ async def search_knowledge(request: KnowledgeSearchRequest):
     field_results: list[FieldSearchItem] = []
     runtime_rule_results: list[RuntimeRuleSearchItem] = []
     keyword_tables: list[str] = []
+
+    def _fuse_keyword_to_schema(
+        query: str,
+        *,
+        schema_results: list[SchemaSearchItem],
+        keyword_tables: list[str],
+    ) -> None:
+        """将关键词匹配的表注入 schema_results 实现混合检索融合。
+
+        策略：
+        - 关键词已命中的表在 schema_results 中已存在 → 取 max(原分, 关键词分) 提升
+        - 关键词命中的表不在 schema_results 中 → 从本地 lookup 查找完整 chunk，以关键词分新增
+        - 融合后按 score 降序重排
+        """
+        if not keyword_tables:
+            return
+
+        # 获取带分数的关键词结果
+        kw_scored = keyword_search_schema_with_scores(query, top_n=len(keyword_tables))
+        if not kw_scored:
+            return
+        kw_scores: dict[str, float] = {tname: score for tname, _hits, score in kw_scored}
+
+        # 现有 schema_results 中的表名集合
+        existing_tables: set[str] = {it.table_name for it in schema_results}
+
+        # 查本地 lookup 获取完整 chunk
+        lookup = get_schema_lookup()
+
+        # 第一步：对已在 schema_results 中的表，提升 score
+        for item in schema_results:
+            if item.table_name in kw_scores:
+                item.score = round(max(item.score, kw_scores[item.table_name]), 4)
+
+        # 第二步：对不在 schema_results 中的表，新增条目
+        for tname, _hits, kw_score in kw_scored:
+            if tname in existing_tables:
+                continue
+            chunk = lookup.get(tname, "")
+            if not chunk:
+                continue
+            # 解析模块和业务含义
+            module = ""
+            business_meaning = ""
+            for line in chunk.split("\n"):
+                stripped = line.strip()
+                if stripped.startswith("模块："):
+                    module = stripped[len("模块："):].strip()
+                elif stripped.startswith("业务含义："):
+                    business_meaning = stripped[len("业务含义："):].strip()
+            schema_results.append(
+                SchemaSearchItem(
+                    table_name=tname,
+                    module=module,
+                    business_meaning=business_meaning,
+                    full_text=chunk,
+                    score=kw_score,
+                )
+            )
+
+        # 第三步：按 score 降序重排
+        schema_results.sort(key=lambda it: it.score, reverse=True)
 
     async def _do_search():
         nonlocal schema_results, few_shot_results, field_results, keyword_tables
@@ -345,8 +409,17 @@ async def search_knowledge(request: KnowledgeSearchRequest):
 
         keyword_tables = keyword_search_schema(request.query, top_n=10)
 
+        # ── 关键词结果融合到 schema_results ──
+        # 将 keyword 命中的表注入 schema_results：已存在则加权提升 score，不存在则新增条目。
+        # 融合后的 schema_results 一起进入后续 rerank 精排，实现真正的混合检索+融合排序。
+        _fuse_keyword_to_schema(
+            request.query,
+            schema_results=schema_results,
+            keyword_tables=keyword_tables,
+        )
+
         # ── Rerank 重排 ──
-        # 仅对 4 类语义召回结果做 rerank，关键词命中的表名（keyword_tables）保留原样
+        # 对融合后的 schema_results 及其他各路结果做 rerank
         # 注意：archive_key_exact 匹配的结果不参与 rerank，保持 score=1.0
         if use_rerank:
             await _apply_rerank(

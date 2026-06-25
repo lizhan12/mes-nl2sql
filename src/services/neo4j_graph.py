@@ -1281,9 +1281,9 @@ async def find_graph_path(from_table: str, to_table: str, max_depth: int = 5) ->
 
     async with driver.session() as session:
         result = await session.run(
-            """
+            f"""
             MATCH path = shortestPath(
-                (a:Table {name: $from_table})-[*..` + str(max_depth) + `]-(b:Table {name: $to_table})
+                (a:Table {{name: $from_table}})-[*..{max_depth}]-(b:Table {{name: $to_table}})
             )
             RETURN path
             LIMIT 1
@@ -1299,8 +1299,8 @@ async def find_graph_path(from_table: str, to_table: str, max_depth: int = 5) ->
         for rel in path.relationships:
             edges.append(
                 {
-                    "from": path.nodes[rel.start_node].get("name", ""),
-                    "to": path.nodes[rel.end_node].get("name", ""),
+                    "from": _safe_str(rel.start_node.get("name")),
+                    "to": _safe_str(rel.end_node.get("name")),
                     "from_field": _safe_str(rel.get("from_field")),
                     "to_field": _safe_str(rel.get("to_field")),
                     "join_condition": _safe_str(rel.get("join_condition")),

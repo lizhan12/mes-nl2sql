@@ -167,8 +167,7 @@ SELECT
 	pc.chk_no_rule_id,
 	pc.label_from,
 	pc.label_file,
-	pc.container_type_code,
-	'' AS child_container_type_code 
+	pc.container_type_code
 FROM
 	t_packing_rule_detail rd
 	LEFT JOIN t_packing_container pc ON rd.container_name = pc.container_name 

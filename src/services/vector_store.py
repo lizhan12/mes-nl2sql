@@ -297,6 +297,47 @@ def keyword_search_schema(query: str, top_n: int = 10) -> list[str]:
     return [t for t, _ in sorted_tables[:top_n]]
 
 
+def keyword_search_schema_with_scores(query: str, top_n: int = 10) -> list[tuple[str, int, float]]:
+    """关键词精确匹配搜索，返回带命中数和归一化分数的结果。
+
+    Returns:
+        [(表名, 命中次数, 归一化分数), ...] 按命中数降序排列
+        归一化分数 = hits / max_hits，映射到 [0.6, 0.85] 区间
+    """
+    if not _keyword_index:
+        return []
+
+    terms: list[str] = []
+    for win_size in (2, 3, 4, 5):
+        for i in range(len(query) - win_size + 1):
+            terms.append(query[i : i + win_size])
+    terms.append(query)
+    terms = list(dict.fromkeys(terms))
+
+    table_hits: defaultdict[str, int] = defaultdict(int)
+    for term in terms:
+        matched_tables = _keyword_index.get(term, [])
+        for tname in matched_tables:
+            table_hits[tname] += 1
+
+    sorted_tables = sorted(table_hits.items(), key=lambda x: x[1], reverse=True)[:top_n]
+    if not sorted_tables:
+        return []
+
+    max_hits = sorted_tables[0][1]
+    result: list[tuple[str, int, float]] = []
+    for tname, hits in sorted_tables:
+        # 归一化：hits/max_hits 映射到 [0.6, 0.85]，关键词命中是强信号
+        normalized = 0.6 + (hits / max_hits) * 0.25
+        result.append((tname, hits, round(normalized, 4)))
+    return result
+
+
+def get_schema_lookup() -> dict[str, str]:
+    """获取本地 schema 表名→完整 chunk 映射（公开接口）。"""
+    return _get_schema_lookup()
+
+
 def _load_chunks_with_metadata(
     file_name: str,
     parser: callable,
