@@ -655,5 +655,6 @@ export function updateEntityLexicon(data: EntityLexiconData): Promise<{ status: 
 export function previewEntityExtract(query: string): Promise<EntityExtractPreview> {
   return requestJson<EntityExtractPreview>(
     `/api/knowledge/entity-lexicon/preview?query=${encodeURIComponent(query)}`,
+    { method: "POST" },
   );
 }

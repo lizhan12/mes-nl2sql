@@ -41,7 +41,14 @@
     {"entity": "治具保养", "domain": "equipment", "tables": ["t_tool_no_attr_travel"]},
     {"entity": "治具维修", "domain": "equipment", "tables": ["t_tool_maintenance_info"]},
     {"entity": "抽样配置", "domain": "quality", "tables": ["t_qm_sample_config"]},
-    {"entity": "货架", "domain": "warehouse", "tables": ["t_wms_shelf"]}
+    {"entity": "货架", "domain": "warehouse", "tables": ["t_wms_shelf"]},
+    {"entity": "良品率", "domain": "quality", "tables": ["t_qm_inspect_info"]},
+    {"entity": "良率", "domain": "quality", "tables": ["t_qm_inspect_info"]},
+    {"entity": "不良率", "domain": "quality", "tables": ["t_qm_inspect_info", "t_pd_sn_defect"]},
+    {"entity": "直通率", "domain": "quality", "tables": ["t_qm_inspect_info"]},
+    {"entity": "产量", "domain": "production", "tables": ["t_pd_wo", "t_pd_sn_travel"]},
+    {"entity": "产出", "domain": "production", "tables": ["t_pd_wo", "t_pd_sn_travel"]},
+    {"entity": "线别", "domain": "production", "tables": ["t_bd_pdline"]}
   ],
   "action_patterns": [
     {"keywords": ["统计", "汇总", "合计", "平均", "最多", "占比", "率"], "action": "统计"},
